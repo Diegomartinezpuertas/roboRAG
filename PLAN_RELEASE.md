@@ -22,8 +22,13 @@
   controles). **Resultado (full, 30 runs, temp=0):**
   navegación referida a objeto 9/9 con RAG vs 0/9 sin RAG; control de zona
   conocida 3/3 en ambas; control de alucinación 3/3 en ambas.
-- ⏳ **Fase 4** (README + docs inglés): pendiente.
-- ⏳ **Fase 5** (git/GitHub): pendiente.
+- ✅ **Fase 4** (README): `README.md` en inglés, lidera con la tabla del
+  benchmark, diagrama mermaid, quickstart, tech stack, limitaciones honestas y
+  roadmap. Pendiente opcional: traducir architecture.md/api_reference.md
+  (siguen en español; los ADRs también).
+- ✅ **Fase 5** (git): repo inicializado en rama `main`, `.gitignore`,
+  `LICENSE` (MIT), commit inicial (131 archivos, sin build/venv/datos runtime).
+  Pendiente: crear el repo remoto en GitHub y `git push` (lo hace el usuario).
 
 ---
 
