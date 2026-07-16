@@ -1,0 +1,35 @@
+# Full RAG navigation benchmark suite, with control conditions.
+#
+# Task types (scored differently, see run_benchmark.classify_plan):
+#   object_nav : target is a landmark stored in semantic_map (RAG-dependent).
+#                Success = the plan navigates directly to its coordinates.
+#   zone_nav   : target is a zone in SQLite (resolvable WITHOUT RAG). Control:
+#                should succeed in both conditions -> shows the ablation isolates
+#                RAG's object memory, not navigation in general.
+#   negative   : an impossible/unknown place. Success = the planner does NOT
+#                invent coordinates (it explores or declines) -> hallucination check.
+
+success_radius_m: 0.75
+task_timeout_sec: 180
+repetitions: 3
+
+tasks:
+  - id: nav_estacion_a
+    goal: "Ve a estacion_a"
+    type: object_nav
+    target: estacion_a
+  - id: nav_estacion_b
+    goal: "Ve a estacion_b"
+    type: object_nav
+    target: estacion_b
+  - id: nav_estacion_c
+    goal: "Ve a estacion_c"
+    type: object_nav
+    target: estacion_c
+  - id: zone_base
+    goal: "Ve a la zona base"
+    type: zone_nav
+    zone: base
+  - id: neg_garaje
+    goal: "Ve al garaje"
+    type: negative

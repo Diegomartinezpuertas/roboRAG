@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CycloneDDS config for WSL2: pin discovery to loopback.
+
+  With multiple interfaces (lo, eth0, docker0) CycloneDDS announces each
+  participant on every NIC, which in WSL2 causes duplicated node entries in
+  `ros2 node list` and intermittent pub/sub discovery failures between local
+  nodes. Everything in this project runs on one machine, so loopback-only is
+  both sufficient and reliable. Referenced via CYCLONEDDS_URI in setup_env.sh.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="lo" multicast="true"/>
+      </Interfaces>
+      <AllowMulticast>true</AllowMulticast>
+    </General>
+  </Domain>
+</CycloneDDS>

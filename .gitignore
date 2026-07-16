@@ -1,0 +1,32 @@
+# ROS 2 / colcon build artifacts
+build/
+install/
+log/
+
+# Python virtualenv (deps installed via requirements.txt)
+agent_env/
+
+# Runtime data — regenerated, not committed
+data/chroma_db/
+data/logs/
+data/zones.db
+data/zones.db-shm
+data/zones.db-wal
+
+# Benchmark run artifacts tied to a specific SLAM map
+eval/landmarks.json
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Committed on purpose (documented here for clarity):
+#   data/knowledge/   — static RAG knowledge base
+#   eval/results/     — benchmark results (a deliverable)
+#   docs/, *.md, src/ — everything else

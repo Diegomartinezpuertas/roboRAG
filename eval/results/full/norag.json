@@ -1,0 +1,311 @@
+[
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not recognized and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not recognized and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not recognized and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "plan": {
+      "reasoning": "The garage is requested, and 'base' is the only known zone. Let's navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "plan": {
+      "reasoning": "The garage is requested, and 'base' is the only known zone. Let's navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "plan": {
+      "reasoning": "The garage is requested, and 'base' is the only known zone. Let's navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  }
+]

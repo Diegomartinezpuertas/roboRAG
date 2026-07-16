@@ -1,0 +1,24 @@
+line-length = 100
+target-version = "py312"
+
+# Exclude generated/vendored trees, non-source dirs, and ament's
+# auto-generated per-package test scaffolds (test_flake8/pep257/copyright).
+extend-exclude = ["build", "install", "log", "agent_env", "data", "src/*/test"]
+
+[lint]
+# Note: isort (I) is intentionally NOT selected. The project follows its own
+# documented import grouping (stdlib -> third-party -> ROS 2 -> local, see
+# CLAUDE.md), which ruff's isort would flatten.
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+]
+
+[lint.per-file-ignores]
+# web_page.py is an embedded HTML/CSS/JS asset in a Python string; line length
+# is not meaningful there.
+"**/web_page.py" = ["E501"]
+"**/launch/*.launch.py" = ["E501"]

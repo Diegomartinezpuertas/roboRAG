@@ -1,0 +1,311 @@
+[
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has explicit coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.79,
+            "y": -0.44
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has explicit coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.79,
+            "y": -0.44
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has explicit coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.79,
+            "y": -0.44
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target 'estacion_b' has explicit coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.31,
+            "y": -0.09
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target 'estacion_b' has explicit coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.31,
+            "y": -0.09
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target 'estacion_b' has explicit coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.31,
+            "y": -0.09
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target location estacion_c is known with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 2.91,
+            "y": 0.21
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target location estacion_c is known with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 2.91,
+            "y": 0.21
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target location estacion_c is known with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 2.91,
+            "y": 0.21
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "plan": {
+      "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "plan": {
+      "reasoning": "The goal is to go to the garage, and 'base' is the only known zone.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "plan": {
+      "reasoning": "The goal is to go to the garage, and 'base' is the only known zone.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "plan": {
+      "reasoning": "The goal is to go to the garage, and 'base' is the only known zone.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  }
+]

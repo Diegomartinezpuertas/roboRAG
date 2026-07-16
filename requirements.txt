@@ -1,0 +1,23 @@
+# Python deps for agent_env. Installed alongside ROS 2 (see setup_env.sh /
+# docs/decisions/ADR-003-venv-pythonpath-bridge.md for why this is a separate
+# venv bridged via PYTHONPATH rather than a plain "pip install --user").
+
+# --- Agent runtime ---
+ollama==0.6.*            # LLM + embeddings + vision, all via the local Ollama server
+chromadb==1.5.*          # Vector store for the RAG memory (ADR-001)
+pydantic==2.*            # Request/response models in the dashboard API
+pillow                   # Image encoding for perceive_skill and the map render
+numpy<2                  # Must match the ABI of the system cv_bridge/cv2 (numpy 1.26.4)
+
+# --- Dashboard (FastAPI web UI, ADR-005) ---
+fastapi
+uvicorn
+
+# --- ROS 2 build toolchain (needed by rosidl when building robot_interfaces) ---
+empy==3.3.4
+catkin_pkg
+
+# --- Tests / dev (see tests/ and */test/) ---
+pytest
+httpx                    # FastAPI TestClient transport
+ruff                     # Linter (see ruff.toml)

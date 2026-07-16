@@ -1,0 +1,4 @@
+robot_interfaces/SemanticObject object_data  # Semantic object to insert or update in the map
+---
+bool   success                                 # False if the update failed
+string error_msg                              # Empty string if success=True

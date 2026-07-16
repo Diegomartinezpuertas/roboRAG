@@ -1,0 +1,8 @@
+string query_text        # Natural language query to search in ChromaDB
+string collection_name   # Target collection: semantic_map | knowledge_base | task_history
+int32  top_k              # Number of results to return (default: 5)
+---
+string[]  contexts       # Retrieved text fragments, ordered by relevance
+float32[] scores         # Cosine similarity scores [0.0, 1.0]
+bool      success        # False if collection not found or query failed
+string    error_msg      # Empty string if success=True

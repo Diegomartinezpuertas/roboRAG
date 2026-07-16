@@ -1,0 +1,23 @@
+# Reduced RAG navigation benchmark suite.
+# Each object_nav task references a landmark stored (with its measured pose) in
+# semantic_map by seed_memory.py. With RAG the planner retrieves the landmark's
+# coordinates and navigates directly; without RAG it has no idea where the
+# landmark is and must explore. `target` maps to eval/landmarks.json ground truth.
+
+success_radius_m: 0.75
+task_timeout_sec: 180
+repetitions: 2
+
+tasks:
+  - id: nav_estacion_a
+    goal: "Ve a estacion_a"
+    target: estacion_a
+    type: object_nav
+  - id: nav_estacion_b
+    goal: "Ve a estacion_b"
+    target: estacion_b
+    type: object_nav
+  - id: nav_estacion_c
+    goal: "Ve a estacion_c"
+    target: estacion_c
+    type: object_nav

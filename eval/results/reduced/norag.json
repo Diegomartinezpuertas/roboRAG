@@ -1,0 +1,122 @@
+[
+  {
+    "task_id": "nav_estacion_a",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_a",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not a known zone and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  }
+]

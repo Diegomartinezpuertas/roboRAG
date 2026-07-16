@@ -1,0 +1,33 @@
+llm_planner_node:
+  ros__parameters:
+    ollama_base_url: "http://localhost:11434"
+    llm_model: "qwen2.5:7b"
+    max_plan_steps: 10
+    rag_score_threshold: 0.45
+    zones_db: "/home/diego/robot_ws/data/zones.db"
+
+rag_node:
+  ros__parameters:
+    ollama_base_url: "http://localhost:11434"
+    embedding_model: "nomic-embed-text"
+    chroma_db_path: "/home/diego/robot_ws/data/chroma_db"
+    knowledge_dir: "/home/diego/robot_ws/data/knowledge"
+    logs_dir: "/home/diego/robot_ws/data/logs"
+    collections:
+      - "semantic_map"
+      - "knowledge_base"
+      - "task_history"
+    top_k_default: 5
+
+skills_executor_node:
+  ros__parameters:
+    ollama_base_url: "http://localhost:11434"
+    vision_model: "qwen2.5vl:7b"
+    logs_dir: "/home/diego/robot_ws/data/logs"
+    zones_db: "/home/diego/robot_ws/data/zones.db"
+
+dashboard_node:
+  ros__parameters:
+    http_host: "0.0.0.0"
+    http_port: 8080
+    zones_db: "/home/diego/robot_ws/data/zones.db"

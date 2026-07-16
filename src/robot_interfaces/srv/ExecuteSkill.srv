@@ -1,0 +1,6 @@
+string skill_name        # "navigate" | "explore" | "perceive" | "report"
+string params_json       # JSON-encoded parameters for the skill
+---
+string result_json       # JSON-encoded result payload
+bool   success            # False if the skill failed to execute
+string error_msg         # Empty string if success=True
