@@ -22,7 +22,9 @@ def load(suite, cond):
 
 
 def rate(runs, ttype):
-    subset = [r for r in runs if r['type'] == ttype]
+    # .get with object_nav default keeps old-format results (reduced suite,
+    # which predates the 'type' field) readable.
+    subset = [r for r in runs if r.get('type', 'object_nav') == ttype]
     if not subset:
         return None
     ok = sum(r['success'] for r in subset)
@@ -32,7 +34,10 @@ def rate(runs, ttype):
 def main():
     suite = sys.argv[1] if len(sys.argv) > 1 else 'full'
     data = {cond: load(suite, cond) for cond, _ in CONDITION_ORDER}
-    types = [t for t in TYPE_LABELS if any(r['type'] == t for runs in data.values() for r in runs)]
+    types = [
+        t for t in TYPE_LABELS
+        if any(r.get('type', 'object_nav') == t for runs in data.values() for r in runs)
+    ]
 
     header = '| Task type | ' + ' | '.join(label for _, label in CONDITION_ORDER) + ' |'
     sep = '|' + '---|' * (len(CONDITION_ORDER) + 1)

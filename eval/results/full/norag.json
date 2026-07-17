@@ -7,6 +7,7 @@
     "goal": "Ve a estacion_a",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "Since 'estacion_a' is not recognized and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -28,6 +29,7 @@
     "goal": "Ve a estacion_a",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since 'estacion_a' is not recognized and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -49,6 +51,7 @@
     "goal": "Ve a estacion_a",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since 'estacion_a' is not recognized and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -70,6 +73,7 @@
     "goal": "Ve a estacion_b",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since 'estacion_b' is not a known zone and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -91,6 +95,7 @@
     "goal": "Ve a estacion_b",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since 'estacion_b' is not a known zone and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -112,6 +117,7 @@
     "goal": "Ve a estacion_b",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since 'estacion_b' is not a known zone and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -133,6 +139,7 @@
     "goal": "Ve a estacion_c",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "Since 'estacion_c' is not a known zone and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -154,6 +161,7 @@
     "goal": "Ve a estacion_c",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since 'estacion_c' is not a known zone and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -175,6 +183,7 @@
     "goal": "Ve a estacion_c",
     "decision": "explore",
     "success": false,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since 'estacion_c' is not a known zone and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -196,6 +205,7 @@
     "goal": "Ve a la zona base",
     "decision": "zone_nav",
     "success": true,
+    "latency_sec": 1.2,
     "plan": {
       "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
       "steps": [
@@ -216,6 +226,7 @@
     "goal": "Ve a la zona base",
     "decision": "zone_nav",
     "success": true,
+    "latency_sec": 1.2,
     "plan": {
       "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
       "steps": [
@@ -236,6 +247,7 @@
     "goal": "Ve a la zona base",
     "decision": "zone_nav",
     "success": true,
+    "latency_sec": 1.2,
     "plan": {
       "reasoning": "The target zone 'base' is known, so we can navigate directly to it.",
       "steps": [
@@ -256,6 +268,7 @@
     "goal": "Ve al garaje",
     "decision": "declined_or_explore",
     "success": true,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The garage is requested, and 'base' is the only known zone. Let's navigate directly to it.",
       "steps": [
@@ -276,6 +289,7 @@
     "goal": "Ve al garaje",
     "decision": "declined_or_explore",
     "success": true,
+    "latency_sec": 1.2,
     "plan": {
       "reasoning": "The garage is requested, and 'base' is the only known zone. Let's navigate directly to it.",
       "steps": [
@@ -296,6 +310,7 @@
     "goal": "Ve al garaje",
     "decision": "declined_or_explore",
     "success": true,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The garage is requested, and 'base' is the only known zone. Let's navigate directly to it.",
       "steps": [

@@ -115,7 +115,7 @@ def main():
 
     rclpy.init()
     node = BenchNode()
-    spin_in_thread(node)
+    spin = spin_in_thread(node)
 
     set_param('dry_run', 'true')
     set_param('zones_in_prompt', 'true')
@@ -127,16 +127,20 @@ def main():
         runs = []
         for task in suite['tasks']:
             for rep in range(reps):
+                t0 = time.monotonic()
                 node.publish_goal(task['goal'])
                 plan = node.wait_for_plan(timeout_sec=60.0)
+                latency = time.monotonic() - t0
                 decision, success = classify(plan or {}, task, landmarks, zones)
                 runs.append({
                     'task_id': task['id'], 'type': task['type'], 'rep': rep,
                     'condition': cond_name, 'goal': task['goal'],
-                    'decision': decision, 'success': success, 'plan': plan,
+                    'decision': decision, 'success': success,
+                    'latency_sec': round(latency, 2), 'plan': plan,
                 })
                 node.get_logger().info(
-                    f'[{cond_name}] {task["id"]} rep {rep + 1}: {decision} (ok={success})',
+                    f'[{cond_name}] {task["id"]} rep {rep + 1}: {decision} '
+                    f'(ok={success}, {latency:.1f}s)',
                 )
                 time.sleep(1.0)
         out = out_dir / f'{cond_name}.json'
@@ -144,6 +148,7 @@ def main():
         node.get_logger().info(f'Wrote {out}')
 
     set_param('dry_run', 'false')
+    spin.stop()
     rclpy.shutdown()
 
 

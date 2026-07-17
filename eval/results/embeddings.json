@@ -1,0 +1,382 @@
+{
+  "docs": [
+    "estacion_a",
+    "estacion_b",
+    "fridge",
+    "mailbox",
+    "chair",
+    "safety",
+    "nav_rules",
+    "catalog"
+  ],
+  "models": {
+    "nomic-embed-text": {
+      "es": {
+        "runs": [
+          {
+            "query": "¿Dónde está la nevera?",
+            "expected": "fridge",
+            "top1": false,
+            "correct_score": 0.3502,
+            "margin": -0.1892,
+            "top3": [
+              "estacion_a",
+              "estacion_b",
+              "chair"
+            ]
+          },
+          {
+            "query": "Ve al buzón",
+            "expected": "mailbox",
+            "top1": false,
+            "correct_score": 0.3745,
+            "margin": -0.1325,
+            "top3": [
+              "estacion_b",
+              "estacion_a",
+              "chair"
+            ]
+          },
+          {
+            "query": "Busca una silla",
+            "expected": "chair",
+            "top1": false,
+            "correct_score": 0.4293,
+            "margin": -0.0844,
+            "top3": [
+              "estacion_b",
+              "estacion_a",
+              "chair"
+            ]
+          },
+          {
+            "query": "¿Cuáles son las reglas de seguridad del robot?",
+            "expected": "safety",
+            "top1": true,
+            "correct_score": 0.6106,
+            "margin": 0.093,
+            "top3": [
+              "safety",
+              "nav_rules",
+              "estacion_a"
+            ]
+          },
+          {
+            "query": "¿Qué haces si Nav2 no encuentra camino?",
+            "expected": "nav_rules",
+            "top1": true,
+            "correct_score": 0.5766,
+            "margin": 0.059,
+            "top3": [
+              "nav_rules",
+              "estacion_a",
+              "estacion_b"
+            ]
+          },
+          {
+            "query": "Llévame a estacion_b",
+            "expected": "estacion_b",
+            "top1": true,
+            "correct_score": 0.7468,
+            "margin": 0.0301,
+            "top3": [
+              "estacion_b",
+              "estacion_a",
+              "mailbox"
+            ]
+          },
+          {
+            "query": "¿Qué objetos suele haber en la cocina?",
+            "expected": "catalog",
+            "top1": false,
+            "correct_score": 0.4469,
+            "margin": -0.0933,
+            "top3": [
+              "estacion_a",
+              "estacion_b",
+              "chair"
+            ]
+          }
+        ],
+        "top1_acc": 0.42857142857142855,
+        "mean_correct_score": 0.505,
+        "mean_margin": -0.0453
+      },
+      "en": {
+        "runs": [
+          {
+            "query": "Where is the fridge?",
+            "expected": "fridge",
+            "top1": true,
+            "correct_score": 0.6789,
+            "margin": 0.0995,
+            "top3": [
+              "fridge",
+              "catalog",
+              "chair"
+            ]
+          },
+          {
+            "query": "Go to the mailbox",
+            "expected": "mailbox",
+            "top1": true,
+            "correct_score": 0.6854,
+            "margin": 0.2538,
+            "top3": [
+              "mailbox",
+              "estacion_b",
+              "estacion_a"
+            ]
+          },
+          {
+            "query": "Find a chair",
+            "expected": "chair",
+            "top1": true,
+            "correct_score": 0.6798,
+            "margin": 0.1281,
+            "top3": [
+              "chair",
+              "catalog",
+              "estacion_b"
+            ]
+          },
+          {
+            "query": "What are the robot safety rules?",
+            "expected": "safety",
+            "top1": true,
+            "correct_score": 0.8295,
+            "margin": 0.1258,
+            "top3": [
+              "safety",
+              "nav_rules",
+              "catalog"
+            ]
+          },
+          {
+            "query": "What do you do if Nav2 cannot find a path?",
+            "expected": "nav_rules",
+            "top1": true,
+            "correct_score": 0.7289,
+            "margin": 0.2398,
+            "top3": [
+              "nav_rules",
+              "safety",
+              "estacion_b"
+            ]
+          },
+          {
+            "query": "Take me to estacion_b",
+            "expected": "estacion_b",
+            "top1": true,
+            "correct_score": 0.7655,
+            "margin": 0.0367,
+            "top3": [
+              "estacion_b",
+              "estacion_a",
+              "mailbox"
+            ]
+          },
+          {
+            "query": "What objects are typically in the kitchen?",
+            "expected": "catalog",
+            "top1": true,
+            "correct_score": 0.7741,
+            "margin": 0.1054,
+            "top3": [
+              "catalog",
+              "chair",
+              "fridge"
+            ]
+          }
+        ],
+        "top1_acc": 1.0,
+        "mean_correct_score": 0.7346,
+        "mean_margin": 0.1413
+      }
+    },
+    "bge-m3": {
+      "es": {
+        "runs": [
+          {
+            "query": "¿Dónde está la nevera?",
+            "expected": "fridge",
+            "top1": true,
+            "correct_score": 0.5647,
+            "margin": 0.0369,
+            "top3": [
+              "fridge",
+              "estacion_a",
+              "catalog"
+            ]
+          },
+          {
+            "query": "Ve al buzón",
+            "expected": "mailbox",
+            "top1": false,
+            "correct_score": 0.4318,
+            "margin": -0.018,
+            "top3": [
+              "estacion_b",
+              "mailbox",
+              "estacion_a"
+            ]
+          },
+          {
+            "query": "Busca una silla",
+            "expected": "chair",
+            "top1": true,
+            "correct_score": 0.5892,
+            "margin": 0.0853,
+            "top3": [
+              "chair",
+              "estacion_a",
+              "estacion_b"
+            ]
+          },
+          {
+            "query": "¿Cuáles son las reglas de seguridad del robot?",
+            "expected": "safety",
+            "top1": true,
+            "correct_score": 0.6494,
+            "margin": 0.0719,
+            "top3": [
+              "safety",
+              "nav_rules",
+              "mailbox"
+            ]
+          },
+          {
+            "query": "¿Qué haces si Nav2 no encuentra camino?",
+            "expected": "nav_rules",
+            "top1": true,
+            "correct_score": 0.5916,
+            "margin": 0.176,
+            "top3": [
+              "nav_rules",
+              "estacion_b",
+              "estacion_a"
+            ]
+          },
+          {
+            "query": "Llévame a estacion_b",
+            "expected": "estacion_b",
+            "top1": true,
+            "correct_score": 0.6184,
+            "margin": 0.0805,
+            "top3": [
+              "estacion_b",
+              "estacion_a",
+              "mailbox"
+            ]
+          },
+          {
+            "query": "¿Qué objetos suele haber en la cocina?",
+            "expected": "catalog",
+            "top1": true,
+            "correct_score": 0.6933,
+            "margin": 0.1258,
+            "top3": [
+              "catalog",
+              "chair",
+              "fridge"
+            ]
+          }
+        ],
+        "top1_acc": 0.8571428571428571,
+        "mean_correct_score": 0.5912,
+        "mean_margin": 0.0798
+      },
+      "en": {
+        "runs": [
+          {
+            "query": "Where is the fridge?",
+            "expected": "fridge",
+            "top1": true,
+            "correct_score": 0.6618,
+            "margin": 0.1318,
+            "top3": [
+              "fridge",
+              "estacion_a",
+              "catalog"
+            ]
+          },
+          {
+            "query": "Go to the mailbox",
+            "expected": "mailbox",
+            "top1": true,
+            "correct_score": 0.5914,
+            "margin": 0.1572,
+            "top3": [
+              "mailbox",
+              "catalog",
+              "estacion_b"
+            ]
+          },
+          {
+            "query": "Find a chair",
+            "expected": "chair",
+            "top1": true,
+            "correct_score": 0.653,
+            "margin": 0.1467,
+            "top3": [
+              "chair",
+              "estacion_a",
+              "estacion_b"
+            ]
+          },
+          {
+            "query": "What are the robot safety rules?",
+            "expected": "safety",
+            "top1": true,
+            "correct_score": 0.6459,
+            "margin": 0.0852,
+            "top3": [
+              "safety",
+              "nav_rules",
+              "mailbox"
+            ]
+          },
+          {
+            "query": "What do you do if Nav2 cannot find a path?",
+            "expected": "nav_rules",
+            "top1": true,
+            "correct_score": 0.5794,
+            "margin": 0.1562,
+            "top3": [
+              "nav_rules",
+              "estacion_b",
+              "estacion_a"
+            ]
+          },
+          {
+            "query": "Take me to estacion_b",
+            "expected": "estacion_b",
+            "top1": true,
+            "correct_score": 0.6333,
+            "margin": 0.0791,
+            "top3": [
+              "estacion_b",
+              "estacion_a",
+              "mailbox"
+            ]
+          },
+          {
+            "query": "What objects are typically in the kitchen?",
+            "expected": "catalog",
+            "top1": true,
+            "correct_score": 0.7075,
+            "margin": 0.1226,
+            "top3": [
+              "catalog",
+              "chair",
+              "fridge"
+            ]
+          }
+        ],
+        "top1_acc": 1.0,
+        "mean_correct_score": 0.6389,
+        "mean_margin": 0.1255
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+# Phrasing/language robustness suite.
+#
+# Every task targets the SAME stored landmarks, but phrased differently:
+# Spanish imperative, Spanish paraphrase, and English. Success still means the
+# plan navigates directly to the landmark's stored coordinates. This measures
+# how sensitive the RAG retrieval (embedding similarity + relevance threshold)
+# is to surface wording and query language — the practical value the LLM+RAG
+# combo claims over exact-match lookups.
+
+success_radius_m: 0.75
+task_timeout_sec: 180
+repetitions: 2
+
+tasks:
+  # --- estacion_a: three phrasings ---
+  - id: a_es_imperative
+    goal: "Ve a estacion_a"
+    type: object_nav
+    target: estacion_a
+  - id: a_es_paraphrase
+    goal: "Llévame hasta donde está estacion_a"
+    type: object_nav
+    target: estacion_a
+  - id: a_en
+    goal: "Go to estacion_a"
+    type: object_nav
+    target: estacion_a
+
+  # --- estacion_b: three phrasings ---
+  - id: b_es_imperative
+    goal: "Ve a estacion_b"
+    type: object_nav
+    target: estacion_b
+  - id: b_es_paraphrase
+    goal: "Quiero que vayas a estacion_b, por favor"
+    type: object_nav
+    target: estacion_b
+  - id: b_en
+    goal: "Navigate to estacion_b"
+    type: object_nav
+    target: estacion_b
+
+  # --- estacion_c: three phrasings ---
+  - id: c_es_imperative
+    goal: "Ve a estacion_c"
+    type: object_nav
+    target: estacion_c
+  - id: c_es_paraphrase
+    goal: "Dirígete al punto llamado estacion_c"
+    type: object_nav
+    target: estacion_c
+  - id: c_en
+    goal: "Take me to estacion_c"
+    type: object_nav
+    target: estacion_c

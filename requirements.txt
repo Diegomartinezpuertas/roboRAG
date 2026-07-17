@@ -17,7 +17,9 @@ uvicorn
 empy==3.3.4
 catkin_pkg
 
-# --- Tests / dev (see tests/ and */test/) ---
+# --- Tests / dev / evaluation (see tests/, eval/, docs/EVALUATION.md) ---
 pytest
 httpx                    # FastAPI TestClient transport
 ruff                     # Linter (see ruff.toml)
+pyyaml                   # Benchmark task suites (eval/tasks_*.yaml)
+matplotlib               # Benchmark charts (eval/plot_results.py)

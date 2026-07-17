@@ -14,6 +14,7 @@ Writes eval/landmarks.json = {name: {"x": .., "y": ..}}.
 
 import json
 import math
+import time
 from pathlib import Path
 
 import rclpy
@@ -70,7 +71,7 @@ def find_safe_cell_near(grid, target_x, target_y, exclude=None, margin=SAFE_MARG
 def main():
     rclpy.init()
     node = BenchNode()
-    spin_in_thread(node)
+    spin = spin_in_thread(node)
 
     node.get_logger().info('Waiting for SLAM map...')
     grid = None
@@ -78,9 +79,13 @@ def main():
         grid = node.get_map()
         if grid is not None:
             break
-        rclpy.spin_once(node, timeout_sec=1.0)
+        # Plain sleep: the node is already spinning on its own executor thread
+        # (spin_in_thread); never nest rclpy.spin_once on top — see ADR-007.
+        time.sleep(1.0)
     if grid is None:
         node.get_logger().error('No map received; is the sim running?')
+        spin.stop()
+        rclpy.shutdown()
         return
 
     info = grid.info
@@ -125,6 +130,7 @@ def main():
         })
         node.get_logger().info(f'Seeded control zone "{CONTROL_ZONE}" around estacion_b')
 
+    spin.stop()
     rclpy.shutdown()
 
 

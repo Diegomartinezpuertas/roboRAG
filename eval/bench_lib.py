@@ -180,10 +180,29 @@ class BenchNode(Node):
         return {'success': response.success, 'error': response.error_msg, 'result': result}
 
 
-def spin_in_thread(node: Node) -> threading.Thread:
-    """Spins the node on a MultiThreadedExecutor in a daemon thread."""
+def spin_in_thread(node: Node) -> SpinHandle:
+    """Spins the node on a MultiThreadedExecutor in a daemon thread.
+
+    Returns a handle whose stop() must be called BEFORE rclpy.shutdown():
+    tearing down the context while the spin thread is still inside the rcl
+    wait aborts the process ("terminate called without an active exception")
+    on rclpy Jazzy.
+    """
     executor = rclpy.executors.MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     thread = threading.Thread(target=executor.spin, daemon=True)
     thread.start()
-    return thread
+    return SpinHandle(executor, thread)
+
+
+class SpinHandle:
+    """Pairs the background executor with its thread for a clean stop()."""
+
+    def __init__(self, executor, thread) -> None:
+        self.executor = executor
+        self.thread = thread
+
+    def stop(self) -> None:
+        """Stops the executor and joins the spin thread before shutdown."""
+        self.executor.shutdown(timeout_sec=2.0)
+        self.thread.join(timeout=3.0)
