@@ -2,11 +2,8 @@
 
 import base64
 import io
-import json
 import threading
 import time
-from pathlib import Path
-
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -86,29 +83,6 @@ class EventBuffer:
             return [e for e in self._events if e['id'] > last_id]
 
 
-def migrate_zones_json_to_db(zones_json: Path, zones: ZoneStore) -> int:
-    """One-time import of the legacy zones.json into the SQLite ZoneStore.
-
-    Args:
-        zones_json: Path of the old JSON zones file (ADR-008, superseded by
-            ADR-011's SQLite store).
-        zones: Destination ZoneStore.
-
-    Returns:
-        Number of zones migrated (0 if the JSON file is absent, invalid, or
-        the store already has zones).
-    """
-    if zones.load_all() or not zones_json.is_file():
-        return 0
-    try:
-        legacy = json.loads(zones_json.read_text(encoding='utf-8'))
-    except (OSError, json.JSONDecodeError):
-        return 0
-    for name, area in legacy.items():
-        zones.save(name, area)
-    return len(legacy)
-
-
 class DashboardNode(Node):
     """ROS 2 node exposing a web dashboard on localhost for the robot agent.
 
@@ -144,11 +118,6 @@ class DashboardNode(Node):
 
         self.events = EventBuffer()
         self.zones = ZoneStore(self.get_parameter('zones_db').value)
-        migrated = migrate_zones_json_to_db(
-            Path('/home/diego/robot_ws/data/zones.json'), self.zones,
-        )
-        if migrated:
-            self.get_logger().info(f'Migrated {migrated} zone(s) from legacy zones.json')
         self._map_lock = threading.Lock()
         self._latest_map: OccupancyGrid | None = None
         self._map_png_b64: str | None = None

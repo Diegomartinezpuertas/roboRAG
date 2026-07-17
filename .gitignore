@@ -16,6 +16,9 @@ data/zones.db-wal
 # Benchmark run artifacts tied to a specific SLAM map
 eval/landmarks.json
 
+# Personal promo working docs (video script, LinkedIn drafts) — local only
+docs/promo/
+
 # Python caches
 __pycache__/
 *.py[cod]

@@ -1,5 +1,7 @@
 """System prompts for the robot's LLM task planner and result reporter."""
 
+import json
+
 ROBOT_SYSTEM_PROMPT = """
 You are the cognitive brain of a mobile robot operating in a simulated environment.
 You receive natural language goals and must produce a structured execution plan.
@@ -98,8 +100,6 @@ def build_report_prompt(goal_text: str, results: list[dict]) -> str:
     Returns:
         Formatted prompt string ready to send to the reporter LLM.
     """
-    import json
-
     lines = []
     for index, result in enumerate(results, start=1):
         skill = result.get('skill')

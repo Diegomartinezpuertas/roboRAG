@@ -26,7 +26,7 @@ decision is scored. The measurement is at the **planning level** (does the
 robot decide to navigate directly to a remembered location, vs. explore
 blindly) — this is the causal mechanism of the hypothesis, and it is
 reproducible (`temperature=0`), unlike end-to-end navigation on this
-software-rendered WSL2 sim (see [ADR-013](docs/decisions/ADR-013-benchmark-nivel-planificacion.md)).
+software-rendered WSL2 sim (see [ADR-013](docs/decisions/ADR-013-planning-level-benchmark.md)).
 
 **Result** (`eval/tasks_full.yaml`, 30 runs):
 
@@ -35,6 +35,20 @@ software-rendered WSL2 sim (see [ADR-013](docs/decisions/ADR-013-benchmark-nivel
 | Object-referenced nav (RAG-dependent) | **9/9 (100%)** | **0/9 (0%)** |
 | Known-zone nav (control) | 3/3 (100%) | 3/3 (100%) |
 | Impossible goal (hallucination check) | 3/3 (100%) | 3/3 (100%) |
+
+![Benchmark results](eval/results/benchmark.png)
+
+Two more measured findings (full data and charts in
+[docs/rag-analysis.md](docs/rag-analysis.md)):
+
+- **Phrasing/language robustness** (36 runs): retrieval survives Spanish
+  paraphrases and English goals — 17/18 direct-nav with RAG vs 0/18 without.
+- **The embedding model is a real multilingual bottleneck**: with Spanish
+  queries over English memories, nomic-embed-text ranks the right document
+  first only **43%** of the time (negative separation margin), while
+  **bge-m3 reaches 86%** with a positive margin — both stay 100% in English.
+
+![Embedding comparison](eval/results/embeddings.png)
 
 How to read this — it is deliberately not "RAG is magic":
 
@@ -51,8 +65,10 @@ How to read this — it is deliberately not "RAG is magic":
   condition invents coordinates. RAG does not cause hallucination, and its
   absence does not either.
 
-Reproduce it: bring up the system, then
-`cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml && python3 report.py full`.
+Reproduce everything (suites, charts, embedding comparison) with
+[docs/EVALUATION.md](docs/EVALUATION.md); the full interpretation — when RAG
+wins, when plain SQL wins, when an LLM→SQL design would be better — is in
+[docs/rag-analysis.md](docs/rag-analysis.md).
 
 ---
 
@@ -143,7 +159,7 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 |-------|--------|
 | Middleware | ROS 2 Jazzy, CycloneDDS (pinned to loopback for WSL2, [ADR-006](docs/decisions/ADR-006-cyclonedds-loopback.md)) |
 | Simulation | Gazebo Harmonic, TurtleBot3 Waffle |
-| Navigation | Nav2 (SimpleCommander) + SLAM Toolbox ([ADR-004](docs/decisions/ADR-004-slam-toolbox-sin-amcl.md)) |
+| Navigation | Nav2 (SimpleCommander) + SLAM Toolbox ([ADR-004](docs/decisions/ADR-004-slam-toolbox-no-amcl.md)) |
 | Planner LLM | Qwen2.5-7B via Ollama (`temperature=0`) |
 | Vision | Qwen2.5-VL-7B via Ollama |
 | Embeddings | nomic-embed-text via Ollama |
@@ -153,10 +169,10 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 Design decisions are logged as [13 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
-[ADR-009](docs/decisions/ADR-009-camara-resolucion-y-bridge.md) (a 1080p camera
+[ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
 silently dropping frames over DDS),
-[ADR-011](docs/decisions/ADR-011-rag-mejoras-y-zonas-sqlite.md) and
-[ADR-012](docs/decisions/ADR-012-rag-navegable-y-report-post-ejecucion.md)
+[ADR-011](docs/decisions/ADR-011-rag-quality-zones-sqlite.md) and
+[ADR-012](docs/decisions/ADR-012-navigable-rag-post-execution-report.md)
 (making the RAG genuinely navigable).
 
 ---
@@ -176,15 +192,25 @@ silently dropping frames over DDS),
 - **Vision (Qwen2.5-VL) is weak on synthetic renders.** Object detection on
   llvmpipe-rendered frames is unreliable; the benchmark uses stored coordinates
   rather than live perception for this reason.
-- **Cross-lingual retrieval is mediocre** (Spanish queries vs. English docs);
-  a relevance threshold filters the resulting noise.
+- **Cross-lingual retrieval is the weak link with the default embedder**
+  (Spanish queries vs. English docs: 43% top-1 with nomic-embed-text); a
+  relevance threshold filters the noise, and switching to bge-m3 (86%
+  measured) is the recommended fix — see
+  [docs/rag-analysis.md](docs/rag-analysis.md) §2.4.
 
 ## Roadmap
 
-- Real LangChain agent loop (iterative replanning from execution feedback).
-- Native voice (Whisper on the Windows NPU) publishing to `/robot/goal`.
-- A conventional detector (e.g. YOLOv8n) compared against the VL.
-- Physical SR/SPL benchmark on GPU-accelerated rendering.
+1. **Real agent loop** (replanning from execution feedback) — the jump from
+   plan-then-execute to a true agent; expected benchmark improvement and a
+   natural next README section.
+2. **Native voice phase** (Whisper on the Windows NPU, publishing to
+   `/robot/goal`) — the NPU is unreachable from WSL2, so this runs host-side.
+3. **Conventional detector** (YOLOv8n) as an alternative/comparison to the
+   VL — another cheap comparative table.
+4. **SLAM map save/load** (`map_saver_cli`) for reproducible scenarios and a
+   physical SR/SPL benchmark run.
+5. **Docker/devcontainer** for full reproducibility (kills the "works on my
+   WSL2" caveat).
 
 ## License
 

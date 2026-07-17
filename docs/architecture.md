@@ -1,79 +1,104 @@
-# Arquitectura — Robot RAG Agent
+# Architecture — Robot RAG Agent
 
-## Visión general
+## Overview
 
-Cinco paquetes ROS 2 colaboran para llevar una instrucción en lenguaje
-natural hasta acciones físicas del robot en simulación:
+Seven ROS 2 packages cooperate to take a natural-language instruction all the
+way to physical robot actions in simulation:
 
 ```
-robot_interfaces  → msgs/srvs compartidos (compilar primero)
-robot_zones       → almacén SQLite compartido de zonas nombradas
-robot_rag         → memoria semántica (ChromaDB) + RAG
-robot_skills      → ejecución de skills físicos/de percepción
-robot_brain       → planificación LLM + orquestación
-robot_dashboard   → dashboard web: observabilidad + goals (texto/voz)
-robot_bringup     → launch files e integración
+robot_interfaces  → shared msgs/srvs (build first)
+robot_zones       → shared SQLite store of named zones
+robot_rag         → semantic memory (ChromaDB) + RAG
+robot_skills      → physical/perception skill execution
+robot_brain       → LLM planning + orchestration
+robot_dashboard   → web dashboard: observability + goals (text/voice)
+robot_bringup     → launch files and system integration
 ```
 
-## Nodos y responsabilidades
+## Nodes and responsibilities
 
 ### `rag_node` (robot_rag)
 
-Expone `/rag/query` y `/rag/update_map`. Mantiene tres colecciones ChromaDB
-(`semantic_map`, `knowledge_base`, `task_history`), cada una con
-`hnsw:space: cosine`. Ingiere `data/knowledge/*.md` en `knowledge_base`
-(chunking por sección markdown — headers agrupados con su contenido, no
-separados) y `data/logs/*.json` en `task_history` al arrancar. También se
-suscribe a `/semantic_objects` para ingestión pasiva de observaciones.
+Exposes `/rag/query` and `/rag/update_map`. Maintains three ChromaDB
+collections (`semantic_map`, `knowledge_base`, `task_history`), each with
+`hnsw:space: cosine`. On startup it ingests `data/knowledge/*.md` into
+`knowledge_base` (Markdown-section chunking — headers grouped with their
+body, not split) and `data/logs/*.json` into `task_history`.
 
-Embeddings vía `nomic-embed-text` (Ollama, 768 dims). Ver
-[ADR-001](decisions/ADR-001-chromadb.md) y
-[ADR-011](decisions/ADR-011-rag-mejoras-y-zonas-sqlite.md) (chunking,
-task_history real, filtro de relevancia).
+Objects stored in `semantic_map` embed their **map-frame coordinates in the
+document text** ("`refrigerator at (x=3.42, y=-1.15) in kitchen: ...`") —
+`QueryRAG` returns only document text, so this is the channel through which
+the planner learns *where* a remembered thing is
+([ADR-012](decisions/ADR-012-navigable-rag-post-execution-report.md)).
 
-### `robot_zones` (paquete compartido, sin nodo propio)
+Embeddings via `nomic-embed-text` (Ollama, 768 dims). See
+[ADR-001](decisions/ADR-001-chromadb.md) and
+[ADR-011](decisions/ADR-011-rag-quality-zones-sqlite.md) (chunking, real
+task_history, relevance threshold).
 
-`ZoneStore` — CRUD en SQLite (`data/zones.db`) para zonas rectangulares
-nombradas creadas en el dashboard. Lo escribe `dashboard_node`, lo leen
-`skills_executor_node` (resolución de `navigate`/`explore` por zona) y
-`llm_planner_node` (lista de zonas conocidas en el prompt). Ver
-[ADR-011](decisions/ADR-011-rag-mejoras-y-zonas-sqlite.md) (supersede
-[ADR-008](decisions/ADR-008-zonas-usuario.md), que usaba JSON plano).
+### `robot_zones` (shared package, no node)
+
+`ZoneStore` — SQLite CRUD (`data/zones.db`) for named rectangular zones
+created on the dashboard. Written by `dashboard_node`; read by
+`skills_executor_node` (zone resolution for `navigate`/`explore`) and
+`llm_planner_node` (known-zones list in the prompt). See
+[ADR-011](decisions/ADR-011-rag-quality-zones-sqlite.md) (supersedes
+[ADR-008](decisions/ADR-008-user-zones.md), which used a flat JSON file).
 
 ### `skills_executor_node` (robot_skills)
 
-Expone `/skills/execute`, que despacha por `skill_name` a cuatro
-implementaciones:
+Exposes `/skills/execute`, dispatching by `skill_name` to four
+implementations:
 
 - **navigate** (`nav_skill.py`): Nav2 `BasicNavigator` (SimpleCommander API).
-  Acepta zona nombrada (`ZONE_COORDINATES`) o pose `(x, y, theta)` explícita.
-- **explore** (`explore_skill.py`): frontier exploration básica — busca la
-  celda libre más cercana adyacente a espacio desconocido en el
-  `OccupancyGrid` de `/map`, navega hacia ella, repite hasta agotar
-  `duration_sec` o quedarse sin frontiers.
-- **perceive** (`perceive_skill.py`): envía el último frame de
-  `/camera/image_raw` a Qwen2.5-VL-7B (Ollama) pidiendo JSON estructurado de
-  objetos detectados; cada objeto se registra en `semantic_map` vía
+  Takes explicit `(x, y, theta)`; named zones are resolved to coordinates
+  upstream against the SQLite store (no hardcoded fallbacks).
+- **explore** (`explore_skill.py`): basic frontier exploration — nearest free
+  cell adjacent to unknown space in the `/map` grid, skipping frontiers near
+  the robot and previously attempted ones; optional zone bounds restrict the
+  search area.
+- **perceive** (`perceive_skill.py`): sends the latest `/camera/image_raw`
+  frame to Qwen2.5-VL (Ollama) asking for structured JSON of detected
+  objects; each object is written into `semantic_map` (with coordinates) via
   `/rag/update_map`.
-- **report** (`report_skill.py`): publica `/robot/response` y escribe un log
-  JSON en `data/logs/<task_id>.json`.
+- **report** (`report_skill.py`): publishes `/robot/response` and writes a
+  JSON log to `data/logs/<task_id>.json` (later ingested into the
+  `task_history` RAG collection).
 
-La pose del robot se obtiene por TF (`map -> base_link`), no por AMCL — ver
-[ADR-004](decisions/ADR-004-slam-toolbox-sin-amcl.md).
+Robot pose comes from TF (`map -> base_link`), not AMCL — see
+[ADR-004](decisions/ADR-004-slam-toolbox-no-amcl.md).
 
 ### `llm_planner_node` (robot_brain)
 
-Se suscribe a `/robot/goal`. Por cada goal:
+Subscribes to `/robot/goal`. For each goal:
 
-1. Consulta `/rag/query` sobre `knowledge_base` y `semantic_map`.
-2. Construye el prompt (`prompts.py`) y pide un plan JSON a Qwen2.5-7B
-   (`qwen_client.py`).
-3. Ejecuta los pasos del plan secuencialmente contra tools de LangChain
-   (`langchain_agent.py`) que llaman `/skills/execute`.
-4. Publica progreso en `/robot/status`; si el plan no termina en un paso
-   `report`, genera uno de cierre automáticamente.
+1. Retrieves context from `/rag/query` over `knowledge_base`, `semantic_map`,
+   and `task_history`, dropping hits below `rag_score_threshold` (an
+   irrelevant hit is worse than none — it enters the prompt as ground truth).
+2. Builds the prompt (`prompts.py`) and requests a JSON plan from Qwen2.5-7B
+   (`qwen_client.py`, `temperature=0` for reproducibility).
+3. Publishes the raw plan on `/robot/plan` and executes the steps
+   sequentially via `/skills/execute` (`toolkit.py` — plain dispatch, no
+   agent framework; see ADR-012 for why LangChain was removed).
+4. After execution, a **second LLM call** receives the real step results and
+   writes the final user-facing response (in the user's language), published
+   via the report skill. The planner never pre-writes outcomes.
 
-## Flujo de datos
+Ablation switches for the evaluation (`rag_enabled`, `zones_in_prompt`,
+`dry_run`) are re-read on every goal, so the benchmark can flip conditions
+live with `ros2 param set`.
+
+### `dashboard_node` (robot_dashboard)
+
+Serves a web dashboard at `http://localhost:8080` (FastAPI + uvicorn on a
+thread inside the node). Live planning timeline (`/robot/goal`,
+`/robot/status`, `/robot/response`), filterable `/rosout` viewer, and an
+interactive SLAM map: robot pose, named zones drawn as overlays, and
+drag-to-select area creation (saved to SQLite and indexed into semantic
+memory). Goals can be typed or spoken (browser Web Speech API). See
+[ADR-005](decisions/ADR-005-dashboard-fastapi.md).
+
+## Data flow
 
 ```
 /robot/goal (String)
@@ -81,73 +106,62 @@ Se suscribe a `/robot/goal`. Por cada goal:
     ▼
 llm_planner_node ──/rag/query──► rag_node ──► ChromaDB
     │
-    ▼ (prompt + contexto)
-Qwen2.5-7B (Ollama) → plan JSON {reasoning, steps[]}
+    ▼ (prompt + filtered context + known zones)
+Qwen2.5-7B (Ollama) → plan JSON {reasoning, steps[]}  ──► /robot/plan
     │
     ▼ execute_plan()
-LangChain tools ──/skills/execute──► skills_executor_node
-                                          │
-                    ┌─────────────────────┼─────────────────────┐
-                    ▼                     ▼                     ▼
-              nav_skill            perceive_skill          report_skill
-              (Nav2)               (Qwen2.5-VL)            /robot/response
-                                        │                  data/logs/*.json
-                                        ▼
-                                  /rag/update_map ──► rag_node
+/skills/execute ──► skills_executor_node
+    │                     │
+    ├─ navigate ─► Nav2   ├─ perceive ─► Qwen2.5-VL ─► /rag/update_map
+    └─ explore ──► Nav2 + frontier search
+    │
+    ▼ (real step results)
+Qwen2.5-7B (2nd call) → grounded response ──► report ──► /robot/response
+                                                    └──► data/logs/*.json
 ```
 
-### `dashboard_node` (robot_dashboard)
+## Concurrency model
 
-Sirve un dashboard web en `http://localhost:8080` (FastAPI + uvicorn en un
-hilo dentro del nodo). Muestra en vivo la línea temporal de planificación
-(`/robot/goal`, `/robot/status`, `/robot/response`), un visor filtrable de
-`/rosout`, y las dimensiones/límites del mapa SLAM. Permite enviar goals por
-texto o por voz (Web Speech API del navegador, es-ES). Ver
-[ADR-005](decisions/ADR-005-dashboard-fastapi.md).
+Nodes that make service calls from inside callbacks (`llm_planner_node`,
+`skills_executor_node`) run on a `MultiThreadedExecutor` with the critical
+clients/subscriptions in separate callback groups, and wait on futures with
+`threading.Event` — never with nested spins or throwaway executors. See
+[ADR-007](decisions/ADR-007-executors-callback-groups.md) for the two failed
+patterns that motivated this.
 
-## Modelo de concurrencia
+## Evaluation (eval/)
 
-Los nodos que hacen llamadas a servicios desde dentro de callbacks
-(`llm_planner_node`, `skills_executor_node`) corren sobre
-`MultiThreadedExecutor` con los clientes/suscripciones críticas en callback
-groups separados, y esperan futuros con `threading.Event` — nunca con spins
-anidados ni executors temporales. Ver
-[ADR-007](decisions/ADR-007-executors-callback-groups.md) para el porqué
-(dos patrones fallidos incluidos).
+The `eval/` harness quantifies whether RAG improves navigation, at the
+planning level ([ADR-013](decisions/ADR-013-planning-level-benchmark.md)):
+`seed_memory.py` registers landmarks in semantic memory, `run_benchmark.py`
+runs task suites across ablation conditions in the planner's `dry_run` mode
+scoring each plan from `/robot/plan`, and `report.py` aggregates results into
+Markdown tables. Results live in `eval/results/`.
 
-## Entorno de ejecución (WSL2 + venv)
+## Execution environment (WSL2 + venv)
 
-Los nodos ROS 2 se compilan y ejecutan con el Python de sistema (el que trae
-`rclpy`). Las dependencias del agente (ChromaDB, LangChain, Ollama client)
-viven en `agent_env`. Ambos mundos se puentean vía `PYTHONPATH` en
-`setup_env.sh`, no activando el venv — ver
-[ADR-003](decisions/ADR-003-venv-pythonpath-bridge.md). Cualquier terminal
-nueva debe hacer `source ~/robot_ws/setup_env.sh` antes de compilar o lanzar
-nodos.
+ROS 2 nodes build and run with the system Python (the one that ships
+`rclpy`). Agent dependencies (ChromaDB, Ollama client, FastAPI) live in the
+`agent_env` venv. The two are bridged via `PYTHONPATH` in `setup_env.sh` —
+never by activating the venv — see
+[ADR-003](decisions/ADR-003-venv-pythonpath-bridge.md). Every new terminal
+must `source ~/robot_ws/setup_env.sh` before building or launching.
 
-## Limitaciones conocidas
+## Known limitations
 
-- **DDS en WSL2:** CycloneDDS está fijado a loopback vía `cyclonedds.xml` +
-  `CYCLONEDDS_URI` (ver [ADR-006](decisions/ADR-006-cyclonedds-loopback.md));
-  sin esto, el descubrimiento pub/sub entre nodos locales era intermitente
-  por las múltiples interfaces (`eth0`, `docker0`).
-- **Zonas fuera del mapa:** las coordenadas de `ZONE_COORDINATES`
-  (nav_skill) asumen el mapa completo; con SLAM recién iniciado el planner
-  de Nav2 rechaza goals fuera de los límites actuales
-  ("outside bounds"). Hay que explorar primero para expandir el mapa — el
-  system prompt del planner ya instruye "if unknown, explore first".
-- **`navigate`/`explore` bloquean indefinidamente** si Nav2 no está activo
-  (`wait_until_active()` no tiene timeout) — comportamiento estándar de
-  `nav2_simple_commander`, asumido correcto mientras Nav2 se lance siempre
-  junto con la simulación vía `full_system.launch.py`.
-- **`task_history`** se crea como colección pero no se re-ingiere
-  automáticamente tras cada tarea; los logs en `data/logs/*.json` quedan
-  disponibles para una futura carga batch si se necesita RAG sobre
-  histórico de tareas.
-- **Cámara de alta resolución = mensajes descartados en silencio.** La
-  cámara del TurtleBot3 Waffle de stock publica a 1920×1080 (~55 MB/s);
-  con QoS BEST_EFFORT y el proceso compartiendo executor con Nav2/TF/Ollama,
-  los frames se perdían en la capa DDS sin ningún error visible — parecía
-  un bug de código y era volumen de datos. Ver
-  [ADR-009](decisions/ADR-009-camara-resolucion-y-bridge.md) (bajada a
-  640×480 con un modelo SDF propio, sin tocar `/opt/ros/jazzy/`).
+- **DDS on WSL2:** CycloneDDS is pinned to loopback via `cyclonedds.xml` +
+  `CYCLONEDDS_URI` ([ADR-006](decisions/ADR-006-cyclonedds-loopback.md));
+  without it, local pub/sub discovery was intermittent across the multiple
+  NICs (`eth0`, `docker0`).
+- **Goals outside the SLAM map:** Nav2 rejects goals beyond the currently
+  mapped bounds ("outside bounds"); unexplored areas must be mapped first.
+  The planner's rules instruct it to explore when a location is unknown.
+- **High-resolution camera = silently dropped messages.** The stock
+  TurtleBot3 model publishes 1920×1080 (~55 MB/s); BEST_EFFORT subscribers in
+  a busy process lost every frame at the DDS layer with no visible error. Our
+  model copy uses 640×480 — see
+  [ADR-009](decisions/ADR-009-camera-resolution-bridge.md).
+- **End-to-end navigation is unreliable on this software-rendered sim** (the
+  robot wedges in narrow doorways; `navigate` can report false success),
+  which is why the benchmark measures the planning decision — see
+  [ADR-013](decisions/ADR-013-planning-level-benchmark.md).

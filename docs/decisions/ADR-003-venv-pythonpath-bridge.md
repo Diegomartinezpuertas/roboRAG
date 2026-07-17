@@ -1,47 +1,46 @@
-# ADR-003: Puentear agent_env con PYTHONPATH en lugar de activar el venv
+# ADR-003: Bridge agent_env via PYTHONPATH instead of activating the venv
 
-**Fecha:** 2026-07-14
-**Estado:** Aceptado
+**Date:** 2026-07-14
+**Status:** Accepted
 
-## Contexto
+## Context
 
-Los nodos ROS 2 (`rclpy`) están instalados para el Python de sistema
-(`/usr/bin/python3`, el que usan `colcon`/`ros2`), mientras que las
-dependencias del agente (`chromadb`, `langchain`, `ollama`, `cv_bridge`
-indirectamente vía `numpy`) viven en el venv `agent_env`. Al construir
-paquetes `ament_python` con `colcon build --symlink-install`, el
-`console_scripts` generado queda con el shebang `#!/usr/bin/python3`
-apuntando siempre al Python de sistema, sin importar si `agent_env` está
-activado en la shell que ejecuta `colcon build`.
+ROS 2 nodes (`rclpy`) are installed for the system Python
+(`/usr/bin/python3`, the interpreter `colcon`/`ros2` use), while the agent's
+dependencies (`chromadb`, `ollama`, `fastapi`, and indirectly `cv_bridge` via
+`numpy`) live in the `agent_env` venv. When building `ament_python` packages
+with `colcon build --symlink-install`, the generated `console_scripts` are
+pinned to the `#!/usr/bin/python3` shebang regardless of whether `agent_env`
+was active in the shell that ran the build.
 
-Activar `agent_env` (que reemplaza `python3` en el `PATH`) antes de
-`ros2 run <pkg> <node>` no soluciona nada porque el shebang ya está fijado; y
-si además se usa `agent_env`'s `python3` para invocar el nodo directamente,
-faltan `rclpy` y los paquetes `cv2`/`cv_bridge` del sistema.
+Activating `agent_env` (which swaps `python3` in `PATH`) before
+`ros2 run <pkg> <node>` fixes nothing because the shebang is already baked;
+and invoking nodes with the venv's own `python3` fails because it lacks
+`rclpy` and the system `cv2`/`cv_bridge`.
 
-## Decisión
+## Decision
 
-No activar `agent_env` para build ni para ejecución de nodos ROS 2. En su
-lugar, `setup_env.sh` exporta:
+Never activate `agent_env` for building or running ROS 2 nodes. Instead,
+`setup_env.sh` exports:
 
 ```bash
 export PYTHONPATH="/home/diego/robot_ws/agent_env/lib/python3.12/site-packages:${PYTHONPATH}"
 ```
 
-de forma que el Python de sistema (el que ROS 2 y los `console_scripts`
-esperan) también resuelve `chromadb`, `langchain`, `ollama`, etc.
+so the system Python (the one ROS 2 and the console_scripts expect) also
+resolves `chromadb`, `ollama`, `fastapi`, etc.
 
-## Razones
+## Rationale
 
-- Evita reconstruir el workspace con un intérprete no soportado por `rclpy`.
-- Mantiene `cv_bridge`/`cv2` (instalados vía apt para el Python de sistema)
-  funcionando sin conflicto de ABI.
+- Avoids rebuilding the workspace with an interpreter `rclpy` doesn't support.
+- Keeps `cv_bridge`/`cv2` (installed via apt for the system Python) working
+  without ABI conflicts.
 
-## Consecuencias
+## Consequences
 
-- `numpy` en `agent_env` debe mantenerse en la serie 1.x (`numpy<2`) para
-  coincidir con el ABI del `cv2` de sistema (compilado contra NumPy 1.x). Si
-  `agent_env` sube a NumPy 2.x, `cv_bridge` falla con
+- `numpy` in `agent_env` must stay on the 1.x series (`numpy<2`) to match the
+  ABI of the system `cv2` (compiled against NumPy 1.x). If `agent_env` moves
+  to NumPy 2.x, `cv_bridge` fails with
   `ModuleNotFoundError: numpy.core.multiarray failed to import`.
-- Cualquier terminal nueva debe hacer `source ~/robot_ws/setup_env.sh` (en vez
-  de activar `agent_env` a secas) antes de compilar o lanzar nodos.
+- Every new terminal must `source ~/robot_ws/setup_env.sh` (instead of
+  activating `agent_env`) before building or launching nodes.

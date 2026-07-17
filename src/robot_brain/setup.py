@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='diego',
     maintainer_email='diegoamartinezpuertas@gmail.com',
-    description='LLM planner and LangChain agent — cognitive core of the robot',
+    description='LLM task planner — cognitive core of the robot',
     license='MIT',
     extras_require={
         'test': [

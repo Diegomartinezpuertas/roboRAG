@@ -1,48 +1,50 @@
-# ADR-007: MultiThreadedExecutor + callback groups para llamadas bloqueantes
+# ADR-007: MultiThreadedExecutor + callback groups for blocking calls
 
-**Fecha:** 2026-07-14
-**Estado:** Aceptado
+**Date:** 2026-07-14
+**Status:** Accepted
 
-## Contexto
+## Context
 
-`llm_planner_node` y `skills_executor_node` hacen llamadas a servicios ROS 2
-*desde dentro de* callbacks (el planner llama a `/skills/execute` desde el
-callback de `/robot/goal`; skills llama a `/rag/update_map` desde el callback
-de `/skills/execute`). Con un executor single-threaded esto no puede
-resolverse esperando dentro del callback, porque el único hilo que podría
-procesar la respuesta está ocupado en el propio callback.
+`llm_planner_node` and `skills_executor_node` make ROS 2 service calls *from
+inside* callbacks (the planner calls `/skills/execute` from the
+`/robot/goal` callback; skills calls `/rag/update_map` from the
+`/skills/execute` callback). With a single-threaded executor this cannot be
+resolved by waiting inside the callback: the only thread that could process
+the response is busy running the callback itself.
 
-Se intentaron dos aproximaciones fallidas antes de la definitiva:
+Two failed approaches preceded the final one:
 
-1. `rclpy.spin_until_future_complete(node, ...)` anidado →
+1. Nested `rclpy.spin_until_future_complete(node, ...)` →
    `RuntimeError: Executor is already spinning`.
-2. Executor temporal (`SingleThreadedExecutor()` + `add_node/remove_node`
-   alrededor de cada espera) → **el nodo queda sordo** al terminar el
-   callback: `add_node` transfiere la propiedad de las entidades
-   (suscripciones incluidas) al executor temporal y el executor principal
-   deja de despacharlas. Este fue el fallo real detrás de los goals
-   "perdidos" que inicialmente se atribuyó al discovery DDS.
+2. Throwaway executor (`SingleThreadedExecutor()` + `add_node/remove_node`
+   around each wait) → **the node goes deaf** when the callback returns:
+   `add_node` transfers ownership of the node's entities (subscriptions
+   included) to the temporary executor, and the main executor stops
+   dispatching them. This was the real failure behind "lost" goals that was
+   initially blamed on DDS discovery.
 
-## Decisión
+## Decision
 
-- Cada nodo con llamadas bloqueantes corre en su **propio
-  `MultiThreadedExecutor`** (creado en `main()`, nunca el global).
-- Los **clientes de servicio** (y las suscripciones que deben seguir vivas
-  durante un callback largo, como `/map` y la cámara durante `explore`) van
-  en un **callback group separado** (`MutuallyExclusiveCallbackGroup` para
-  clientes del planner, `ReentrantCallbackGroup` para el grupo de I/O de
-  skills). El resto queda en el grupo por defecto, que serializa los skills.
-- Las esperas usan **`threading.Event`** sobre `future.add_done_callback`
-  (con timeout y `future.cancel()`), sin tocar ningún executor.
-- El **executor global del proceso queda libre** para
-  `nav2_simple_commander.BasicNavigator`, que internamente hace
-  `rclpy.spin_until_future_complete(self, ...)` sobre él.
+- Every node with blocking calls runs on its **own `MultiThreadedExecutor`**
+  (created in `main()`, never the process-global one).
+- **Service clients** (and subscriptions that must stay alive during a long
+  callback, such as `/map` and the camera during `explore`) go in a
+  **separate callback group** (`MutuallyExclusiveCallbackGroup` for the
+  planner's clients, `ReentrantCallbackGroup` for the skills node's I/O
+  group). Everything else stays in the default group, which serializes skill
+  execution.
+- Waits use **`threading.Event`** on `future.add_done_callback` (with a
+  timeout and `future.cancel()`), touching no executor.
+- The **process-global executor stays free** for
+  `nav2_simple_commander.BasicNavigator`, which internally calls
+  `rclpy.spin_until_future_complete(self, ...)` on it.
+- `TransformListener` uses the default `spin_thread=False`: with `True`,
+  tf2_ros adds *the whole node* to its own executor thread — the same
+  entity-stealing failure (observed: it silenced the camera subscription).
 
-## Consecuencias
+## Consequences
 
-- Prohibido en este repo: `rclpy.spin_*` dentro de callbacks y el patrón de
-  executor temporal.
-- Los skills siguen ejecutándose de uno en uno (grupo por defecto
-  mutuamente exclusivo) — el comportamiento observable no cambia.
-- `TransformListener` usa `spin_thread=True` (hilo propio) para que TF siga
-  actualizándose durante skills largos.
+- Forbidden in this repo: `rclpy.spin_*` inside callbacks and the throwaway
+  executor pattern.
+- Skills still execute one at a time (mutually exclusive default group) —
+  observable behavior unchanged.

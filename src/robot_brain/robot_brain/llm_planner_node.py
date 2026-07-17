@@ -69,8 +69,9 @@ class LLMPlannerNode(Node):
         temperature = self.get_parameter('llm_temperature').value
         self._max_plan_steps = self.get_parameter('max_plan_steps').value
         self._rag_score_threshold = self.get_parameter('rag_score_threshold').value
-        self._rag_enabled = self.get_parameter('rag_enabled').value
-        self._zones_in_prompt = self.get_parameter('zones_in_prompt').value
+        # rag_enabled / zones_in_prompt / dry_run are intentionally NOT cached:
+        # _on_goal re-reads them per goal so the benchmark can flip conditions
+        # live with `ros2 param set`.
         self._zones = ZoneStore(self.get_parameter('zones_db').value)
 
         self._qwen = QwenClient(base_url, llm_model, temperature=temperature)
@@ -94,7 +95,7 @@ class LLMPlannerNode(Node):
 
         self._goal_sub = self.create_subscription(String, '/robot/goal', self._on_goal, 10)
         self.get_logger().info(
-            f'llm_planner_node ready (rag_enabled={self._rag_enabled})',
+            f'llm_planner_node ready (rag_enabled={self.get_parameter("rag_enabled").value})',
         )
 
     def _publish_status(self, status: str) -> None:

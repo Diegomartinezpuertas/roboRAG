@@ -1,46 +1,43 @@
-# ADR-005: Dashboard web con FastAPI embebido en un nodo ROS 2
+# ADR-005: Web dashboard with FastAPI embedded in a ROS 2 node
 
-**Fecha:** 2026-07-14
-**Estado:** Aceptado
+**Date:** 2026-07-14
+**Status:** Accepted
 
-## Contexto
+## Context
 
-Se necesita observabilidad en tiempo real del pipeline cognitivo (goal →
-plan → skills → respuesta), acceso a los logs de todos los nodos, y una vía
-de entrada de comandos que sirva también para voz. Las opciones evaluadas:
-rosbridge_suite + página externa, RViz plugins, o un servidor HTTP embebido.
+The project needs real-time observability of the cognitive pipeline (goal →
+plan → skills → response), access to every node's logs, and a command input
+channel that also works for voice. Options considered: rosbridge_suite + an
+external page, RViz plugins, or an embedded HTTP server.
 
-## Decisión
+## Decision
 
-Nuevo paquete `robot_dashboard` con un único nodo (`dashboard_node`) que:
+New package `robot_dashboard` with a single node (`dashboard_node`) that:
 
-- Corre FastAPI + uvicorn en un hilo daemon dentro del propio nodo ROS 2.
-- Mantiene un ring buffer thread-safe de eventos alimentado por
-  suscripciones a `/robot/goal`, `/robot/status`, `/robot/response`,
-  `/rosout` y `/map` (metadata).
-- Sirve una SPA embebida (HTML en `web_page.py`) que hace polling a
-  `GET /api/events?since=<id>` cada ~700ms y publica goals vía
+- Runs FastAPI + uvicorn on a daemon thread inside the ROS 2 node itself.
+- Keeps a thread-safe ring buffer of events fed by subscriptions to
+  `/robot/goal`, `/robot/status`, `/robot/response`, `/rosout`, and `/map`.
+- Serves an embedded SPA (HTML string in `web_page.py`) that polls
+  `GET /api/events?since=<id>` every ~700 ms and publishes goals via
   `POST /api/goal`.
-- La entrada de voz usa la Web Speech API del navegador (Chrome/Edge,
-  `lang=es-ES`) — el reconocimiento corre en el navegador de Windows, sin
-  consumir VRAM del robot ni depender del NPU (inaccesible desde WSL2).
+- Voice input uses the browser's Web Speech API (Chrome/Edge, `lang=es-ES`) —
+  recognition runs in the Windows browser, consuming no robot VRAM and not
+  depending on the NPU (unreachable from WSL2).
 
-## Razones
+## Rationale
 
-- **Polling REST vs WebSocket/rosbridge:** para un panel local de un solo
-  usuario, el polling elimina toda la complejidad de threading asyncio↔rclpy
-  (un `Lock` basta). rosbridge añadiría un proceso más y protocolo genérico
-  que no necesitamos.
-- **HTML embebido como string:** evita el manejo de `data_files` y funciona
-  directamente con `--symlink-install`.
-- **Voz en el navegador:** disponible hoy sin cargar Whisper; la fase de voz
-  nativa (NPU + Whisper en Windows) queda como evolución futura y podrá
-  publicar en el mismo `/robot/goal`.
+- **REST polling vs WebSocket/rosbridge:** for a single-user local panel,
+  polling removes all asyncio↔rclpy threading complexity (one `Lock`
+  suffices). rosbridge would add another process and a generic protocol this
+  project doesn't need.
+- **Embedded HTML string:** avoids `data_files` handling and works directly
+  with `--symlink-install`.
+- **Voice in the browser:** available today without loading Whisper; the
+  native voice phase (Whisper + NPU on Windows) remains future work and will
+  publish to the same `/robot/goal`.
 
-## Consecuencias
+## Consequences
 
-- El dashboard es solo para uso local (sin auth); no exponer el puerto 8080
-  fuera de la máquina.
-- Latencia de eventos ≤ ~700ms (intervalo de polling), suficiente para
-  observabilidad humana.
-- La entrada de voz requiere Chrome/Edge; Firefox no implementa Web Speech.
+- Local use only (no auth); do not expose port 8080 outside the machine.
+- Event latency ≤ ~700 ms (polling interval), fine for human observability.
+- Voice input requires Chrome/Edge; Firefox does not implement Web Speech.

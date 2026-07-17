@@ -1,30 +1,30 @@
-# ADR-001: Usar ChromaDB en lugar de Qdrant
+# ADR-001: ChromaDB instead of Qdrant
 
-**Fecha:** 2026-07-14
-**Estado:** Aceptado
+**Date:** 2026-07-14
+**Status:** Accepted
 
-## Contexto
+## Context
 
-Necesitamos un vector store local para el RAG semántico del robot: memoria de
-objetos detectados (`semantic_map`), documentos estáticos del entorno
-(`knowledge_base`) e historial de tareas (`task_history`).
+The robot needs a local vector store for its semantic RAG memory: detected
+objects (`semantic_map`), static environment documents (`knowledge_base`),
+and task history (`task_history`).
 
-## Decisión
+## Decision
 
-Usar ChromaDB 1.5.x con `PersistentClient` y persistencia en disco en
-`data/chroma_db/`. Cada colección se crea con `hnsw:space: cosine`.
+Use ChromaDB with `PersistentClient` and on-disk persistence at
+`data/chroma_db/`. Every collection is created with `hnsw:space: cosine`.
 
-## Razones
+## Rationale
 
-- API más simple para prototipos (`get_or_create_collection`, `upsert`, `query`).
-- Persistencia automática sin servidor externo — encaja con el requisito de
-  correr todo localmente en WSL2 sin dependencias de red.
-- Integración directa con embeddings generados vía Ollama (`nomic-embed-text`),
-  sin necesitar un adaptador adicional.
+- Simplest API for prototyping (`get_or_create_collection`, `upsert`, `query`).
+- Automatic persistence with no external server — fits the requirement of
+  running everything locally on WSL2 with no network dependencies.
+- Straightforward integration with embeddings generated via Ollama
+  (`nomic-embed-text`), no extra adapter needed.
 
-## Consecuencias
+## Consequences
 
-- Limitado a un solo proceso (no distribuido). Aceptable: `rag_node` es el
-  único proceso que abre el `PersistentClient`.
-- Migración a Qdrant si en el futuro se necesita escalar a múltiples robots
-  o acceso concurrente desde varios procesos.
+- Single-process only (not distributed). Acceptable: `rag_node` is the only
+  process opening the `PersistentClient`.
+- Migrate to Qdrant if scaling to multiple robots or concurrent access from
+  several processes ever becomes necessary.

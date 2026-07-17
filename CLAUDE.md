@@ -1,96 +1,103 @@
 # CLAUDE.md — Robot RAG Agent
 
-> Guía de contexto para Claude Code. Léelo completo antes de tocar cualquier archivo.
+> Context guide for Claude Code. Read it fully before touching any file.
 
 ---
 
-## Qué es este proyecto
+## What this project is
 
-Un agente robótico cognitivo que corre en simulación (ROS 2 Jazzy + Gazebo Harmonic).
-Recibe instrucciones en lenguaje natural, consulta una memoria semántica (RAG con ChromaDB),
-planifica mediante un LLM local (Qwen2.5-7B vía Ollama) y ejecuta acciones en el robot
-(TurtleBot3 Waffle) a través de skills ROS 2.
+A cognitive robotic agent running in simulation (ROS 2 Jazzy + Gazebo
+Harmonic). It receives natural-language instructions, consults a semantic
+memory (RAG with ChromaDB), plans with a local LLM (Qwen2.5-7B via Ollama),
+and executes actions on the robot (TurtleBot3 Waffle) through ROS 2 skills.
 
-**Propósito:** Proyecto personal de portfolio para CV de ingeniería robótica.
-La documentación es tan importante como el código — cada decisión debe quedar registrada.
+**Purpose:** personal robotics-engineering portfolio project. Documentation
+is as important as code — every decision must be recorded (ADRs).
 
 ---
 
-## Hardware y entorno
+## Hardware and environment
 
 ```
 OS:        Windows 11 + WSL2 Ubuntu 24.04
 CPU:       Intel Core Ultra 7 HX
-GPU:       NVIDIA RTX 5070 8GB (accesible desde WSL2 vía Ollama/CUDA)
-NPU:       Intel NPU — NO accesible desde WSL2 (reservado para Windows nativo)
+GPU:       NVIDIA RTX 5070 8GB (reachable from WSL2 via Ollama/CUDA)
+NPU:       Intel NPU — NOT reachable from WSL2 (reserved for native Windows)
 RAM:       32GB
-Shell:     bash en WSL2
-Python:    ~/robot_ws/agent_env (venv activado automáticamente)
+Shell:     bash on WSL2
+Python:    ~/robot_ws/agent_env (venv — bridged, never activated for ROS nodes)
 ROS2:      Jazzy Jalisco
-Simulador: Gazebo Harmonic (llvmpipe — GPU no accesible para render, sí para inferencia)
+Simulator: Gazebo Harmonic (llvmpipe — GPU unavailable for rendering, available for inference)
 ```
 
-**Nota GPU:** Gazebo corre en software rendering (llvmpipe). La RTX la usa exclusivamente
-Ollama para inferencia LLM. No intentar forzar GPU en Gazebo sin confirmación previa.
+**GPU note:** Gazebo renders in software (llvmpipe). The RTX is used
+exclusively by Ollama for LLM inference. Do not try to force GPU rendering in
+Gazebo without prior confirmation.
 
 ---
 
-## Stack tecnológico
+## Tech stack
 
-| Capa | Tecnología | Versión | Notas |
+| Layer | Technology | Version | Notes |
 |------|-----------|---------|-------|
 | ROS 2 | Jazzy Jalisco | LTS 2024 | Workspace: ~/robot_ws |
-| Simulador | Gazebo Harmonic | gz-sim 8 | Integrado con ros-jazzy |
-| Robot | TurtleBot3 Waffle | — | Tiene LIDAR + cámara |
-| LLM planner | Qwen2.5-7B-Instruct | Ollama | Puerto 11434 |
-| LLM visión | Qwen2.5-VL-7B | Ollama | Solo cuando sea necesario (no cargar junto al 7B) |
-| Embeddings | nomic-embed-text | Ollama | Para ChromaDB |
-| Agent framework | LangChain 0.3 | pip | + langchain-ollama |
-| Vector DB | ChromaDB 0.6 | pip | Persistente en ~/robot_ws/data/chroma_db |
-| Navegación | Nav2 | ros-jazzy | SimpleCommander API |
-| SLAM | SLAM Toolbox | ros-jazzy | Mapa persistente |
-| Middleware | CycloneDDS | ros-jazzy | Fijado a loopback vía cyclonedds.xml (ADR-006) |
-| Dashboard | FastAPI + uvicorn | pip | http://localhost:8080 — observabilidad + goals (ADR-005) |
+| Simulator | Gazebo Harmonic | gz-sim 8 | Integrated with ros-jazzy |
+| Robot | TurtleBot3 Waffle | — | LIDAR + camera (own model copy at 640×480, ADR-009) |
+| Planner LLM | Qwen2.5-7B-Instruct | Ollama | Port 11434, temperature=0 |
+| Vision LLM | Qwen2.5-VL-7B | Ollama | Load only when needed (not alongside the 7B) |
+| Embeddings | nomic-embed-text | Ollama | For ChromaDB |
+| Vector DB | ChromaDB | pip | Persistent at ~/robot_ws/data/chroma_db |
+| Zones store | SQLite (stdlib) | — | ~/robot_ws/data/zones.db (ADR-011) |
+| Navigation | Nav2 | ros-jazzy | SimpleCommander API |
+| SLAM | SLAM Toolbox | ros-jazzy | Live mapping (no AMCL, ADR-004) |
+| Middleware | CycloneDDS | ros-jazzy | Pinned to loopback via cyclonedds.xml (ADR-006) |
+| Dashboard | FastAPI + uvicorn | pip | http://localhost:8080 — observability + goals (ADR-005) |
+
+No agent framework: skills are dispatched directly (`robot_brain/toolkit.py`).
+LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
 
 ---
 
-## Estructura del proyecto
+## Project structure
 
 ```
 ~/robot_ws/
 ├── src/
-│   ├── robot_interfaces/   # Msgs y srvs ROS2 custom (compilar primero)
-│   ├── robot_rag/          # ChromaDB + embeddings + mapa semántico
-│   ├── robot_skills/       # Nodos ejecutables: nav, explore, perceive, report
-│   ├── robot_brain/        # LLM planner + LangChain agent (cerebro)
-│   ├── robot_zones/        # Almacén SQLite compartido de zonas nombradas
-│   ├── robot_dashboard/    # Dashboard web: observabilidad + goals (texto/voz)
-│   └── robot_bringup/      # Launch files del sistema completo
+│   ├── robot_interfaces/   # Custom ROS 2 msgs/srvs (build first)
+│   ├── robot_zones/        # Shared SQLite store of named zones
+│   ├── robot_rag/          # ChromaDB + embeddings + semantic memory
+│   ├── robot_skills/       # Executable nodes: nav, explore, perceive, report
+│   ├── robot_brain/        # LLM planner (cognitive core)
+│   ├── robot_dashboard/    # Web dashboard: observability + goals (text/voice)
+│   └── robot_bringup/      # Launch files for the whole system
+├── eval/                   # RAG ablation benchmark (seed, run, report)
+├── tests/                  # Pure-logic pytest suite (runs without ROS)
 ├── data/
-│   ├── chroma_db/          # Base vectorial persistente (NO commitear)
-│   ├── knowledge/          # Docs estáticos para RAG (SÍ commitear)
-│   └── logs/               # Historial de tareas (NO commitear)
-├── agent_env/              # venv Python (NO commitear)
-├── docs/                   # Documentación del proyecto (SÍ commitear)
+│   ├── chroma_db/          # Persistent vector DB (do NOT commit)
+│   ├── knowledge/          # Static RAG documents (DO commit)
+│   └── logs/               # Task history logs (do NOT commit)
+├── agent_env/              # Python venv (do NOT commit)
+├── docs/
 │   ├── architecture.md
 │   ├── api_reference.md
 │   └── decisions/          # ADRs — Architecture Decision Records
+├── .github/workflows/      # CI (lint + unit tests)
 └── requirements.txt
 ```
 
 ---
 
-## Convenciones de código
+## Code conventions
 
 ### Python
 
 ```python
-# Imports: stdlib → third-party → ROS2 → proyecto local
+# Imports: stdlib → third-party → ROS 2 → local project
 import json
 from pathlib import Path
 
 import chromadb
-from langchain_ollama import ChatOllama
+import ollama
 
 import rclpy
 from rclpy.node import Node
@@ -98,14 +105,17 @@ from rclpy.node import Node
 from robot_interfaces.srv import QueryRAG
 ```
 
-- **Type hints obligatorios** en todas las funciones públicas
-- **Docstrings en inglés** — formato Google style
-- **Logging:** usar `self.get_logger()` en nodos ROS2, nunca `print()`
-- **Nombres de nodos ROS2:** snake_case, sufijo `_node` (ej: `llm_planner_node`)
-- **Nombres de topics:** `/robot/<nombre>` para topics propios del proyecto
-- **Nombres de servicios:** `/<paquete>/<nombre>` (ej: `/rag/query`, `/skills/execute`)
+- **Type hints required** on all public functions
+- **Docstrings in English** — Google style
+- **Logging:** `self.get_logger()` in ROS 2 nodes, never `print()`
+- **ROS 2 node names:** snake_case with `_node` suffix (e.g. `llm_planner_node`)
+- **Topic names:** `/robot/<name>` for project topics
+- **Service names:** `/<package>/<name>` (e.g. `/rag/query`, `/skills/execute`)
+- **Concurrency:** never nest `rclpy.spin_*` inside callbacks and never use
+  throwaway executors — MultiThreadedExecutor + callback groups + Event waits
+  (ADR-007)
 
-### Docstring obligatorio en cada nodo ROS2
+### Mandatory docstring on every ROS 2 node
 
 ```python
 class LLMPlannerNode(Node):
@@ -115,7 +125,6 @@ class LLMPlannerNode(Node):
         /robot/goal (std_msgs/String): Natural language task description.
 
     Publishes:
-        /robot/response (std_msgs/String): Final response to the user.
         /robot/status (std_msgs/String): Current execution status.
 
     Services (client):
@@ -129,9 +138,9 @@ class LLMPlannerNode(Node):
     """
 ```
 
-### Mensajes y servicios ROS2
+### ROS 2 messages and services
 
-Cada `.msg` y `.srv` debe incluir un comentario en cada campo:
+Every `.msg` and `.srv` field gets a comment:
 
 ```
 # QueryRAG.srv
@@ -147,136 +156,101 @@ string    error_msg      # Empty string if success=True
 
 ---
 
-## Documentación — reglas estrictas
+## Documentation — strict rules
 
-La documentación es **primera clase** en este proyecto. Cada cambio relevante requiere
-actualizar los docs correspondientes en el mismo commit.
+Documentation is **first-class** here. Every relevant change updates the
+corresponding docs in the same commit.
 
-### Qué documentar siempre
+1. **Every ROS 2 node** → full docstring with subs/pubs/srvs/params
+2. **Every public function** → Google-style docstring (Args, Returns, Raises)
+3. **Every architecture decision** → ADR in `docs/decisions/`
+4. **Every new integration** → section in `docs/architecture.md`
+5. **Every stack change** → update this CLAUDE.md
 
-1. **Cada nodo ROS2** → docstring completo con subs/pubs/srvs/params
-2. **Cada función pública** → docstring Google style con Args, Returns, Raises
-3. **Cada decisión de arquitectura** → ADR en `docs/decisions/`
-4. **Cada integración nueva** → sección en `docs/architecture.md`
-5. **Cada cambio en el stack** → actualizar este CLAUDE.md
+### ADR format
 
-### Formato ADR (Architecture Decision Record)
-
-Crear un archivo por cada decisión importante en `docs/decisions/`:
+One file per significant decision in `docs/decisions/`:
 
 ```markdown
-# ADR-001: Usar ChromaDB en lugar de Qdrant
+# ADR-NNN: Title
 
-**Fecha:** 2026-07-13
-**Estado:** Aceptado
+**Date:** YYYY-MM-DD
+**Status:** Accepted
 
-## Contexto
-Necesitamos un vector store local para el RAG semántico del robot.
+## Context
+What problem forced a decision.
 
-## Decisión
-Usar ChromaDB 0.6 con persistencia en disco.
+## Decision
+What was chosen.
 
-## Razones
-- API más simple para prototipos
-- Persistencia automática sin servidor externo
-- Integración directa con LangChain
+## Rationale
+Why, including alternatives rejected.
 
-## Consecuencias
-- Limitado a un solo proceso (no distribuido)
-- Migración a Qdrant si se necesita escalar
+## Consequences
+Trade-offs accepted, follow-ups created.
 ```
 
-### `docs/api_reference.md` — actualizar con cada srv/msg nuevo
-
-```markdown
-## /rag/query (QueryRAG.srv)
-
-Recupera contexto relevante de ChromaDB dado un texto de consulta.
-
-**Request:**
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| query_text | string | Consulta en lenguaje natural |
-| collection_name | string | Colección destino |
-| top_k | int32 | Número de resultados (default: 5) |
-
-**Response:**
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| contexts | string[] | Fragmentos recuperados por similitud |
-| scores | float32[] | Puntuaciones coseno [0.0, 1.0] |
-| success | bool | False si falla la consulta |
-```
+### `docs/api_reference.md` — update with every new srv/msg/topic/param.
 
 ---
 
-## Comandos frecuentes
+## Frequent commands
 
 ```bash
-# Preparar shell para compilar o lanzar nodos (NO activar agent_env a mano
-# para nodos ROS2 — ver docs/decisions/ADR-003-venv-pythonpath-bridge.md)
+# Prepare the shell for building or launching (do NOT activate agent_env
+# manually for ROS nodes — see docs/decisions/ADR-003-venv-pythonpath-bridge.md)
 source ~/robot_ws/setup_env.sh
 
-# Compilar workspace completo
+# Build the whole workspace
 cd ~/robot_ws && colcon build --symlink-install
 
-# Compilar solo un paquete
+# Build a single package (if changes don't land, clean first:
+# rm -rf build/<pkg> install/<pkg> — symlink-install sometimes leaves stale copies)
 colcon build --symlink-install --packages-select robot_rag
 
-# Lanzar simulación completa
+# Launch the full simulation (headless Gazebo + Nav2 + SLAM + agent + dashboard + RViz)
 ros2 launch robot_bringup full_system.launch.py
 
-# Enviar tarea al robot
-ros2 topic pub --once /robot/goal std_msgs/String \
-  "data: 'Ve a la cocina y dime qué objetos hay'"
+# Send a task to the robot
+ros2 topic pub --once /robot/goal std_msgs/String "data: 'Go to the kitchen and tell me what you see'"
 
-# Ver respuesta del robot
+# Watch the robot's response
 ros2 topic echo /robot/response
 
-# Dashboard web (observabilidad + envío de goals por texto/voz)
-# Se lanza automáticamente con agent.launch.py / full_system.launch.py
-# Abrir en el navegador de Windows:
+# Web dashboard (auto-launched with agent.launch.py / full_system.launch.py)
 #   http://localhost:8080
 
-# Test servicio RAG
+# Test the RAG service
 ros2 service call /rag/query robot_interfaces/srv/QueryRAG \
   "{query_text: 'where is the kitchen', collection_name: 'knowledge_base', top_k: 3}"
 
-# Estado de Ollama y modelos cargados
+# Unit tests (pure logic, no ROS needed) + lint
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
+ruff check .
+
+# Benchmark suite (see docs/EVALUATION.md)
+cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
+
+# Ollama status
 ollama ps
 curl -s http://localhost:11434/api/tags | python3 -m json.tool
-
-# Ver topics activos
-ros2 topic list
-ros2 topic hz /scan   # verificar que el LIDAR publica
-
-# Ver nodos activos
-ros2 node list
-
-# Logs de un nodo específico
-ros2 run robot_brain llm_planner_node --ros-args --log-level DEBUG
 ```
 
 ---
 
-## Variables de entorno importantes
+## Important environment variables
 
 ```bash
 # ROS 2
-ROS_DOMAIN_ID=0                              # Dominio DDS (cambiar si hay conflictos)
-RMW_IMPLEMENTATION=rmw_cyclonedds_cpp        # Mejor middleware para WSL2
-CYCLONEDDS_URI=file://~/robot_ws/cyclonedds.xml  # DDS fijado a loopback (ADR-006)
-TURTLEBOT3_MODEL=waffle                      # Modelo con LIDAR + cámara
-
-# Gazebo
-DISPLAY=:0                                   # WSLg
-LIBGL_ALWAYS_SOFTWARE=0                      # NO forzar software (aunque Gazebo acabe usándolo)
+ROS_DOMAIN_ID=0
+RMW_IMPLEMENTATION=rmw_cyclonedds_cpp        # Best middleware for WSL2
+CYCLONEDDS_URI=file://~/robot_ws/cyclonedds.xml  # DDS pinned to loopback (ADR-006)
+TURTLEBOT3_MODEL=waffle
 
 # Ollama
-OLLAMA_KEEP_ALIVE=-1                         # No descargar modelos de VRAM nunca
-OLLAMA_NUM_GPU=1                             # Forzar GPU explícitamente
+OLLAMA_KEEP_ALIVE=-1                         # Never evict models from VRAM
 
-# Proyecto
+# Project
 ROBOT_WS=/home/diego/robot_ws
 CHROMA_DB_PATH=${ROBOT_WS}/data/chroma_db
 KNOWLEDGE_DIR=${ROBOT_WS}/data/knowledge
@@ -284,67 +258,65 @@ KNOWLEDGE_DIR=${ROBOT_WS}/data/knowledge
 
 ---
 
-## Limitaciones conocidas y workarounds
+## Known limitations and workarounds
 
-| Problema | Causa | Workaround |
+| Problem | Cause | Workaround |
 |----------|-------|------------|
-| Gazebo usa llvmpipe | RTX 5070 WSL2 GPU passthrough incompleto | GUI de Gazebo desactivada por defecto (RTF 0.15→~1.0); visualización vía RViz (use_rviz:=true) o dashboard. use_gz_gui:=true si hace falta |
-| Cerrar la GUI de Gazebo tumbaba todo | on_exit_shutdown:true en el gzclient del launch de turtlebot3 | simulation.launch.py propio lanza server/GUI por separado, GUI sin shutdown |
-| NPU no accesible en WSL2 | WSL2 no expone dispositivo NPU | Reservar para Windows nativo (fase voz: Whisper) |
-| qwen2.5:7b + qwen2.5vl:7b no caben juntos | 8GB VRAM total | Cargar solo el modelo necesario según el task step |
-| SLAM drift en simulación larga | Gazebo sin GPU | Guardar mapa cada N minutos con map_saver_cli |
-| Discovery DDS intermitente | WSL2 multi-NIC (eth0/docker0) | CycloneDDS fijado a lo — cyclonedds.xml + CYCLONEDDS_URI (ADR-006) |
-| Ventana Gazebo no aparece | msrdc.exe (bridge WSLg) muerto | `wsl --shutdown` desde PowerShell y relanzar |
-| Goals fuera del mapa SLAM | Mapa crece con la exploración | Explorar primero; Nav2 rechaza goals "outside bounds" |
+| Gazebo renders on llvmpipe | Incomplete WSL2 GPU passthrough | Gazebo GUI disabled by default (RTF 0.15→~1.0); view via RViz (use_rviz:=true) or dashboard. use_gz_gui:=true if needed |
+| Closing the Gazebo GUI killed everything | on_exit_shutdown:true on the stock gzclient include | Own simulation.launch.py launches server/GUI separately, GUI without shutdown |
+| NPU unreachable in WSL2 | WSL2 doesn't expose the NPU device | Reserved for native Windows (voice phase: Whisper) |
+| qwen2.5:7b + qwen2.5vl:7b don't fit together | 8GB VRAM total | Load only the model the current step needs |
+| SLAM drift on long runs | Software-rendered sim | Save the map periodically with map_saver_cli |
+| Intermittent DDS discovery | WSL2 multi-NIC (eth0/docker0) | CycloneDDS pinned to lo — cyclonedds.xml + CYCLONEDDS_URI (ADR-006) |
+| Gazebo window doesn't appear | Dead msrdc.exe (WSLg bridge) | `wsl --shutdown` from PowerShell and relaunch |
+| Goals outside the SLAM map | Map grows with exploration | Explore first; Nav2 rejects "outside bounds" goals |
+| End-to-end navigation unreliable | Narrow doorways + software physics | Benchmark measures the planning decision (ADR-013) |
+| Stale installs after edits | colcon symlink-install quirk | `rm -rf build/<pkg> install/<pkg>` then rebuild |
 
 ---
 
-## Flujo de trabajo para nuevas features
+## Workflow for new features
 
-1. Crear rama: `git checkout -b feature/nombre-descriptivo`
-2. Implementar el código
-3. Escribir/actualizar docstrings y docs
-4. Crear ADR si hay decisión de arquitectura
-5. Test manual con `ros2 service call` o `ros2 topic pub`
-6. Actualizar `docs/api_reference.md` si hay nuevos srv/msg
-7. Commit con mensaje descriptivo en inglés:
+1. Branch: `git checkout -b feature/descriptive-name`
+2. Implement
+3. Write/update docstrings and docs
+4. Write an ADR if there is an architecture decision
+5. Manual test with `ros2 service call` / `ros2 topic pub`
+6. Update `docs/api_reference.md` for new srv/msg/topics/params
+7. `pytest tests/` + `ruff check .` green
+8. Commit with a descriptive English message:
    ```
    feat(robot_rag): add semantic_map collection with pose indexing
-
-   - SemanticObject messages now stored with 2D pose in ChromaDB metadata
-   - Enables spatial queries like "objects near kitchen"
-   - Updates QueryRAG.srv response to include pose field
    ```
 
 ---
 
-## Lo que NO hacer
+## Do NOT
 
-- **No usar `print()`** en nodos ROS2 — usar `self.get_logger().info()`
-- **No hardcodear paths** — usar parámetros ROS2 o variables de entorno
-- **No cargar qwen2.5vl:7b y qwen2.5:7b a la vez** — se agotan los 8GB de VRAM
-- **No commitear** `data/chroma_db/`, `data/logs/`, `agent_env/`
-- **No modificar** `/opt/ros/jazzy/` — es instalación del sistema
-- **No olvidar** `source ~/robot_ws/install/setup.bash` tras `colcon build`
-- **No** dejar funciones públicas sin docstring
+- **No `print()`** in ROS 2 nodes — use `self.get_logger().info()`
+- **No hardcoded paths** — ROS 2 parameters or env vars
+- **Never load qwen2.5vl:7b and qwen2.5:7b simultaneously** — 8GB VRAM
+- **Do not commit** `data/chroma_db/`, `data/logs/`, `data/zones.db`, `agent_env/`
+- **Do not modify** `/opt/ros/jazzy/` — system installation (copy into the repo instead, like the waffle model)
+- **Do not forget** `source ~/robot_ws/install/setup.bash` after `colcon build`
+- **No public functions without docstrings**
+- **No nested `rclpy.spin_*` or throwaway executors** (ADR-007)
 
 ---
 
-## Qwen Robot Suite — estado de integración
+## Qwen Robot Suite — integration status
 
-> Ver `docs/decisions/ADR-002-qwen-robot-suite.md` para el análisis completo.
+> See `docs/decisions/ADR-002-qwen-robot-suite.md` for the full analysis.
 
-**Resumen ejecutivo:**
-
-| Modelo | Pesos públicos | Integrable ahora | Alternativa actual |
+| Model | Public weights | Integrable now | Current alternative |
 |--------|---------------|------------------|--------------------|
-| Qwen-RobotNav-4B | ❌ No liberados | ❌ No | Qwen2.5-VL-7B + Nav2 |
-| Qwen-RobotManip | ❌ No liberados | ❌ No | N/A (no manipulación) |
-| Qwen-RobotWorld | ❌ No liberados | ❌ No | N/A |
-| Qwen2.5-VL-7B | ✅ Disponible | ✅ Sí | — |
-| Qwen2.5-7B | ✅ Disponible | ✅ Sí | — |
+| Qwen-RobotNav-4B | ❌ Not released | ❌ No | Qwen2.5-VL-7B + Nav2 |
+| Qwen-RobotManip | ❌ Not released | ❌ No | N/A (no manipulation) |
+| Qwen-RobotWorld | ❌ Not released | ❌ No | N/A |
+| Qwen2.5-VL-7B | ✅ Available | ✅ Yes | — |
+| Qwen2.5-7B | ✅ Available | ✅ Yes | — |
 
-**Cuando liberen los pesos** (seguir https://github.com/QwenLM/Qwen-RobotNav):
-- Reemplazar `perceive_skill.py` + `nav_skill.py` con llamadas a Qwen-RobotNav-4B
-- El modelo acepta imágenes de cámara + instrucción → devuelve waypoints directamente
-- Latencia estimada: ~200ms por inferencia (dato de despliegue en Jetson Thor)
+**When weights are released** (watch https://github.com/QwenLM/Qwen-RobotNav):
+replace `perceive_skill.py` + `nav_skill.py` with Qwen-RobotNav-4B calls
+(camera images + instruction → waypoints, ~200ms per inference on Jetson-class
+hardware per the published deployment numbers).
