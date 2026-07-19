@@ -9,7 +9,7 @@ from nav_msgs.msg import OccupancyGrid
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, LaserScan
 from std_msgs.msg import String
 from tf2_ros import LookupException, TransformException
 from tf2_ros.buffer import Buffer
@@ -30,6 +30,7 @@ class SkillsExecutorNode(Node):
 
     Subscribes:
         /camera/image_raw (sensor_msgs/Image): Latest camera frame, cached for perceive.
+        /scan (sensor_msgs/LaserScan): Latest LIDAR scan, cached for perceive.
         /map (nav_msgs/OccupancyGrid): Latest SLAM occupancy grid, cached for explore.
 
     Looks up the map -> base_link TF (published by SLAM Toolbox) to get the
@@ -43,29 +44,24 @@ class SkillsExecutorNode(Node):
         /skills/execute (ExecuteSkill): Dispatches to navigate/explore/perceive/report.
 
     Services (client):
-        /rag/update_map (UpdateMap): Stores objects found during perceive.
+        /rag/update_map (UpdateMap): Stores scene descriptions in semantic memory.
 
     Parameters:
-        ollama_base_url (str): Ollama server URL. Default: http://localhost:11434
-        vision_model (str): Vision model name. Default: qwen2.5vl:7b
         logs_dir (str): Directory for task history logs.
+        zones_db (str): SQLite file with user-defined navigation zones.
     """
 
     def __init__(self) -> None:
         super().__init__('skills_executor_node')
 
-        self.declare_parameter('ollama_base_url', 'http://localhost:11434')
-        self.declare_parameter('vision_model', 'qwen2.5vl:7b')
         self.declare_parameter('logs_dir', '/home/diego/robot_ws/data/logs')
         self.declare_parameter('zones_db', '/home/diego/robot_ws/data/zones.db')
 
-        base_url = self.get_parameter('ollama_base_url').value
-        vision_model = self.get_parameter('vision_model').value
         logs_dir = self.get_parameter('logs_dir').value
         self._zones = ZoneStore(self.get_parameter('zones_db').value)
 
         self._nav_skill = NavSkill()
-        self._perceive_skill = PerceiveSkill(base_url, vision_model)
+        self._perceive_skill = PerceiveSkill()
         response_pub = self.create_publisher(String, '/robot/response', 10)
         self._report_skill = ReportSkill(response_pub, logs_dir)
 
@@ -80,6 +76,7 @@ class SkillsExecutorNode(Node):
         )
 
         self._latest_image: Image | None = None
+        self._latest_scan: LaserScan | None = None
         self._latest_map: OccupancyGrid | None = None
         # spin_thread stays False: with True, tf2_ros adds THIS node to its own
         # SingleThreadedExecutor thread, competing with our executor for the
@@ -94,6 +91,10 @@ class SkillsExecutorNode(Node):
             callback_group=self._io_group,
         )
         self.create_subscription(
+            LaserScan, '/scan', self._on_scan, qos_profile_sensor_data,
+            callback_group=self._io_group,
+        )
+        self.create_subscription(
             OccupancyGrid, '/map', self._on_map, 1, callback_group=self._io_group,
         )
 
@@ -104,6 +105,9 @@ class SkillsExecutorNode(Node):
 
     def _on_image(self, msg: Image) -> None:
         self._latest_image = msg
+
+    def _on_scan(self, msg: LaserScan) -> None:
+        self._latest_scan = msg
 
     def _on_map(self, msg: OccupancyGrid) -> None:
         self._latest_map = msg
@@ -234,42 +238,66 @@ class SkillsExecutorNode(Node):
             result = self._nav_skill.navigate({'x': frontier[0], 'y': frontier[1]})
             if result['reached']:
                 visited += 1
+                # Self-building memory: describe every place the robot reaches
+                # while exploring, so descriptive goals ("go to the white,
+                # open room") become resolvable later without any manual
+                # seeding. Failures must never abort the exploration itself.
+                try:
+                    self._perceive_and_store()
+                except Exception as exc:  # noqa: BLE001 - best-effort side task
+                    self.get_logger().warning(f'Explore: scene store failed: {exc}')
         return {'visited_frontiers': visited, 'message': f'Explored {visited} frontier(s)'}
 
     def _run_perceive(self, params: dict) -> dict:
-        if self._latest_image is None:
-            raise RuntimeError('No camera frame received yet on /camera/image_raw')
-        query = params.get('query', 'list all objects')
-        zone = params.get('zone', '')
-        result = self._perceive_skill.describe(self._latest_image, query)
-        pose_x, pose_y = self._get_robot_pose()
+        return self._perceive_and_store(zone=params.get('zone', ''))
 
-        for index, obj in enumerate(result.get('objects', [])):
-            object_id = f'{self.get_clock().now().nanoseconds}-{index}'
-            obj['object_id'] = object_id
-            self._update_map(object_id, obj, zone, pose_x, pose_y)
+    def _perceive_and_store(self, zone: str = '') -> dict:
+        """Describes the surroundings and upserts the description into memory.
+
+        The object_id is derived from the pose rounded to a 0.5 m grid, so
+        re-visiting a place UPDATES its description instead of accumulating
+        near-duplicates.
+        """
+        result = self._perceive_skill.describe(self._latest_image, self._latest_scan)
+        pose_x, pose_y = self._get_robot_pose()
+        zone = zone or self._zone_at(pose_x, pose_y)
+        object_id = f'scene-{round(pose_x * 2) / 2:.1f}-{round(pose_y * 2) / 2:.1f}'
+        result['object_id'] = object_id
+        result['stored'] = self._update_map(
+            object_id, 'area', result['description'], zone, pose_x, pose_y,
+        )
         return result
 
+    def _zone_at(self, x: float, y: float) -> str:
+        """Returns the name of the user zone containing (x, y), or ''."""
+        for name, a in self._zones.load_all().items():
+            if a['x_min'] <= x <= a['x_max'] and a['y_min'] <= y <= a['y_max']:
+                return name
+        return ''
+
     def _update_map(
-        self, object_id: str, obj: dict, zone: str, pose_x: float, pose_y: float,
-    ) -> None:
+        self, object_id: str, label: str, description: str, zone: str,
+        pose_x: float, pose_y: float,
+    ) -> bool:
         if not self._update_map_client.wait_for_service(timeout_sec=2.0):
             self.get_logger().warning('/rag/update_map unavailable, skipping semantic map update')
-            return
+            return False
 
         semantic_object = SemanticObject()
         semantic_object.object_id = object_id
-        semantic_object.label = obj.get('label', 'unknown')
-        semantic_object.confidence = float(obj.get('confidence', 0.0))
+        semantic_object.label = label
+        semantic_object.confidence = 1.0
         semantic_object.pose.position.x = pose_x
         semantic_object.pose.position.y = pose_y
-        semantic_object.description = obj.get('description', '')
+        semantic_object.description = description
         semantic_object.room_zone = zone
         semantic_object.timestamp = self.get_clock().now().to_msg()
 
         request = UpdateMap.Request(object_data=semantic_object)
         future = self._update_map_client.call_async(request)
         self._wait_for_future(future, timeout_sec=5.0)
+        response = future.result()
+        return bool(response and response.success)
 
     def _run_report(self, params: dict) -> dict:
         task_context = {

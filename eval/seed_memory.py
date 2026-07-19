@@ -116,6 +116,27 @@ def main():
         landmarks[name] = {'x': round(cell[0], 3), 'y': round(cell[1], 3)}
         node.get_logger().info(f'{name}: seeded at ({cell[0]:.2f}, {cell[1]:.2f}) ok={ok}')
 
+    # Controlled scene descriptors for the attribute_nav tasks ("go to the
+    # white open room"). Two landmarks get contrasting attributes, in the
+    # same format the robot's own perceive skill stores autonomously.
+    descriptors = {
+        'estacion_a': 'predominantly white, an open, uncluttered space',
+        'estacion_c': (
+            'predominantly brown, a cluttered space with many objects '
+            '(9 obstacle groups nearby)'
+        ),
+    }
+    for name, desc in descriptors.items():
+        if name in landmarks:
+            lm = landmarks[name]
+            ok = node.seed_semantic_object(
+                object_id=f'scene-seed-{name}',
+                label='area',
+                x=lm['x'], y=lm['y'],
+                description=desc,
+            )
+            node.get_logger().info(f'scene descriptor at {name}: ok={ok}')
+
     LANDMARKS_FILE.write_text(json.dumps(landmarks, indent=2), encoding='utf-8')
     node.get_logger().info(f'Wrote {len(landmarks)} landmarks to {LANDMARKS_FILE}')
 

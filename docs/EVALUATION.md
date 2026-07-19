@@ -9,8 +9,8 @@ Total time: **~25–35 min**, most of it waiting for exploration and LLM calls.
 ```bash
 # Ollama models
 ollama pull qwen2.5:7b
-ollama pull nomic-embed-text
-ollama pull bge-m3            # only for the embedding comparison
+ollama pull bge-m3            # default embedder
+ollama pull nomic-embed-text  # only for the embedding comparison
 
 # Python deps into the venv (see ADR-003 for why a venv + PYTHONPATH bridge)
 source ~/robot_ws/agent_env/bin/activate && pip install -r requirements.txt && deactivate
@@ -52,8 +52,9 @@ ros2 launch robot_bringup agent.launch.py
 
 ## 2. Seed the memory
 
-Registers 3 distinct landmarks in `semantic_map` (RAG-only) and the control
-zone `base` in SQLite. Writes `eval/landmarks.json` for the scorer.
+Registers 3 distinct landmarks in `semantic_map` (RAG-only), two contrasting
+scene descriptors for the attribute tasks, and the control zone `base` in
+SQLite. Writes `eval/landmarks.json` for the scorer.
 
 ```bash
 cd ~/robot_ws/eval
@@ -66,7 +67,7 @@ Expect three `seeded at (...) ok=True` lines. Requires the SLAM map
 ## 3. Run the benchmark suites
 
 ```bash
-python3 run_benchmark.py tasks_full.yaml        # 30 runs (~3 min): ablation + controls
+python3 run_benchmark.py tasks_full.yaml        # 42 runs (~4 min): ablation + attribute + controls
 python3 run_benchmark.py tasks_phrasing.yaml    # 36 runs (~4 min): phrasing/language robustness
 ```
 
@@ -99,7 +100,7 @@ The PNGs are the ones embedded in the README and docs/rag-analysis.md.
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 37 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 47 tests
 ruff check .
 ```
 

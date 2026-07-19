@@ -43,7 +43,7 @@ class LLMPlannerNode(Node):
             RAG context to be injected into the planning prompt. Below this,
             a "relevant" hit is usually just lexical noise (e.g. cross-lingual
             query vs English docs) that actively misleads the planner rather
-            than helping it. Default: 0.45
+            than helping it. Calibrated for bge-m3. Default: 0.40
         rag_enabled (bool): When False, no RAG context is retrieved or injected.
             This is the ablation switch for the A/B navigation benchmark. Default: True
         zones_in_prompt (bool): When False, known zone names are withheld from the
@@ -58,7 +58,7 @@ class LLMPlannerNode(Node):
         self.declare_parameter('llm_model', 'qwen2.5:7b')
         self.declare_parameter('llm_temperature', 0.0)
         self.declare_parameter('max_plan_steps', 10)
-        self.declare_parameter('rag_score_threshold', 0.45)
+        self.declare_parameter('rag_score_threshold', 0.40)
         self.declare_parameter('rag_enabled', True)
         self.declare_parameter('zones_in_prompt', True)
         self.declare_parameter('dry_run', False)

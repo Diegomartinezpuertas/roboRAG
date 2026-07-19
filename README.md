@@ -28,25 +28,31 @@ blindly) — this is the causal mechanism of the hypothesis, and it is
 reproducible (`temperature=0`), unlike end-to-end navigation on this
 software-rendered WSL2 sim (see [ADR-013](docs/decisions/ADR-013-planning-level-benchmark.md)).
 
-**Result** (`eval/tasks_full.yaml`, 30 runs):
+**Result** (`eval/tasks_full.yaml`, 42 runs):
 
 | Task type | With RAG | Without RAG |
 |---|---|---|
 | Object-referenced nav (RAG-dependent) | **9/9 (100%)** | **0/9 (0%)** |
+| Description-referenced nav (self-built memory) | **6/6 (100%)** | **0/6 (0%)** |
 | Known-zone nav (control) | 3/3 (100%) | 3/3 (100%) |
 | Impossible goal (hallucination check) | 3/3 (100%) | 3/3 (100%) |
 
 ![Benchmark results](eval/results/benchmark.png)
 
-Two more measured findings (full data and charts in
+More measured findings (full data and charts in
 [docs/rag-analysis.md](docs/rag-analysis.md)):
 
 - **Phrasing/language robustness** (36 runs): retrieval survives Spanish
-  paraphrases and English goals — 17/18 direct-nav with RAG vs 0/18 without.
+  paraphrases and English goals — 18/18 direct-nav with RAG (with the bge-m3
+  embedder) vs 0/18 without.
 - **The embedding model is a real multilingual bottleneck**: with Spanish
   queries over English memories, nomic-embed-text ranks the right document
   first only **43%** of the time (negative separation margin), while
   **bge-m3 reaches 86%** with a positive margin — both stay 100% in English.
+  bge-m3 is the project default as a result.
+- **RAG's latency cost is measurable but small**: 2.2 s vs 1.7 s mean
+  goal→plan (three collection retrievals with bge-m3), dwarfed by LLM
+  inference either way.
 
 ![Embedding comparison](eval/results/embeddings.png)
 
@@ -56,6 +62,12 @@ How to read this — it is deliberately not "RAG is magic":
   semantic memory): RAG makes all the difference. With it, the planner
   retrieves the coordinates and navigates directly; without it, it has no idea
   where the place is and falls back to exploring.
+- **Description-referenced navigation** ("go to the white, open room"): the
+  memory here is **self-built** — the robot stores a classical scene
+  description (dominant colors + LIDAR clutter, no ML) of every place it
+  reaches while exploring. Several remembered areas can legitimately match a
+  description, so the scorer accepts any retrieved area whose stored text
+  matches the requested attributes.
 - **Known-zone navigation** (a place stored in a plain SQLite table): both
   conditions succeed. This control shows the ablation isolates RAG's *object
   memory* specifically — when the information is available another way, RAG is
@@ -83,7 +95,6 @@ flowchart TD
     rag["robot_rag<br/>rag_node"] --> chroma[("ChromaDB<br/>semantic_map · knowledge_base · task_history")]
     planner -->|/skills/execute| skills["robot_skills<br/>skills_executor_node"]
     skills -->|navigate / explore| nav2["Nav2 + SLAM Toolbox<br/>Gazebo (TurtleBot3)"]
-    skills -->|perceive| vl["Qwen2.5-VL<br/>(Ollama)"]
     skills -->|/rag/update_map| rag
     skills -->|/robot/response| dash
     zones[("robot_zones<br/>SQLite zones.db")] --- planner
@@ -95,7 +106,7 @@ flowchart TD
 |---------|------|
 | `robot_interfaces` | Custom messages/services (`QueryRAG`, `ExecuteSkill`, `UpdateMap`, `SemanticObject`) |
 | `robot_rag` | ChromaDB-backed semantic memory + RAG query service |
-| `robot_skills` | Executable skills: navigate (Nav2), explore (frontier), perceive (Qwen-VL), report |
+| `robot_skills` | Executable skills: navigate (Nav2), explore (frontier, self-building memory), perceive (scene descriptor), report |
 | `robot_brain` | LLM planner: RAG retrieval → Qwen plan → skill dispatch → post-execution report |
 | `robot_zones` | Shared SQLite store of user-defined named zones |
 | `robot_dashboard` | Web dashboard: observability, interactive SLAM map, text/voice goals |
@@ -110,8 +121,10 @@ flowchart TD
    (dropping low-relevance hits below a similarity threshold) and the known zones.
 3. Qwen2.5-7B produces a JSON plan. If retrieved context contains coordinates,
    it navigates directly; otherwise it explores.
-4. Skills execute in sequence via `/skills/execute`. Perceived objects are
-   written back into semantic memory with their coordinates.
+4. Skills execute in sequence via `/skills/execute`. The memory is
+   **self-building**: every place reached while exploring is described
+   (dominant colors + LIDAR clutter) and stored with its coordinates, so
+   goals like "go to the white, open room" resolve later without seeding.
 5. A **second** LLM call summarizes the *actual* results (grounded, in the
    user's language) and publishes it to `/robot/response`.
 
@@ -119,8 +132,8 @@ flowchart TD
 
 ## Quickstart
 
-Requires ROS 2 Jazzy, Gazebo Harmonic, and Ollama with `qwen2.5:7b`,
-`qwen2.5vl:7b`, and `nomic-embed-text` pulled. See
+Requires ROS 2 Jazzy, Gazebo Harmonic, and Ollama with `qwen2.5:7b` and
+`bge-m3` pulled. See
 [`CLAUDE.md`](CLAUDE.md) for the full environment (WSL2 + venv bridge).
 
 ```bash
@@ -143,10 +156,10 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 
 ## Testing & CI
 
-- **Unit tests** (`tests/`): 37 pytest tests over the pure-logic modules — RAG
+- **Unit tests** (`tests/`): 47 pytest tests over the pure-logic modules — RAG
   chunking, plan parsing, prompt building and language detection, frontier
-  selection, the SQLite zone store, and the ChromaDB wrapper. They run without
-  a ROS install (`pytest tests/`).
+  selection, the scene descriptor (colors + clutter), the SQLite zone store,
+  and the ChromaDB wrapper. They run without a ROS install (`pytest tests/`).
 - **Lint**: `ruff check .` (config in `ruff.toml`).
 - **CI**: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs lint + tests on every push/PR.
 - ROS nodes and wiring are exercised locally with `colcon test`.
@@ -161,12 +174,12 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 | Simulation | Gazebo Harmonic, TurtleBot3 Waffle |
 | Navigation | Nav2 (SimpleCommander) + SLAM Toolbox ([ADR-004](docs/decisions/ADR-004-slam-toolbox-no-amcl.md)) |
 | Planner LLM | Qwen2.5-7B via Ollama (`temperature=0`) |
-| Vision | Qwen2.5-VL-7B via Ollama |
-| Embeddings | nomic-embed-text via Ollama |
+| Perception | Classical scene descriptor — camera colors + LIDAR clutter, no ML ([ADR-014](docs/decisions/ADR-014-classical-scene-descriptor.md)) |
+| Embeddings | bge-m3 via Ollama (multilingual; chosen over nomic-embed-text on measured data) |
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [13 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [14 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
@@ -189,14 +202,14 @@ silently dropping frames over DDS),
 - **RAG's value is scale-dependent.** For a handful of places, a SQLite lookup
   covers most of it (see the known-zone control). RAG matters as remembered,
   open-vocabulary memory grows.
-- **Vision (Qwen2.5-VL) is weak on synthetic renders.** Object detection on
-  llvmpipe-rendered frames is unreliable; the benchmark uses stored coordinates
-  rather than live perception for this reason.
-- **Cross-lingual retrieval is the weak link with the default embedder**
-  (Spanish queries vs. English docs: 43% top-1 with nomic-embed-text); a
-  relevance threshold filters the noise, and switching to bge-m3 (86%
-  measured) is the recommended fix — see
-  [docs/rag-analysis.md](docs/rag-analysis.md) §2.4.
+- **Perception is attribute-level, not object-level.** The VLM was removed
+  (unreliable on software-rendered frames, [ADR-014](docs/decisions/ADR-014-classical-scene-descriptor.md));
+  the classical descriptor characterizes places (colors, clutter) but cannot
+  name objects — that needs a detector (roadmap).
+- **Cross-lingual retrieval quality depends heavily on the embedder.** With
+  nomic-embed-text, Spanish queries over English docs hit only 43% top-1;
+  the default is now bge-m3 (86% measured), with a relevance threshold as a
+  noise floor — see [docs/rag-analysis.md](docs/rag-analysis.md) §2.4.
 
 ## Roadmap
 
@@ -205,8 +218,9 @@ silently dropping frames over DDS),
    natural next README section.
 2. **Native voice phase** (Whisper on the Windows NPU, publishing to
    `/robot/goal`) — the NPU is unreachable from WSL2, so this runs host-side.
-3. **Conventional detector** (YOLOv8n) as an alternative/comparison to the
-   VL — another cheap comparative table.
+3. **Object-level detection** (YOLOv8n; VLM revisit on real-camera hardware)
+   — the classical descriptor covers place attributes, naming objects needs
+   a detector.
 4. **SLAM map save/load** (`map_saver_cli`) for reproducible scenarios and a
    physical SR/SPL benchmark run.
 5. **Docker/devcontainer** for full reproducibility (kills the "works on my

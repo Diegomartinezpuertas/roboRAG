@@ -21,7 +21,8 @@ class RagNode(Node):
 
     Parameters:
         ollama_base_url (str): Ollama server URL. Default: http://localhost:11434
-        embedding_model (str): Embedding model name. Default: nomic-embed-text
+        embedding_model (str): Embedding model name. Default: bge-m3 (multilingual;
+            see docs/rag-analysis.md §2.4 for the measured comparison)
         chroma_db_path (str): Filesystem path for ChromaDB persistence.
         knowledge_dir (str): Directory with static knowledge Markdown docs.
         logs_dir (str): Directory with report_skill's task JSON logs.
@@ -33,7 +34,7 @@ class RagNode(Node):
         super().__init__('rag_node')
 
         self.declare_parameter('ollama_base_url', 'http://localhost:11434')
-        self.declare_parameter('embedding_model', 'nomic-embed-text')
+        self.declare_parameter('embedding_model', 'bge-m3')
         self.declare_parameter('chroma_db_path', '/home/diego/robot_ws/data/chroma_db')
         self.declare_parameter('knowledge_dir', '/home/diego/robot_ws/data/knowledge')
         self.declare_parameter('logs_dir', '/home/diego/robot_ws/data/logs')

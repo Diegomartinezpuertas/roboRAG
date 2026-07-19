@@ -11,6 +11,7 @@ RESULTS_ROOT = Path(__file__).resolve().parent / 'results'
 CONDITION_ORDER = [('rag', 'With RAG'), ('norag', 'Without RAG')]
 TYPE_LABELS = {
     'object_nav': 'Object-referenced nav (RAG-dependent)',
+    'attribute_nav': 'Description-referenced nav (self-built memory)',
     'zone_nav': 'Known-zone nav (control)',
     'negative': 'Impossible goal (hallucination check)',
 }

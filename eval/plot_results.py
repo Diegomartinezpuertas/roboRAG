@@ -34,6 +34,7 @@ GRID = '#e6e5e0'
 
 TYPE_LABELS = {
     'object_nav': 'Object-referenced\nnav (RAG-dependent)',
+    'attribute_nav': 'Description-referenced\nnav (self-built memory)',
     'zone_nav': 'Known-zone nav\n(control)',
     'negative': 'Impossible goal\n(hallucination check)',
 }
@@ -89,7 +90,7 @@ def success_rate(runs, ttype):
 
 def fig_benchmark():
     rag, norag = load('full', 'rag'), load('full', 'norag')
-    types = ['object_nav', 'zone_nav', 'negative']
+    types = ['object_nav', 'attribute_nav', 'zone_nav', 'negative']
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.2), facecolor=SURFACE,
                                    gridspec_kw={'width_ratios': [1.6, 1]})
     grouped_bars(
@@ -98,15 +99,21 @@ def fig_benchmark():
          ('Without RAG', GREEN, [success_rate(norag, t) for t in types])],
         ylabel='Success rate',
     )
-    ax1.set_title('Planning success by task type (30 runs, temperature 0)',
+    total_runs = len(rag) + len(norag)
+    ax1.set_title(f'Planning success by task type ({total_runs} runs, temperature 0)',
                   fontsize=11, color=INK, pad=26)
     ax1.legend(frameon=False, fontsize=9, ncol=2, loc='lower left',
                bbox_to_anchor=(0.0, 1.0), labelcolor=INK)
 
-    # Latency: mean bar + individual run dots per condition.
+    # Latency: mean bar + individual run dots per condition. Runs that never
+    # produced a plan (Ollama stall -> 60 s timeout) are excluded: they
+    # measure the timeout constant, not planning latency.
     for i, (_label, color, runs) in enumerate(
             [('With RAG', BLUE, rag), ('Without RAG', GREEN, norag)]):
-        lat = [r['latency_sec'] for r in runs if 'latency_sec' in r]
+        lat = [
+            r['latency_sec'] for r in runs
+            if 'latency_sec' in r and r.get('decision') != 'no_plan'
+        ]
         if not lat:
             continue
         mean = sum(lat) / len(lat)

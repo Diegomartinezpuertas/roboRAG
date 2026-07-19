@@ -22,6 +22,7 @@ Usage: python3 run_benchmark.py [tasks_full.yaml]
 
 import json
 import math
+import re
 import subprocess
 import sys
 import time
@@ -63,7 +64,32 @@ def _navigates_to_coord(plan, target_xy):
     return False
 
 
-def classify(plan, task, landmarks, zones):
+_COORD_IN_DOC = re.compile(r'at \(x=(-?\d+(?:\.\d+)?), y=(-?\d+(?:\.\d+)?)\)')
+
+
+def attribute_candidates(task, landmarks, retrieved_docs):
+    """Valid target coordinates for an attribute task.
+
+    With a self-building memory, several remembered areas can legitimately
+    match a description ("where there were many objects"), so the seeded
+    landmark is not the only right answer: any retrieved area whose text
+    contains one of the task's match terms counts (the planner chose among
+    exactly these retrieved documents).
+    """
+    target = landmarks[task['target']]
+    candidates = [(target['x'], target['y'])]
+    terms = [t.lower() for t in task.get('match_any', [])]
+    for doc in retrieved_docs:
+        low = doc.lower()
+        if terms and not any(t in low for t in terms):
+            continue
+        m = _COORD_IN_DOC.search(doc)
+        if m:
+            candidates.append((float(m.group(1)), float(m.group(2))))
+    return candidates
+
+
+def classify(plan, task, landmarks, zones, retrieved_docs=()):
     """Returns (decision, success) for a plan given the task type."""
     if not plan:
         return 'no_plan', False
@@ -74,6 +100,14 @@ def classify(plan, task, landmarks, zones):
         target = landmarks[task['target']]
         if _navigates_to_coord(plan, (target['x'], target['y'])):
             return 'direct_nav', True
+        if any(s.get('skill') == 'explore' for s in steps):
+            return 'explore', False
+        return 'other', False
+
+    if ttype == 'attribute_nav':
+        for candidate in attribute_candidates(task, landmarks, retrieved_docs):
+            if _navigates_to_coord(plan, candidate):
+                return 'direct_nav', True
         if any(s.get('skill') == 'explore' for s in steps):
             return 'explore', False
         return 'other', False
@@ -131,7 +165,11 @@ def main():
                 node.publish_goal(task['goal'])
                 plan = node.wait_for_plan(timeout_sec=60.0)
                 latency = time.monotonic() - t0
-                decision, success = classify(plan or {}, task, landmarks, zones)
+                retrieved = (
+                    node.query_rag(task['goal'], 'semantic_map', top_k=5)
+                    if task['type'] == 'attribute_nav' else ()
+                )
+                decision, success = classify(plan or {}, task, landmarks, zones, retrieved)
                 runs.append({
                     'task_id': task['id'], 'type': task['type'], 'rep': rep,
                     'condition': cond_name, 'goal': task['goal'],

@@ -28,7 +28,7 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
 from robot_interfaces.msg import SemanticObject
-from robot_interfaces.srv import ExecuteSkill, UpdateMap
+from robot_interfaces.srv import ExecuteSkill, QueryRAG, UpdateMap
 
 _MAP_QOS = QoSProfile(
     depth=1,
@@ -49,6 +49,7 @@ class BenchNode(Node):
         self._goal_pub = self.create_publisher(String, '/robot/goal', 10)
         self._skills_client = self.create_client(ExecuteSkill, '/skills/execute')
         self._update_map_client = self.create_client(UpdateMap, '/rag/update_map')
+        self._rag_client = self.create_client(QueryRAG, '/rag/query')
 
         self._response_lock = threading.Lock()
         self._latest_response: str | None = None
@@ -150,6 +151,18 @@ class BenchNode(Node):
         if not done.wait(timeout=10.0):
             return False
         return future.result().success
+
+    def query_rag(self, text: str, collection: str, top_k: int = 5) -> list[str]:
+        """Retrieves contexts from /rag/query (used by the attribute scorer)."""
+        self._rag_client.wait_for_service(timeout_sec=10.0)
+        request = QueryRAG.Request(query_text=text, collection_name=collection, top_k=top_k)
+        future = self._rag_client.call_async(request)
+        done = threading.Event()
+        future.add_done_callback(lambda _: done.set())
+        if not done.wait(timeout=15.0):
+            return []
+        response = future.result()
+        return list(response.contexts) if response.success else []
 
     def wait_for_plan(self, timeout_sec: float) -> dict | None:
         """Blocks until a new /robot/plan arrives, returning the parsed plan dict."""

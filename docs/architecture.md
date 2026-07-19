@@ -31,7 +31,8 @@ document text** ("`refrigerator at (x=3.42, y=-1.15) in kitchen: ...`") —
 the planner learns *where* a remembered thing is
 ([ADR-012](decisions/ADR-012-navigable-rag-post-execution-report.md)).
 
-Embeddings via `nomic-embed-text` (Ollama, 768 dims). See
+Embeddings via `bge-m3` (Ollama, 1024 dims; multilingual — chosen over
+nomic-embed-text on measured retrieval data, see docs/rag-analysis.md §2.4). See
 [ADR-001](decisions/ADR-001-chromadb.md) and
 [ADR-011](decisions/ADR-011-rag-quality-zones-sqlite.md) (chunking, real
 task_history, relevance threshold).
@@ -57,10 +58,12 @@ implementations:
   cell adjacent to unknown space in the `/map` grid, skipping frontiers near
   the robot and previously attempted ones; optional zone bounds restrict the
   search area.
-- **perceive** (`perceive_skill.py`): sends the latest `/camera/image_raw`
-  frame to Qwen2.5-VL (Ollama) asking for structured JSON of detected
-  objects; each object is written into `semantic_map` (with coordinates) via
-  `/rag/update_map`.
+- **perceive** (`perceive_skill.py` + `scene_descriptor.py`): classical
+  scene description — dominant camera colors + LIDAR clutter metrics, no ML
+  ([ADR-014](decisions/ADR-014-classical-scene-descriptor.md)) — stored in
+  `semantic_map` with the robot's coordinates via `/rag/update_map`.
+  **explore** stores one description at every frontier it reaches, so the
+  semantic memory builds itself during exploration.
 - **report** (`report_skill.py`): publishes `/robot/response` and writes a
   JSON log to `data/logs/<task_id>.json` (later ingested into the
   `task_history` RAG collection).
@@ -112,7 +115,7 @@ Qwen2.5-7B (Ollama) → plan JSON {reasoning, steps[]}  ──► /robot/plan
     ▼ execute_plan()
 /skills/execute ──► skills_executor_node
     │                     │
-    ├─ navigate ─► Nav2   ├─ perceive ─► Qwen2.5-VL ─► /rag/update_map
+    ├─ navigate ─► Nav2   ├─ perceive ─► scene descriptor ─► /rag/update_map
     └─ explore ──► Nav2 + frontier search
     │
     ▼ (real step results)

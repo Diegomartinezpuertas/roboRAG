@@ -44,8 +44,8 @@ Gazebo without prior confirmation.
 | Simulator | Gazebo Harmonic | gz-sim 8 | Integrated with ros-jazzy |
 | Robot | TurtleBot3 Waffle | — | LIDAR + camera (own model copy at 640×480, ADR-009) |
 | Planner LLM | Qwen2.5-7B-Instruct | Ollama | Port 11434, temperature=0 |
-| Vision LLM | Qwen2.5-VL-7B | Ollama | Load only when needed (not alongside the 7B) |
-| Embeddings | nomic-embed-text | Ollama | For ChromaDB |
+| Perception | Scene descriptor | robot_skills | Classical colors+clutter, no ML (ADR-014) |
+| Embeddings | bge-m3 | Ollama | Multilingual, for ChromaDB (ADR-014 / rag-analysis §2.4) |
 | Vector DB | ChromaDB | pip | Persistent at ~/robot_ws/data/chroma_db |
 | Zones store | SQLite (stdlib) | — | ~/robot_ws/data/zones.db (ADR-011) |
 | Navigation | Nav2 | ros-jazzy | SimpleCommander API |
@@ -265,7 +265,6 @@ KNOWLEDGE_DIR=${ROBOT_WS}/data/knowledge
 | Gazebo renders on llvmpipe | Incomplete WSL2 GPU passthrough | Gazebo GUI disabled by default (RTF 0.15→~1.0); view via RViz (use_rviz:=true) or dashboard. use_gz_gui:=true if needed |
 | Closing the Gazebo GUI killed everything | on_exit_shutdown:true on the stock gzclient include | Own simulation.launch.py launches server/GUI separately, GUI without shutdown |
 | NPU unreachable in WSL2 | WSL2 doesn't expose the NPU device | Reserved for native Windows (voice phase: Whisper) |
-| qwen2.5:7b + qwen2.5vl:7b don't fit together | 8GB VRAM total | Load only the model the current step needs |
 | SLAM drift on long runs | Software-rendered sim | Save the map periodically with map_saver_cli |
 | Intermittent DDS discovery | WSL2 multi-NIC (eth0/docker0) | CycloneDDS pinned to lo — cyclonedds.xml + CYCLONEDDS_URI (ADR-006) |
 | Gazebo window doesn't appear | Dead msrdc.exe (WSLg bridge) | `wsl --shutdown` from PowerShell and relaunch |
@@ -295,7 +294,6 @@ KNOWLEDGE_DIR=${ROBOT_WS}/data/knowledge
 
 - **No `print()`** in ROS 2 nodes — use `self.get_logger().info()`
 - **No hardcoded paths** — ROS 2 parameters or env vars
-- **Never load qwen2.5vl:7b and qwen2.5:7b simultaneously** — 8GB VRAM
 - **Do not commit** `data/chroma_db/`, `data/logs/`, `data/zones.db`, `agent_env/`
 - **Do not modify** `/opt/ros/jazzy/` — system installation (copy into the repo instead, like the waffle model)
 - **Do not forget** `source ~/robot_ws/install/setup.bash` after `colcon build`

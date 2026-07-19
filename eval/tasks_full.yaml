@@ -1,13 +1,16 @@
 # Full RAG navigation benchmark suite, with control conditions.
 #
-# Task types (scored differently, see run_benchmark.classify_plan):
-#   object_nav : target is a landmark stored in semantic_map (RAG-dependent).
-#                Success = the plan navigates directly to its coordinates.
-#   zone_nav   : target is a zone in SQLite (resolvable WITHOUT RAG). Control:
-#                should succeed in both conditions -> shows the ablation isolates
-#                RAG's object memory, not navigation in general.
-#   negative   : an impossible/unknown place. Success = the planner does NOT
-#                invent coordinates (it explores or declines) -> hallucination check.
+# Task types (scored differently, see run_benchmark.classify):
+#   object_nav    : target is a landmark stored in semantic_map (RAG-dependent).
+#                   Success = the plan navigates directly to its coordinates.
+#   attribute_nav : target is referenced by its stored DESCRIPTION (colors,
+#                   clutter), not its name — the self-built memory case
+#                   ("go to the white open room"). Scored like object_nav.
+#   zone_nav      : target is a zone in SQLite (resolvable WITHOUT RAG). Control:
+#                   should succeed in both conditions -> shows the ablation isolates
+#                   RAG's object memory, not navigation in general.
+#   negative      : an impossible/unknown place. Success = the planner does NOT
+#                   invent coordinates (it explores or declines) -> hallucination check.
 
 success_radius_m: 0.75
 task_timeout_sec: 180
@@ -26,6 +29,19 @@ tasks:
     goal: "Ve a estacion_c"
     type: object_nav
     target: estacion_c
+  # match_any: with a self-building memory several remembered areas can
+  # legitimately match a description; any retrieved area containing one of
+  # these terms is an accepted answer (see run_benchmark.attribute_candidates).
+  - id: attr_white_open
+    goal: "Ve a la habitación blanca y despejada"
+    type: attribute_nav
+    target: estacion_a
+    match_any: ["white"]
+  - id: attr_cluttered
+    goal: "Llévame a donde había muchos objetos"
+    type: attribute_nav
+    target: estacion_c
+    match_any: ["cluttered", "many objects", "obstacle groups"]
   - id: zone_base
     goal: "Ve a la zona base"
     type: zone_nav

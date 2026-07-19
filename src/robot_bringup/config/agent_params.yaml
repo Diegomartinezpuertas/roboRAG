@@ -3,13 +3,21 @@ llm_planner_node:
     ollama_base_url: "http://localhost:11434"
     llm_model: "qwen2.5:7b"
     max_plan_steps: 10
-    rag_score_threshold: 0.45
+    # Calibrated for bge-m3 (see docs/rag-analysis.md): correct-match scores
+    # start at ~0.43, so 0.40 acts as a floor against off-topic noise while
+    # the LLM disambiguates within the surviving top-k. (For nomic-embed-text
+    # the calibrated value was 0.45.)
+    rag_score_threshold: 0.40
     zones_db: "/home/diego/robot_ws/data/zones.db"
 
 rag_node:
   ros__parameters:
     ollama_base_url: "http://localhost:11434"
-    embedding_model: "nomic-embed-text"
+    # bge-m3 over nomic-embed-text: measured Spanish-query top-1 43% -> 86%
+    # on this project's English memories (see docs/rag-analysis.md §2.4).
+    # If you change this, delete data/chroma_db (embedding dims differ) and
+    # re-seed; consider recalibrating rag_score_threshold.
+    embedding_model: "bge-m3"
     chroma_db_path: "/home/diego/robot_ws/data/chroma_db"
     knowledge_dir: "/home/diego/robot_ws/data/knowledge"
     logs_dir: "/home/diego/robot_ws/data/logs"
@@ -21,8 +29,6 @@ rag_node:
 
 skills_executor_node:
   ros__parameters:
-    ollama_base_url: "http://localhost:11434"
-    vision_model: "qwen2.5vl:7b"
     logs_dir: "/home/diego/robot_ws/data/logs"
     zones_db: "/home/diego/robot_ws/data/zones.db"
 

@@ -7,7 +7,8 @@ translates language into SQL queries be the right design?**
 
 All numbers come from the reproducible harness in [`eval/`](../eval)
 (see [docs/EVALUATION.md](EVALUATION.md) to re-run everything). LLM =
-Qwen2.5-7B at `temperature=0`; embeddings = nomic-embed-text unless stated.
+Qwen2.5-7B at `temperature=0`; embeddings = bge-m3 (the project default)
+unless stated.
 
 ---
 
@@ -33,17 +34,21 @@ stable exact name, RAG is overhead.
 
 ## 2. The evidence
 
-### 2.1 Ablation: RAG on vs off (30 runs)
+### 2.1 Ablation: RAG on vs off (42 runs)
 
 ![Benchmark results](../eval/results/benchmark.png)
 
 | Task type | With RAG | Without RAG |
 |---|---|---|
 | Object-referenced nav (RAG-dependent) | **9/9 (100%)** | **0/9 (0%)** |
+| Description-referenced nav (self-built memory) | **6/6 (100%)** | **0/6 (0%)** |
 | Known-zone nav (control) | 3/3 (100%) | 3/3 (100%) |
 | Impossible goal (hallucination check) | 3/3 (100%) | 3/3 (100%) |
 
-Three findings, one per row:
+(Two no-RAG object_nav runs hit a 60 s Ollama stall and produced no plan;
+they are recorded as `no_plan` failures — the conclusion is unchanged.)
+
+Four findings, one per row:
 
 1. **RAG is decisive exactly where the information lives only in semantic
    memory.** With RAG, the planner retrieves
@@ -52,12 +57,16 @@ Three findings, one per row:
    to blind exploration. The LLM's own reasoning strings state the mechanism:
    *"The target has explicit coordinates, so we can navigate directly"* vs
    *"no coordinates are provided, we need to explore"*.
-2. **The known-zone control proves the ablation isolates RAG, not language
+2. **Description-referenced navigation works on memory the robot built
+   itself.** "Ve a la habitación blanca y despejada" resolves against scene
+   descriptions (dominant colors + LIDAR clutter, ADR-014) stored
+   autonomously while exploring — see §2.5 for what this did to scoring.
+3. **The known-zone control proves the ablation isolates RAG, not language
    understanding.** Zone names travel to the planner through SQLite
    (design A embedded inside D), and both conditions score 100%. This is the
    honest core of the analysis: *for a small closed vocabulary of named
    places, SQL alone is enough* — removing RAG costs nothing there.
-3. **RAG neither causes nor prevents hallucination.** For a nonexistent
+4. **RAG neither causes nor prevents hallucination.** For a nonexistent
    place, both conditions correctly refuse to invent coordinates (the prompt
    rules carry that behavior).
 
@@ -72,14 +81,19 @@ paraphrase, English), two repetitions:
 |---|---|---|
 | Spanish imperative ("Ve a estacion_a") | 6/6 | 0/6 |
 | Spanish paraphrase ("Llévame hasta donde está...") | 6/6 | 0/6 |
-| English ("Take me to...") | 5/6 | 0/6 |
+| English ("Take me to...") | 6/6 | 0/6 |
+
+(18/18 with the now-default bge-m3 embedder. An earlier run with
+nomic-embed-text scored 17/18 — see the failure dissected below, kept
+because it illustrates a real error class.)
 
 This is the practical payoff of the embedding-based recall: **retrieval
 survived paraphrase and code-switching** — wordings never seen at indexing
 time still ranked the right memory first (landmark names anchor the match;
 see §2.4 for how language affects *descriptive* queries).
 
-The single failure is instructive: for *"Take me to estacion_c"* the LLM
+The single failure observed in the nomic-era run is instructive: for
+*"Take me to estacion_c"* the LLM
 retrieved the right context but emitted `navigate(zone="estacion_c")` —
 misclassifying the remembered object as a named zone. Execution would fail
 (no such zone in SQLite), and the scorer correctly counts it as a failure.
@@ -89,12 +103,15 @@ exactness) is what catches it.
 
 ### 2.3 What does RAG cost? Planning latency
 
-Mean goal→plan latency is **1.4 s in both conditions** (right panel of the
-benchmark figure; one 4.2 s warm-up outlier on the first call). Retrieval —
-three collection queries through `/rag/query`, each an embedding call plus a
-vector search — is **noise compared to the 7B model's inference time**. On
-this hardware, RAG's latency cost is effectively zero. (Its real costs are
-operational: an embedder, a vector store, and index-freshness to manage.)
+Mean goal→plan latency is **2.2 s with RAG vs 1.7 s without** (right panel
+of the benchmark figure; runs that produced no plan due to an Ollama stall
+are excluded). Retrieval — three collection queries through `/rag/query`,
+each a bge-m3 embedding call plus a vector search — costs **~0.5 s**,
+small next to the 7B model's inference either way. (With the lighter
+nomic-embed-text the difference was unmeasurable at ~1.4 s in both
+conditions; bge-m3's 1024-dim embeddings are the price of its
+multilingual accuracy. RAG's other costs are operational: an embedder,
+a vector store, and index freshness.)
 
 ### 2.4 Embedding choice: the multilingual gap is real and large
 
@@ -121,11 +138,39 @@ correct document's score and the best wrong one:
   while remaining perfect in English. Its English margins are slightly
   smaller than nomic's (+0.126 vs +0.141) — the one trade-off.
 
-**Recommendation:** for any deployment where users speak a different language
-than the stored documents, switch the embedder to `bge-m3` (one parameter:
-`embedding_model` in `agent_params.yaml`, plus re-ingesting the collections).
-For English-only corpora and queries, nomic-embed-text remains marginally
-sharper and smaller.
+**Recommendation — adopted:** `bge-m3` is now the project default
+(`embedding_model` in `agent_params.yaml`; collections re-ingested, and
+`rag_score_threshold` recalibrated from 0.45 to 0.40 because bge-m3's
+correct-match scores center lower — the threshold acts as a noise floor and
+top-k disambiguation is the LLM's job). For English-only corpora and queries,
+nomic-embed-text remains marginally sharper and smaller.
+
+### 2.5 Self-built memory changes what "the right answer" means
+
+The attribute tasks surfaced a finding worth its own section. The robot now
+stores a scene description of every place it reaches while exploring
+(ADR-014) — so by benchmark time, the memory contained both the two *seeded*
+descriptors and several *self-collected* ones ("area at (x=3.62, y=0.78):
+predominantly brown and gray, a moderately furnished space (3 obstacle groups
+nearby)").
+
+On the first run, "Llévame a donde había muchos objetos" scored 0/3 — not
+because the robot failed, but because it navigated to a **genuinely cluttered
+area it had memorized on its own** instead of the one the benchmark seeded.
+The plan's reasoning was correct ("the context mentions an area with many
+objects, navigate directly to it"); the scorer's single-target assumption was
+wrong.
+
+The scorer now accepts a navigate step landing on **any retrieved area whose
+stored description matches the task's attribute terms** (the planner chooses
+among exactly those retrieved documents). With that correction: 6/6.
+
+Two lessons: (1) with an autonomously growing memory, descriptive goals stop
+having a unique ground truth — evaluation must define success as *"a place
+that satisfies the description"*, not *"the place I planted"*; (2) this is
+also the strongest evidence in the whole benchmark that the self-building
+pipeline works end-to-end: explore → describe → store → retrieve → navigate,
+with no human in the loop.
 
 ---
 
@@ -164,7 +209,7 @@ validation), never from the hybrid structure itself.
 
 - Measured at the **planning level** (ADR-013), not physical execution; the
   claim is about *decisions*, which is the mechanism RAG can influence.
-- Small task suite and corpus (66 benchmark runs, 28 embedding queries) on
+- Small task suite and corpus (78 benchmark runs, 28 embedding queries) on
   one LLM; `temperature=0` means results are exact for this setup but not a
   sample from a distribution.
 - Landmark tasks use the landmark's *name* in the goal, which favors
@@ -179,10 +224,12 @@ validation), never from the hybrid structure itself.
    memories, LLM as the language layer. Each is measurably doing the job the
    others can't.
 2. **Switch to bge-m3 for multilingual use** — the single highest-leverage
-   change the data supports (43%→86% Spanish top-1).
+   change the data supports (43%→86% Spanish top-1). *Adopted as the
+   project default.*
 3. **Keep the relevance threshold** while any cross-lingual traffic exists;
    re-calibrate it after an embedder change (score distributions shift:
-   bge-m3's correct-match scores center lower, ~0.59 vs 0.74).
+   bge-m3's correct-match scores center lower, ~0.59 vs 0.74 — the default
+   moved from 0.45 to 0.40 accordingly).
 4. **Validate plans against the exact stores** — the LLM will occasionally
    emit the wrong reference type even with perfect context.
 5. For future structured queries over task history ("what did you do
