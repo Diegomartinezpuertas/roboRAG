@@ -260,7 +260,10 @@ global_costmap:
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: true
-        transform_tolerance: 0.1
+        # 0.5s (was 0.1s): matches every other layer/frame tolerance in this
+        # file. 0.1s was an outlier and, on this sim's variable real-time
+        # factor, tight enough to cause spurious TF timeouts.
+        transform_tolerance: 0.5
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         inflation_radius: 0.5

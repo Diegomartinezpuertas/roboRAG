@@ -33,7 +33,11 @@ slam_toolbox:
     min_laser_range: 0.0 #for rastering images
     max_laser_range: 3.5 #for rastering images — TB3 waffle LDS-01 real range
     minimum_time_interval: 0.5
-    transform_timeout: 0.2
+    # 0.5s (was 0.2s): on WSL2's software-rendered sim the real-time factor
+    # dips well below 1.0 under load, and 0.2s was tight enough to cause
+    # intermittent map<->odom TF gaps during navigation (observed as
+    # "unconnected trees" errors in controller_server).
+    transform_timeout: 0.5
     tf_buffer_duration: 30.0
     stack_size_to_use: 40000000 #// program needs a larger stack size to serialize large maps
     enable_interactive_mode: true
