@@ -48,7 +48,7 @@ created on the dashboard. Written by `dashboard_node`; read by
 
 ### `skills_executor_node` (robot_skills)
 
-Exposes `/skills/execute`, dispatching by `skill_name` to four
+Exposes `/skills/execute`, dispatching by `skill_name` to five
 implementations:
 
 - **navigate** (`nav_skill.py`): Nav2 `BasicNavigator` (SimpleCommander API).
@@ -64,6 +64,12 @@ implementations:
   `semantic_map` with the robot's coordinates via `/rag/update_map`.
   **explore** stores one description at every frontier it reaches, so the
   semantic memory builds itself during exploration.
+- **scan_360** (`nav_skill.py` spin + `scene_descriptor.describe_scan_360`):
+  an in-place full turn (default 8 steps of 45°) for "look all around you"
+  goals. A LIDAR scan already covers 360° in one reading, so only the
+  camera's narrow FOV needs the rotation — colors sampled at each heading are
+  merged (a color must appear in ≥1/4 of headings to count) into one
+  panoramic description, stored the same way as **perceive**.
 - **report** (`report_skill.py`): publishes `/robot/response` and writes a
   JSON log to `data/logs/<task_id>.json` (later ingested into the
   `task_history` RAG collection).
@@ -115,8 +121,9 @@ Qwen2.5-7B (Ollama) → plan JSON {reasoning, steps[]}  ──► /robot/plan
     ▼ execute_plan()
 /skills/execute ──► skills_executor_node
     │                     │
-    ├─ navigate ─► Nav2   ├─ perceive ─► scene descriptor ─► /rag/update_map
-    └─ explore ──► Nav2 + frontier search
+    ├─ navigate ─► Nav2   ├─ perceive ──► scene descriptor ─► /rag/update_map
+    ├─ explore ──► Nav2 + frontier search  (each frontier also perceives+stores)
+    └─ scan_360 ─► Nav2 spin (in place) ─► scene descriptor ─► /rag/update_map
     │
     ▼ (real step results)
 Qwen2.5-7B (2nd call) → grounded response ──► report ──► /robot/response

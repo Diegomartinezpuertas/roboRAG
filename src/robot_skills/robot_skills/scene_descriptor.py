@@ -20,6 +20,11 @@ import numpy as np
 COLOR_MIN_SHARE = 0.18
 MAX_COLORS = 2
 
+# A panoramic scan covers more ground than one frame, so it keeps more colors;
+# a color must show up in at least a quarter of the sampled headings (not just
+# one lucky frame) to count.
+MAX_COLORS_360 = 3
+
 # Ranges (m) used by the clutter heuristics.
 NEAR_OBSTACLE_M = 2.5
 GAP_JUMP_M = 0.6
@@ -145,23 +150,14 @@ def clutter_metrics(ranges: list[float], range_max: float = 3.5) -> dict:
     }
 
 
-def describe_scene(rgb_image: np.ndarray | None, ranges: list[float] | None) -> dict:
-    """Builds the textual scene description from camera and LIDAR data.
+_NO_SCAN_METRICS = {
+    'obstacle_clusters': 0, 'near_fraction': 0.0,
+    'median_clearance_m': math.nan, 'clutter': 'unknown',
+}
 
-    Either input may be None (missing sensor); the description degrades
-    gracefully.
 
-    Returns:
-        Dict with "colors", clutter metrics, and a "description" string ready
-        to store in semantic memory (coordinates are prepended by the memory
-        layer, not here).
-    """
-    colors = dominant_colors(rgb_image) if rgb_image is not None else []
-    metrics = clutter_metrics(ranges) if ranges is not None else {
-        'obstacle_clusters': 0, 'near_fraction': 0.0,
-        'median_clearance_m': math.nan, 'clutter': 'unknown',
-    }
-
+def _build_description(colors: list[str], metrics: dict) -> str:
+    """Renders the (colors, clutter metrics) pair into one description sentence."""
     parts = []
     if colors:
         parts.append('predominantly ' + ' and '.join(colors))
@@ -178,9 +174,75 @@ def describe_scene(rgb_image: np.ndarray | None, ranges: list[float] | None) -> 
             f'a moderately furnished space '
             f'({metrics["obstacle_clusters"]} obstacle groups nearby)',
         )
+    return ', '.join(parts) if parts else 'no sensor data available'
 
+
+def describe_scene(rgb_image: np.ndarray | None, ranges: list[float] | None) -> dict:
+    """Builds the textual scene description from camera and LIDAR data.
+
+    Either input may be None (missing sensor); the description degrades
+    gracefully.
+
+    Returns:
+        Dict with "colors", clutter metrics, and a "description" string ready
+        to store in semantic memory (coordinates are prepended by the memory
+        layer, not here).
+    """
+    colors = dominant_colors(rgb_image) if rgb_image is not None else []
+    metrics = clutter_metrics(ranges) if ranges is not None else _NO_SCAN_METRICS
     return {
         'colors': colors,
         **metrics,
-        'description': ', '.join(parts) if parts else 'no sensor data available',
+        'description': _build_description(colors, metrics),
+    }
+
+
+def aggregate_colors(color_samples: list[list[str]]) -> list[str]:
+    """Merges dominant-color readings taken at several headings into one set.
+
+    A 2D LIDAR already sees the full 360 degrees in a single scan, but the
+    camera's field of view is narrow, so a full-room color picture needs
+    several frames taken while the robot turns in place. A color needs to
+    show up in more than a quarter of the sampled headings to count, so a
+    color glimpsed in a single frame (e.g. a doorway sliver) doesn't dominate
+    the room's description.
+
+    Args:
+        color_samples: One dominant_colors() result per heading.
+
+    Returns:
+        Up to MAX_COLORS_360 color names, ranked by how many headings saw them.
+    """
+    if not color_samples:
+        return []
+    counts: dict[str, int] = {}
+    for sample in color_samples:
+        for color in sample:
+            counts[color] = counts.get(color, 0) + 1
+    threshold = len(color_samples) // 4 + 1
+    ranked = sorted(counts.items(), key=lambda kv: -kv[1])
+    return [color for color, n in ranked if n >= threshold][:MAX_COLORS_360]
+
+
+def describe_scan_360(color_samples: list[list[str]], ranges: list[float] | None) -> dict:
+    """Builds a panoramic scene description from a full in-place rotation.
+
+    Pairs colors aggregated across multiple headings (see aggregate_colors)
+    with one LIDAR-based clutter reading, since the scan already covers 360
+    degrees regardless of the robot's heading.
+
+    Args:
+        color_samples: One dominant_colors() result per heading sampled
+            during the rotation.
+        ranges: LIDAR scan ranges taken during (or right after) the rotation.
+
+    Returns:
+        Same shape as describe_scene: {"colors", clutter metrics, "description"}.
+    """
+    colors = aggregate_colors(color_samples)
+    metrics = clutter_metrics(ranges) if ranges is not None else _NO_SCAN_METRICS
+    return {
+        'colors': colors,
+        **metrics,
+        'description': _build_description(colors, metrics),
     }

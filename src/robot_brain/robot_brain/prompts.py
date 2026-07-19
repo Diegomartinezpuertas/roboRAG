@@ -12,8 +12,14 @@ AVAILABLE SKILLS (these are the ONLY valid skill names):
 - explore(duration_sec: int, zone: str optional) -> frontier exploration; with a
   zone name, exploration is restricted to that zone. Every place reached while
   exploring is automatically described and stored in memory
-- perceive() -> describes the current surroundings (dominant colors, how
-  cluttered/open the space is) and stores the description with coordinates in memory
+- perceive() -> describes the current surroundings from a single snapshot (dominant
+  colors, how cluttered/open the space is) and stores the description with
+  coordinates in memory
+- scan_360() -> rotates the robot in place through a full turn, sampling the camera
+  at each heading to build one panoramic description (wider color coverage than
+  perceive's single snapshot), and stores it with coordinates in memory. Use for
+  goals like "spin around and see what's here", "look all around you", "barre/gira
+  360 y describe la zona" - a deliberate full sweep of the CURRENT spot, not travel
 
 AVAILABLE CONTEXT (from RAG, provided in the user message):
 - semantic_map: known objects and zones WITH their map-frame coordinates
@@ -36,6 +42,9 @@ RULES:
 - Only use zone names listed in KNOWN ZONES. If the requested place is neither a
   known zone nor present with coordinates in the context, explore first.
 - Never invent coordinates or zone names. If the location is unknown, explore.
+- scan_360 is for "look around from here" requests (the robot stays in place and
+  turns). Use explore when the goal implies moving to see new areas, and perceive
+  when a quick single-snapshot look is enough.
 - Do NOT add a "report" step. The system automatically reports the outcome to the
   user after the plan runs, using the real results.
 - Be concise in reasoning (max 2 sentences).

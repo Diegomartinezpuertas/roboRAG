@@ -18,7 +18,7 @@ class FakeToolkit:
 
 
 def test_valid_skills_set():
-    assert set(VALID_SKILLS) == {'navigate', 'explore', 'perceive', 'report'}
+    assert set(VALID_SKILLS) == {'navigate', 'explore', 'perceive', 'scan_360', 'report'}
 
 
 def test_executes_all_steps_in_order():

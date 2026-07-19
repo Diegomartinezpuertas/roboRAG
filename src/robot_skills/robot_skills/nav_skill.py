@@ -64,3 +64,19 @@ class NavSkill:
         if result == TaskResult.SUCCEEDED:
             return {'reached': True, 'message': f'Reached ({x}, {y})'}
         return {'reached': False, 'message': f'Navigation to ({x}, {y}) failed: {result}'}
+
+    def spin(self, angle: float, time_allowance: int = 15) -> bool:
+        """Rotates the robot in place via Nav2's Spin behavior.
+
+        Args:
+            angle: Relative rotation in radians (positive = counter-clockwise).
+            time_allowance: Max seconds Nav2 gives the behavior before aborting.
+
+        Returns:
+            True if the rotation completed successfully.
+        """
+        if not self.navigator.spin(spin_dist=angle, time_allowance=time_allowance):
+            return False
+        while not self.navigator.isTaskComplete():
+            time.sleep(0.05)
+        return self.navigator.getResult() == TaskResult.SUCCEEDED

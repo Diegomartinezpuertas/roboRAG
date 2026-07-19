@@ -3,7 +3,9 @@
 import numpy as np
 
 from robot_skills.scene_descriptor import (
+    aggregate_colors,
     clutter_metrics,
+    describe_scan_360,
     describe_scene,
     dominant_colors,
 )
@@ -76,3 +78,32 @@ def test_describe_scene_scan_only():
 def test_describe_scene_no_sensors():
     result = describe_scene(None, None)
     assert result['description'] == 'no sensor data available'
+
+
+def test_aggregate_colors_keeps_recurring_and_drops_one_offs():
+    # 'white' seen in 3/4 headings, 'blue' in a single lucky frame -> dropped.
+    samples = [['white'], ['white'], ['white', 'blue'], []]
+    assert aggregate_colors(samples) == ['white']
+
+
+def test_aggregate_colors_ranks_by_frequency():
+    samples = [['brown'], ['brown'], ['gray'], ['brown', 'gray']]
+    assert aggregate_colors(samples) == ['brown', 'gray']
+
+
+def test_aggregate_colors_empty():
+    assert aggregate_colors([]) == []
+
+
+def test_describe_scan_360_combines_headings_and_scan():
+    samples = [['white'], ['white'], ['white'], ['gray']]
+    result = describe_scan_360(samples, [3.5] * 360)
+    assert result['colors'] == ['white']
+    assert 'white' in result['description']
+    assert 'open' in result['description']
+
+
+def test_describe_scan_360_no_scan():
+    result = describe_scan_360([['brown']] * 4, None)
+    assert result['clutter'] == 'unknown'
+    assert 'brown' in result['description']

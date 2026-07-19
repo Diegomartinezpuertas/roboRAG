@@ -63,7 +63,7 @@ Dispatches a skill by name with JSON-encoded parameters.
 **Request:**
 | Field | Type | Description |
 |-------|------|-------------|
-| skill_name | string | "navigate" \| "explore" \| "perceive" \| "report" |
+| skill_name | string | "navigate" \| "explore" \| "perceive" \| "scan_360" \| "report" |
 | params_json | string | JSON-encoded parameters |
 
 **Response:**
@@ -82,6 +82,7 @@ Served by `skills_executor_node`.
 | navigate | `{"zone": "kitchen"}` or `{"x": 1.0, "y": 0.5, "theta": 0.0}` | `{"reached": bool, "message": str}` |
 | explore | `{"duration_sec": 30, "zone": "kitchen" (optional)}` | `{"visited_frontiers": int, "message": str}` |
 | perceive | `{"zone": "kitchen" (optional)}` | `{"colors": [...], "clutter": str, "obstacle_clusters": int, "description": str, "stored": bool}` |
+| scan_360 | `{"steps": 8 (optional, 4-16), "zone": "kitchen" (optional)}` | `{"colors": [...], "clutter": str, "obstacle_clusters": int, "description": str, "headings_completed": int, "stored": bool}` |
 | report | `{"message": "...", "goal_text": "..."}` | `{"published": bool}` |
 
 Zone names are resolved against the SQLite zone store; unknown zones fail

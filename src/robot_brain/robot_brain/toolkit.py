@@ -17,7 +17,7 @@ import threading
 # unit-testable with a fake toolkit — without a ROS environment.
 
 # Skills the planner may emit as plan steps, dispatched via /skills/execute.
-VALID_SKILLS = ('navigate', 'explore', 'perceive', 'report')
+VALID_SKILLS = ('navigate', 'explore', 'perceive', 'scan_360', 'report')
 
 
 class RobotToolkit:
@@ -50,7 +50,7 @@ class RobotToolkit:
         """Calls /skills/execute synchronously and returns the parsed result.
 
         Args:
-            skill_name: One of "navigate", "explore", "perceive", "report".
+            skill_name: One of "navigate", "explore", "perceive", "scan_360", "report".
             params: Skill-specific parameters.
 
         Returns:

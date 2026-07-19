@@ -1,6 +1,7 @@
 """ROS 2 node that dispatches ExecuteSkill requests to the robot's skills."""
 
 import json
+import math
 import threading
 import time
 
@@ -23,6 +24,11 @@ from robot_skills.explore_skill import find_nearest_frontier
 from robot_skills.nav_skill import NavSkill
 from robot_skills.perceive_skill import PerceiveSkill
 from robot_skills.report_skill import ReportSkill
+from robot_skills.scene_descriptor import describe_scan_360
+
+# scan_360 sweeps in this many equal steps (a LIDAR scan already covers 360
+# degrees in one reading; the steps are for the camera's narrow FOV).
+SCAN_360_STEPS = 8
 
 
 class SkillsExecutorNode(Node):
@@ -41,7 +47,8 @@ class SkillsExecutorNode(Node):
         /robot/response (std_msgs/String): Final natural language response.
 
     Services (server):
-        /skills/execute (ExecuteSkill): Dispatches to navigate/explore/perceive/report.
+        /skills/execute (ExecuteSkill): Dispatches to
+            navigate/explore/perceive/scan_360/report.
 
     Services (client):
         /rag/update_map (UpdateMap): Stores scene descriptions in semantic memory.
@@ -180,6 +187,8 @@ class SkillsExecutorNode(Node):
             return self._run_explore(params)
         if skill_name == 'perceive':
             return self._run_perceive(params)
+        if skill_name == 'scan_360':
+            return self._run_scan_360(params)
         if skill_name == 'report':
             return self._run_report(params)
         raise ValueError(f'Unknown skill: {skill_name}')
@@ -252,13 +261,53 @@ class SkillsExecutorNode(Node):
         return self._perceive_and_store(zone=params.get('zone', ''))
 
     def _perceive_and_store(self, zone: str = '') -> dict:
-        """Describes the surroundings and upserts the description into memory.
+        """Describes the surroundings from a single frame and stores the result."""
+        result = self._perceive_skill.describe(self._latest_image, self._latest_scan)
+        return self._store_scene_result(result, zone)
+
+    def _run_scan_360(self, params: dict) -> dict:
+        """Rotates in place, describes the full surroundings, and stores it.
+
+        A 2D LIDAR already sees 360 degrees in one scan, so only the camera —
+        whose field of view is narrow — needs the rotation: it samples
+        dominant colors at each heading and merges them into one panoramic
+        description (scene_descriptor.describe_scan_360), keyed to the
+        robot's current position like a regular perceive.
+        """
+        steps = max(4, min(int(params.get('steps', SCAN_360_STEPS)), 16))
+        angle = 2 * math.pi / steps
+
+        self._nav_skill.wait_until_active()
+        # Sample the current heading before turning: Nav2's Spin refuses to
+        # move if an obstacle is too close (safety behavior, not a bug), and
+        # without this the very first refusal would lose colors entirely
+        # instead of degrading to a single-frame read like perceive.
+        color_samples = [self._perceive_skill.sample_colors(self._latest_image)]
+        completed = 0
+        for _ in range(steps):
+            if not self._nav_skill.spin(angle):
+                break
+            completed += 1
+            time.sleep(0.3)  # let the camera settle after the turn
+            color_samples.append(self._perceive_skill.sample_colors(self._latest_image))
+
+        ranges = list(self._latest_scan.ranges) if self._latest_scan is not None else None
+        result = describe_scan_360(color_samples, ranges)
+        result['headings_completed'] = completed
+        result['message'] = (
+            f'Completed the full turn ({steps} steps).' if completed == steps else
+            f'Turned {completed}/{steps} steps before stopping '
+            f'(likely an obstacle too close to continue safely).'
+        )
+        return self._store_scene_result(result, params.get('zone', ''))
+
+    def _store_scene_result(self, result: dict, zone: str = '') -> dict:
+        """Upserts a scene-description result (perceive or scan_360) into memory.
 
         The object_id is derived from the pose rounded to a 0.5 m grid, so
         re-visiting a place UPDATES its description instead of accumulating
         near-duplicates.
         """
-        result = self._perceive_skill.describe(self._latest_image, self._latest_scan)
         pose_x, pose_y = self._get_robot_pose()
         zone = zone or self._zone_at(pose_x, pose_y)
         object_id = f'scene-{round(pose_x * 2) / 2:.1f}-{round(pose_y * 2) / 2:.1f}'

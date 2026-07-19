@@ -106,7 +106,7 @@ flowchart TD
 |---------|------|
 | `robot_interfaces` | Custom messages/services (`QueryRAG`, `ExecuteSkill`, `UpdateMap`, `SemanticObject`) |
 | `robot_rag` | ChromaDB-backed semantic memory + RAG query service |
-| `robot_skills` | Executable skills: navigate (Nav2), explore (frontier, self-building memory), perceive (scene descriptor), report |
+| `robot_skills` | Executable skills: navigate (Nav2), explore (frontier, self-building memory), perceive (scene descriptor), scan_360 (in-place panoramic sweep), report |
 | `robot_brain` | LLM planner: RAG retrieval → Qwen plan → skill dispatch → post-execution report |
 | `robot_zones` | Shared SQLite store of user-defined named zones |
 | `robot_dashboard` | Web dashboard: observability, interactive SLAM map, text/voice goals |

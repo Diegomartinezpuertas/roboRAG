@@ -12,7 +12,7 @@ resolvable later.
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, LaserScan
 
-from robot_skills.scene_descriptor import describe_scene
+from robot_skills.scene_descriptor import describe_scene, dominant_colors
 
 
 class PerceiveSkill:
@@ -43,3 +43,14 @@ class PerceiveSkill:
         )
         ranges = list(scan_msg.ranges) if scan_msg is not None else None
         return describe_scene(rgb, ranges)
+
+    def sample_colors(self, image_msg: Image | None) -> list[str]:
+        """Returns the dominant colors of a single camera frame, or [] if none.
+
+        Used by the scan_360 skill to sample colors at each heading of an
+        in-place rotation (see scene_descriptor.describe_scan_360).
+        """
+        if image_msg is None:
+            return []
+        rgb = self._bridge.imgmsg_to_cv2(image_msg, desired_encoding='rgb8')
+        return dominant_colors(rgb)
