@@ -7,6 +7,12 @@
   `ros2 node list` and intermittent pub/sub discovery failures between local
   nodes. Everything in this project runs on one machine, so loopback-only is
   both sufficient and reliable. Referenced via CYCLONEDDS_URI in setup_env.sh.
+
+  MaxAutoParticipantIndex: the full_system.launch.py stack (Gazebo bridge,
+  Nav2's ~15 lifecycle nodes, SLAM Toolbox, RViz, the 3 agent nodes) plus
+  ad-hoc `ros2 topic pub`/`ros2 node list` CLI calls exceeds CycloneDDS's
+  default scan range (0-9), which fails new participants with "Failed to
+  find a free participant index" once the default runs out. Raised to 100.
 -->
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain Id="any">
@@ -16,5 +22,8 @@
       </Interfaces>
       <AllowMulticast>true</AllowMulticast>
     </General>
+    <Discovery>
+      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
+    </Discovery>
   </Domain>
 </CycloneDDS>
