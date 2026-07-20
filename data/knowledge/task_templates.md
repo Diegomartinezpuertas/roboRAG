@@ -1,22 +1,42 @@
-## Template: go to a zone and list objects
+## Task templates
 
-Goal pattern: "Ve a <zone> y dime qué objetos hay" / "Go to <zone> and tell me
-what objects are there".
-Plan: navigate(zone) -> perceive(query="list all objects") -> report(format="natural_language").
+Worked goal → plan examples, retrieved as few-shot guidance for the planner.
+They use only the real skills (navigate, explore, perceive, scan_360) with
+their real parameters, and never a `report` step — the system reports the
+outcome automatically after the plan runs.
 
-## Template: explore and count objects
+## Template: go to a known place and describe it
 
-Goal pattern: "Explora el entorno y dime cuántos <object_class> hay" / "Explore
-the environment and tell me how many <object_class> there are".
-Plan: explore(duration_sec) -> perceive(query="count <object_class>") -> report(format="natural_language").
+Goal pattern: "Ve a <zone> y dime qué hay" / "Go to <zone> and describe it".
+Plan: navigate(zone) → perceive.
+(perceive describes the surroundings — dominant colours, how open or cluttered
+the space is — and stores the description with coordinates. It does not name
+individual objects.)
 
-## Template: find a specific object
+## Template: go to a remembered place by description
 
-Goal pattern: "Busca <object_class>" / "Find <object_class>".
-Plan: query RAG semantic_map for <object_class> first; if found, navigate to
-its stored pose; if not found, explore(duration_sec) -> perceive(query="find <object_class>").
+Goal pattern: "Ve a la habitación blanca y despejada" / "Go to the white, open
+room".
+Plan: if the retrieved context contains a place whose stored description
+matches ("area at (x=..., y=...): predominantly white, an open space"),
+navigate(x, y) straight to it. Do not explore.
 
-## Template: describe current location
+## Template: explore an area
+
+Goal pattern: "Explora la cocina" / "Explore the kitchen".
+Plan: explore(duration_sec, zone). Every place reached while exploring is
+described and stored automatically, so a later descriptive goal can resolve
+against it.
+
+## Template: look all around from here
+
+Goal pattern: "Gira y dime qué ves" / "Spin around and see what's here".
+Plan: scan_360. The robot stays in place, turns through a full circle sampling
+the camera at each heading, and stores one panoramic colour description. Use
+this — not explore — when the goal is to look around the current spot rather
+than travel.
+
+## Template: describe the current location
 
 Goal pattern: "Dime dónde estás" / "Describe your current location".
-Plan: perceive(query="describe surroundings") -> report(format="natural_language").
+Plan: perceive.

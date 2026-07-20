@@ -8,13 +8,14 @@ in the map frame.
 
 ## Where locations come from
 
-Room and object coordinates are NOT hardcoded. The robot learns them two ways:
+Location coordinates are NOT hardcoded. The robot learns them two ways:
 - Exploration builds the SLAM map incrementally; only mapped areas are
   reachable.
-- Named zones (created by the user on the dashboard) and perceived objects
-  are stored with their map-frame coordinates in semantic memory, and are
-  retrieved via RAG. If the retrieved context gives coordinates for a target,
-  navigate straight to them.
+- Named zones (created by the user on the dashboard) and perceived places
+  (each described by its dominant colours and how cluttered it is) are stored
+  with their map-frame coordinates in semantic memory, and retrieved via RAG.
+  If the retrieved context gives coordinates for a target, navigate straight
+  to them.
 
 If a requested place has no known coordinates (not a named zone, not in the
 retrieved context), the robot must explore to find it rather than guessing a
