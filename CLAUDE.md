@@ -230,11 +230,11 @@ ros2 topic echo /robot/response
 ros2 service call /rag/query robot_interfaces/srv/QueryRAG \
   "{query_text: 'where is the kitchen', collection_name: 'knowledge_base', top_k: 3}"
 
-# Layer 1 — pure logic, no ROS needed (111 tests) + lint
+# Layer 1 — pure logic, no ROS needed (120 tests) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
 
-# Layer 2 — node level, needs a sourced workspace (20 tests). The env var is
+# Layer 2 — node level, needs a sourced workspace (21 tests). The env var is
 # required: Jazzy's launch_testing pytest plugin breaks collection (ADR-018).
 source ~/robot_ws/setup_env.sh
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all

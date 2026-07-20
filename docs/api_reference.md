@@ -84,9 +84,16 @@ Served by `skills_executor_node`.
 | perceive | `{"zone": "kitchen" (optional)}` | `{"colors": [...], "clutter": str, "obstacle_clusters": int, "description": str, "stored": bool}` |
 | scan_360 | `{"steps": 8 (optional, 4-16), "zone": "kitchen" (optional)}` | `{"colors": [...], "clutter": str, "obstacle_clusters": int, "description": str, "headings_completed": int, "stored": bool}` |
 | report | `{"message": "...", "goal_text": "..."}` | `{"published": bool}` |
+| save_map † | `{"name": "home" (optional)}` | `{"map_id": str, "path": str, "message": str}` |
 
 Zone names are resolved against the SQLite zone store; unknown zones fail
 with an explicit error (no hardcoded fallbacks).
+
+† `save_map` is a **maintenance** skill: it serializes the live SLAM map (via
+SLAM Toolbox) under the active map-session id, for persistence and memory
+versioning ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)). It
+is deliberately absent from the planner's prompt and from `toolkit.VALID_SKILLS`,
+so the LLM never emits it — reach it only with a direct `ros2 service call`.
 
 ## Topics
 
@@ -158,6 +165,7 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 | rag_node | `embedding_model` (`bge-m3`) | Ollama embedding model (see [rag-analysis](rag-analysis.md) §2.4) |
 | rag_node | `collections` | Collections created on startup |
 | rag_node | `top_k_default` (5) | Results returned when a request sets `top_k <= 0` |
+| rag_node | `map_session_id` ('') | Pin the memory session to a saved map's id on reload ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)); empty continues the current session |
 | dashboard_node | `http_host` (`0.0.0.0`) / `http_port` (8080) | HTTP bind address and port |
 
 `rag_enabled`, `zones_in_prompt` and `dry_run` are re-read on every goal, so the
@@ -175,6 +183,7 @@ derives its default from the `ROBOT_WS` environment variable (exported by
 |---|---|---|
 | llm_planner_node, skills_executor_node, dashboard_node | `zones_db` | `$ROBOT_WS/data/zones.db` |
 | rag_node, skills_executor_node | `logs_dir` | `$ROBOT_WS/data/logs` |
+| rag_node, skills_executor_node | `maps_dir` | `$ROBOT_WS/data/maps` (map session + saved maps, [ADR-019](decisions/ADR-019-map-session-memory-versioning.md)) |
 | rag_node | `chroma_db_path` | `$ROBOT_WS/data/chroma_db` |
 | rag_node | `knowledge_dir` | `$ROBOT_WS/data/knowledge` |
 

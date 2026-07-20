@@ -157,7 +157,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 111 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 120 tests
 ruff check .
 ```
 
@@ -165,7 +165,7 @@ Node level — needs a sourced workspace:
 
 ```bash
 source ~/robot_ws/setup_env.sh
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 20 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 21 tests
 ```
 
 (`PYTEST_DISABLE_PLUGIN_AUTOLOAD` avoids the ROS-installed `launch_testing`

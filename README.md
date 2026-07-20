@@ -168,7 +168,7 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 Three layers, each defined by what it needs to run
 ([ADR-018](docs/decisions/ADR-018-test-strategy.md)):
 
-**1. Pure logic — 111 tests, no ROS required.**
+**1. Pure logic — 120 tests, no ROS required.**
 RAG chunking, plan parsing, prompt building and language detection, frontier
 selection, the scene descriptor, the SQLite zone store, the ChromaDB wrapper,
 the dashboard's HTTP layer, and the benchmark plan scorer.
@@ -177,7 +177,7 @@ the dashboard's HTTP layer, and the benchmark plan scorer.
 pytest tests/
 ```
 
-**2. Node level — 20 tests, needs a ROS 2 install.**
+**2. Node level — 21 tests, needs a ROS 2 install.**
 The real nodes on real executors: `/skills/execute` called over a real service
 client (dispatch, malformed input, executor survival), the dashboard's
 HTTP↔ROS bridge (a POSTed goal arriving on `/robot/goal` as a real message),
@@ -216,7 +216,7 @@ plain runner and layer 2 in a `ros:jazzy-ros-base` container, on every push/PR.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [18 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [19 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera

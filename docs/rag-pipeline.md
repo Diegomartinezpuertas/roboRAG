@@ -234,13 +234,17 @@ leftover zone name (see `seed_memory.py --reset-zones` and
 [EVALUATION.md](EVALUATION.md)). `data/logs/` is not committed, so a fresh
 clone does not hit it; a development machine that has run real tasks does.
 
-Two honest takeaways:
+**The fix — map-session versioning ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)).**
+Every coordinate memory is now tagged with a **map-session id** (the map it was
+written against), and retrieval of `semantic_map` and `task_history` is filtered
+to the active session — so a pose from a dead map is simply not returned. A
+scene written under one map is invisible once a fresh map is started, even
+though ChromaDB still physically holds it. Saving the SLAM map (the `save_map`
+skill) and reloading it (`map_session_id`) preserves the pairing, so a map's
+memories come back on purpose.
 
-1. **For the benchmark:** start from clean session state — empty `data/logs/`
-   and `data/chroma_db`, exactly what a fresh clone has. EVALUATION.md says so.
-2. **For the design:** storing absolute coordinates in a memory that outlives
-   the map is a latent correctness bug, not just a benchmark nuisance. The
-   real fix is a persistent, versioned map (roadmap item 4) so that a logged
-   pose keeps meaning what it meant. Until then, `task_history` is best treated
-   as *episodic* memory — useful for "have I done something like this before",
-   not as a source of coordinates to navigate to.
+This means the benchmark's clean-state requirement (empty `data/logs/` and
+`data/chroma_db`) is now a convenience, not a correctness crutch — a leftover
+log from an old map is scoped out, not acted on. Starting clean is still the
+simplest way to reproduce the published numbers exactly, and EVALUATION.md
+keeps the steps.

@@ -22,7 +22,7 @@ goal, retrieves context from a semantic memory (RAG over ChromaDB), plans with
 a local LLM (Qwen2.5-7B via Ollama), executes the plan through ROS 2 skills,
 and reports back on what actually happened.
 
-Seven ROS 2 packages, ~5,000 lines of Python, 18 ADRs, 131 automated tests, a
+Seven ROS 2 packages, ~5,000 lines of Python, 19 ADRs, 141 automated tests, a
 measured ablation benchmark, and a web dashboard.
 
 The distinguishing claim is not "I built a RAG robot" — it is **"I measured
@@ -37,8 +37,8 @@ Everything below was executed during this review, not inferred.
 
 | Check | Command | Result |
 |---|---|---|
-| Pure-logic tests | `pytest tests/` | **111 passed** (was 52) |
-| Node-level tests | `colcon test` | **20 passed** (was 10 failures — §3.3) |
+| Pure-logic tests | `pytest tests/` | **120 passed** (was 52) |
+| Node-level tests | `colcon test` | **21 passed** (was 10 failures — §3.3) |
 | Python lint | `ruff check .` | **clean** |
 | Workspace build | `colcon build --symlink-install` (from clean) | **7/7 packages** |
 | Dashboard HTTP API | live node, every endpoint exercised with `curl` | **all correct** |
@@ -122,7 +122,7 @@ strip dots no longer collide with the axis edge.
 
 ### 3.6 Stale documentation claims — *low, but corrosive*
 
-- README claimed **47** tests; there were **52** (now 111 + 20).
+- README claimed **47** tests; there were **52** (now 120 + 21).
 - README claimed *"ROS nodes and wiring are exercised locally with `colcon test`"*.
   False twice over: the command was red, and those tests were stock linters
   that exercise no node and no wiring. The testing section now states plainly
@@ -138,12 +138,12 @@ only by hand. That gap is what let §3.2 survive the project's entire life.
 
 **Fixed:** a three-layer strategy (→ **[ADR-018](decisions/ADR-018-test-strategy.md)**).
 
-- **Layer 1, 111 tests, no ROS.** Two modules were restructured to join it:
+- **Layer 1, 120 tests, no ROS.** Two modules were restructured to join it:
   `robot_dashboard/web_api.py` (the FastAPI app split out of the node, built
   against a node *interface* so a stub can drive it — this also finally uses the
   `httpx` dependency that was sitting unused) and `eval/scoring.py` (the
   benchmark scorer, split out of `run_benchmark.py`).
-- **Layer 2, 20 tests, needs ROS.** Real nodes on real executors: service
+- **Layer 2, 21 tests, needs ROS.** Real nodes on real executors: service
   dispatch and error paths, the dashboard's HTTP→ROS bridge, and a
   parametrised shutdown-contract test that spawns each node's executable and
   SIGINTs it.
@@ -200,8 +200,8 @@ turned up two reproducibility defects the offline tests could not:
   entry. `data/logs/` is not committed, so a fresh clone is clean; a dev machine
   is not. This is more than a benchmark nuisance: storing absolute coordinates
   in a memory that outlives the map is a latent **correctness** bug, now
-  documented in [rag-pipeline.md §6](rag-pipeline.md) with the real fix
-  (a persistent versioned map, roadmap item 4).
+  documented in [rag-pipeline.md §6](rag-pipeline.md); the real fix — map-session
+  versioning — was then implemented (§3.10, ADR-019).
 
 Neither was a code defect in the usual sense — both were session state leaking
 into a measurement. The fix was partly procedural (EVALUATION.md now specifies
@@ -210,6 +210,28 @@ scorer correction: `zone_nav` now counts `explore(zone=X)` as resolving the
 zone, not only `navigate(zone=X)`, because both read the zone from SQLite and
 send the robot there — which is precisely what the control is meant to test.
 That correction is covered by five new scoring tests.
+
+### 3.10 Follow-up fixes: dashboard threading, and the map-coordinate bug at the source
+
+Three of the "recommended" items from the first pass, done and verified:
+
+- **Dashboard on a `MultiThreadedExecutor`** (§6.5), the last place contradicting
+  ADR-007. The change surfaced a shutdown segfault — uvicorn's daemon thread
+  racing the rmw teardown — fixed by stopping the executor before destroying the
+  node, and now covered by the shutdown-contract test over repeated SIGINTs.
+- **`POST /api/zones` fire-and-forget**: the 2 s `wait_for_service` inside the
+  HTTP handler became an instantaneous readiness check plus an un-awaited
+  `call_async`. Measured 25 ms with RAG down (was ~2 s), with a regression test.
+- **The stale-coordinate bug fixed at the source, not just the benchmark**
+  (§3.9). §3.9 patched the *symptom* procedurally (start from clean state);
+  this fixes the *cause*. Coordinate memories are now versioned by **map
+  session** (ADR-019): every `semantic_map` / `task_history` write is tagged
+  with the active map id, and retrieval of those collections is filtered to it,
+  so a pose from a dead map is never returned. Verified live — a scene written
+  under session A is retrieved under A and invisible under a rotated session B
+  while ChromaDB still physically holds it. Paired with a `save_map` maintenance
+  skill (SLAM Toolbox serialize) and a `map_session_id` reload parameter, so a
+  saved map's memories come back on purpose. 9 new unit tests.
 
 ## 4. Technical decisions
 
@@ -235,6 +257,7 @@ The full reasoning lives in [decisions/](decisions/). Condensed:
 | 016 | Node shutdown contract | §3.2 |
 | 017 | Single linter (ruff) | §3.3 |
 | 018 | Three-layer test strategy | §3.7 — and the restructuring it forced (the dashboard's HTTP layer had no business importing rclpy) was better design independently of testing |
+| 019 | Map-session versioning + SLAM persistence | §3.10 — coordinate memories are meaningless once the map they were logged against is gone; scope them to a map id |
 
 **Architectural through-line:** every one of these is a decision to *remove* an
 unreliable component rather than paper over it — LangChain, AMCL, the VLM, the
@@ -269,7 +292,7 @@ trade capability for honesty, and the README says so.
 ## 6. What does not work
 
 ### 6.1 Test coverage — *resolved, see §3.7*
-Previously the nodes had no automated coverage at all. Now 111 pure-logic +
+Previously the nodes had no automated coverage at all. Now 120 pure-logic +
 20 node-level tests. What remains uncovered is layer 3 — anything needing
 Gazebo, Nav2 or Ollama — which is documented as manual rather than claimed.
 
@@ -301,16 +324,19 @@ Colors and clutter only (ADR-014). "Go to the white, open room" works; "go to
 the room with the chair" does not. Documented.
 
 ### 6.5 Dashboard: threading and exposure
-Two latent issues, neither observed to fail but both real:
-- `dashboard_node` runs on a single-threaded `rclpy.spin` while uvicorn threads
-  call node methods (`call_async`, `wait_for_service`, TF lookups). `rclpy` does
-  not guarantee thread safety here. The other nodes follow ADR-007 discipline;
-  this one predates it. **A `MultiThreadedExecutor` with the client in its own
-  callback group would bring it in line** — recommended, not yet done.
-- `POST /api/zones` blocks for ~2 s when `rag_node` is down (measured), because
-  it waits on the service inside the request handler. Should be fire-and-forget.
-- The server binds `0.0.0.0` with **no authentication**. Fine on WSL2 loopback,
-  wrong the moment it is on a shared network. Consider defaulting to `127.0.0.1`.
+- `dashboard_node` now runs on a `MultiThreadedExecutor` with the map-update
+  client in its own callback group, in line with ADR-007 — it used to spin
+  single-threaded while uvicorn threads called into it. **Fixed** (§3.10). The
+  MTE change surfaced and fixed a shutdown segfault (uvicorn's daemon thread
+  racing the rmw teardown): the executor is now stopped before the node is
+  destroyed, verified over repeated SIGINTs by the shutdown-contract test.
+- `POST /api/zones` blocked ~2 s when `rag_node` was down (a timed
+  `wait_for_service` inside the request handler). Now fire-and-forget:
+  instantaneous readiness check, `call_async` not awaited. **Fixed** (§3.10),
+  measured at 25 ms with RAG down, with a regression test.
+- **Still open:** the server binds `0.0.0.0` with no authentication. Fine on
+  WSL2 loopback, wrong on a shared network. Out of scope for this pass;
+  defaulting to `127.0.0.1` is the fix.
 
 ### 6.6 Minor
 - `_render_map_png` is a pure-Python per-pixel loop plus dilation, re-run on
@@ -322,9 +348,6 @@ Two latent issues, neither observed to fail but both real:
   `Qwen razona:`, `Plan paso 1/2`). The dashboard UI is entirely Spanish while
   all documentation is English. Deliberate for the robot's *responses* (it
   replies in the user's language, by design), inconsistent for *internal status*.
-- `httpx` is in `requirements.txt` for the FastAPI `TestClient`, but no
-  dashboard tests exist. Either write them (the API is small and very testable)
-  or drop the dependency.
 - `eval/landmarks.json` is gitignored — correctly, since it is tied to one SLAM
   map, but it means the benchmark cannot be replayed from a clone without
   re-seeding. [EVALUATION.md](EVALUATION.md) covers the procedure.
@@ -372,27 +395,35 @@ first time (§6.3). Two real issues surfaced and were fixed in the process
 (§3.9), which is the entire reason for running it rather than trusting the
 numbers already in the repo.
 
-**Recommended, in priority order:**
-1. Bring `dashboard_node` onto a `MultiThreadedExecutor` (§6.5) — the only
-   place the codebase contradicts its own ADR-007.
-2. Default `http_host` to `127.0.0.1`.
-3. Make `POST /api/zones` fire-and-forget.
+**Also done in this pass — three follow-ups (§3.10):** `dashboard_node` on a
+`MultiThreadedExecutor` (the last ADR-007 hold-out, plus the shutdown segfault
+that surfaced), `POST /api/zones` fire-and-forget, and the stale-coordinate bug
+fixed at the source via map-session versioning (ADR-019). All verified live and
+unit-tested.
 
-**Deliberately not done**, listed so the decisions are visible: the
-`src/robot_bringup/config/install/` directory — a stray colcon artefact sitting
-inside the source tree. It is gitignored so it will not reach GitHub, and I did
-not create it, so I left it for you to delete.
+**Deliberately left, out of scope this pass:**
+- Default `http_host` to `127.0.0.1` (the no-auth `0.0.0.0` bind). A one-line
+  change; skipped because it slightly changes access on the dev box and the
+  user scoped it out.
+- Physical SR/SPL — planning-level is the design (§6.2, ADR-013).
+- The `src/robot_bringup/config/install/` directory — a stray colcon artefact in
+  the source tree. Gitignored, so it will not reach GitHub, and not mine to
+  delete; left for the author.
 
 ---
 
-## 9. Roadmap (unchanged, still the right order)
+## 9. Roadmap
 
-1. **Real agent loop** — replanning from execution feedback. The jump from
-   plan-then-execute to a true agent, and the natural next benchmark section.
-   Note §6.3: it needs a harder benchmark to show any gain.
+1. **Real agent loop** — replanning from execution feedback: the jump from
+   plan-then-execute to a true agent. The hard suite (§6.3) already localises
+   the payoff (spatial reasoning, 3/6) and gives the baseline to beat. Design
+   written up in [agent-loop-roadmap.md](agent-loop-roadmap.md).
 2. **Native voice** — Whisper on the Windows NPU (unreachable from WSL2).
 3. **Object-level detection** — YOLOv8n; revisit a VLM on real-camera hardware.
-4. **SLAM map save/load** — prerequisite for a reproducible physical SR/SPL run.
+4. **Full map save/load orchestration** — the pieces exist (serialize skill,
+   `map_file_name`, `map_session_id`, ADR-019); a single `saved_map:=<id>`
+   launch arg wiring SLAM + rag_node is the remaining convenience, and the
+   prerequisite for a reproducible physical SR/SPL run.
 5. **Docker/devcontainer** — kills the "works on my WSL2" caveat entirely.
 
 ---
@@ -415,7 +446,7 @@ only ever ran it in place, on their own machine, with their own accumulated
 state.
 
 The two substantive weaknesses named in the first pass are now addressed and
-verified, not merely documented: node-level coverage went from zero to 20 tests
+verified, not merely documented: node-level coverage went from zero to 21 tests
 (§3.7), and the saturated benchmark gained a suite with headroom that **has
 been run** — 27/30 vs 3/30, localising the planner's weakness to spatial
 reasoning (§3.8, §6.3). Every fix paid for itself by exposing another real
