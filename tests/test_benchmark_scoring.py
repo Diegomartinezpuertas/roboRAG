@@ -184,6 +184,45 @@ def test_relational_is_unscorable_without_the_reference_zone():
     assert decision == 'unscorable_missing_reference'
 
 
+# --- zone_nav (the control) ------------------------------------------------
+
+ZONE_TASK = {'type': 'zone_nav', 'zone': 'base'}
+ZONES_WITH_BASE = {'base': (8.0, 0.0)}
+
+
+def test_zone_nav_navigate_by_name_succeeds():
+    plan_ = plan(nav(zone='base'))
+    assert classify(plan_, ZONE_TASK, LANDMARKS, ZONES_WITH_BASE) == ('zone_nav', True)
+
+
+def test_zone_nav_explore_by_name_also_succeeds():
+    """explore(zone) reads the zone from SQLite and goes there — resolution, not failure.
+
+    Observed without RAG: qwen2.5:7b plans explore(zone="base") rather than
+    navigate(zone="base"). It still resolved the zone by name (the point of the
+    control); direct-nav vs explore-within is a strategy choice.
+    """
+    plan_ = plan({'skill': 'explore', 'params': {'zone': 'base', 'duration_sec': 10}})
+    assert classify(plan_, ZONE_TASK, LANDMARKS, ZONES_WITH_BASE) == ('zone_nav', True)
+
+
+def test_zone_nav_navigate_to_zone_centre_coords_succeeds():
+    plan_ = plan(nav(x=8.0, y=0.0))
+    assert classify(plan_, ZONE_TASK, LANDMARKS, ZONES_WITH_BASE) == ('zone_nav', True)
+
+
+def test_zone_nav_blind_explore_without_the_zone_name_fails():
+    """A target-less explore is a genuine failure to resolve — the object_nav case."""
+    plan_ = plan({'skill': 'explore', 'params': {'duration_sec': 30}})
+    assert classify(plan_, ZONE_TASK, LANDMARKS, ZONES_WITH_BASE) == ('blind_explore', False)
+
+
+def test_zone_nav_navigate_to_the_wrong_zone_name_does_not_count():
+    plan_ = plan({'skill': 'explore', 'params': {'zone': 'kitchen'}})
+    decision, success = classify(plan_, ZONE_TASK, LANDMARKS, ZONES_WITH_BASE)
+    assert success is False
+
+
 # --- negative / negative_plausible -----------------------------------------
 
 @pytest.mark.parametrize('ttype', ['negative', 'negative_plausible'])

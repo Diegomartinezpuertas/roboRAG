@@ -89,6 +89,11 @@ def main():
         '--hard', action='store_true',
         help='also seed the confusable distractor landmarks used by tasks_hard.yaml',
     )
+    parser.add_argument(
+        '--reset-zones', action='store_true',
+        help='DELETE every existing zone before seeding the control zone, so the '
+             'zone_nav control runs against a known fixture (see the warning below)',
+    )
     args = parser.parse_args()
 
     rclpy.init()
@@ -185,8 +190,27 @@ def main():
     # zone_nav control task should succeed in both conditions, showing the
     # ablation isolates RAG's object-memory rather than navigation in general.
     if 'estacion_b' in landmarks:
+        store = ZoneStore(ZONES_DB)
+        existing = [name for name in store.load_all() if name != CONTROL_ZONE]
+        if args.reset_zones:
+            for name in existing:
+                store.delete(name)
+            if existing:
+                node.get_logger().info(f'Reset zones, deleted: {sorted(existing)}')
+        elif existing:
+            # Every known zone name goes into the planning prompt, so leftovers
+            # from earlier sessions are not inert — they compete for the match.
+            # Observed: a stale zone named "zona_b" captured the control goal
+            # "Ve a la zona base", and the control task failed in BOTH
+            # conditions for a reason that had nothing to do with RAG.
+            node.get_logger().warning(
+                f'{len(existing)} zone(s) besides "{CONTROL_ZONE}" exist: '
+                f'{sorted(existing)}. They will appear in the planner prompt and '
+                f'may confound the zone_nav control task. Re-run with '
+                f'--reset-zones for a controlled fixture.',
+            )
         b = landmarks['estacion_b']
-        ZoneStore(ZONES_DB).save(CONTROL_ZONE, {
+        store.save(CONTROL_ZONE, {
             'x_min': b['x'] - 0.3, 'y_min': b['y'] - 0.3,
             'x_max': b['x'] + 0.3, 'y_max': b['y'] + 0.3,
         })

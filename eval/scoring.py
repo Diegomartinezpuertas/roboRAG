@@ -154,13 +154,24 @@ def classify(plan, task, landmarks, zones, retrieved_docs=()):
 
     if ttype == 'zone_nav':
         zone = task['zone']
-        for step in _navigate_steps(plan):
-            if step.get('params', {}).get('zone') == zone:
+        # Success = the plan directs the robot to the zone BY NAME. A named
+        # zone is resolvable from SQLite in both conditions, so this control
+        # isolates RAG's object memory from navigation in general. Both
+        # navigate(zone) and explore(zone) count: each reads the zone from the
+        # store and sends the robot there (explore(zone) navigates to the zone
+        # centre first, then explores inside it). What the planner picks —
+        # direct nav vs explore-within — is a strategy choice, not a failure to
+        # resolve the zone. Contrast object_nav without RAG, where the plan is a
+        # target-less explore(): that is a genuine inability to locate the
+        # place, and still scores as a failure here too.
+        for step in steps:
+            if step.get('skill') in ('navigate', 'explore') \
+                    and step.get('params', {}).get('zone') == zone:
                 return 'zone_nav', True
         if zone in zones and _navigates_to_coord(plan, zones[zone]):
             return 'zone_nav', True
         if any(s.get('skill') == 'explore' for s in steps):
-            return 'explore', False
+            return 'blind_explore', False
         return 'other', False
 
     if ttype == 'negative':
