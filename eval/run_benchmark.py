@@ -6,13 +6,14 @@ versus falling back to blind EXPLORE without RAG? Run in the planner's `dry_run`
 mode (plan, don't drive), so it is reliable and reproducible (temperature 0) and
 independent of the flaky low-level navigation.
 
-Task types (see the YAML):
-  object_nav : success = navigate step within tol of the landmark coordinates
-               (this is the RAG-dependent measurement).
-  zone_nav   : control; success = navigate to the zone (by name, or within tol
-               of its center) — should hold in both conditions.
-  negative   : hallucination check; success = the plan does NOT contain a
-               navigate-to-coordinates step for a place that does not exist.
+Scoring lives in `scoring.py` (pure logic, unit-tested without ROS); the task
+types it recognises are documented there and in each suite's YAML header.
+
+Suites:
+  tasks_full.yaml     the headline ablation (object/attribute/zone/negative)
+  tasks_phrasing.yaml robustness to paraphrase and language
+  tasks_hard.yaml     disambiguation, ordered multi-step, spatial relations —
+                      the suite with headroom (needs `seed_memory.py --hard`)
 
 Results go to eval/results/<suite>/<condition>.json, where <suite> is the YAML
 stem without the "tasks_" prefix (e.g. tasks_full.yaml -> results/full/).
@@ -21,8 +22,7 @@ Usage: python3 run_benchmark.py [tasks_full.yaml]
 """
 
 import json
-import math
-import re
+import os
 import subprocess
 import sys
 import time
@@ -34,101 +34,21 @@ import yaml
 from robot_zones.zone_store import ZoneStore
 
 from bench_lib import BenchNode, spin_in_thread
+from scoring import classify
 
 HERE = Path(__file__).resolve().parent
 LANDMARKS_FILE = HERE / 'landmarks.json'
-ZONES_DB = '/home/diego/robot_ws/data/zones.db'
+# Workspace root: ROBOT_WS when the shell was prepared with setup_env.sh,
+# otherwise the parent of eval/ — which is the workspace root by layout.
+WS_ROOT = Path(os.environ.get('ROBOT_WS', HERE.parent))
+ZONES_DB = str(WS_ROOT / 'data' / 'zones.db')
 PLANNER = '/llm_planner_node'
 CONDITIONS = [('rag', True), ('norag', False)]
-NAV_TOLERANCE_M = 0.75
 
 
 def set_param(name: str, value: str) -> None:
     subprocess.run(['ros2', 'param', 'set', PLANNER, name, value],
                    check=False, capture_output=True, text=True)
-
-
-def _navigate_steps(plan):
-    return [s for s in plan.get('steps', []) if s.get('skill') == 'navigate']
-
-
-def _navigates_to_coord(plan, target_xy):
-    for step in _navigate_steps(plan):
-        p = step.get('params', {})
-        if 'x' in p and 'y' in p:
-            try:
-                if math.dist((float(p['x']), float(p['y'])), target_xy) <= NAV_TOLERANCE_M:
-                    return True
-            except (TypeError, ValueError):
-                continue
-    return False
-
-
-_COORD_IN_DOC = re.compile(r'at \(x=(-?\d+(?:\.\d+)?), y=(-?\d+(?:\.\d+)?)\)')
-
-
-def attribute_candidates(task, landmarks, retrieved_docs):
-    """Valid target coordinates for an attribute task.
-
-    With a self-building memory, several remembered areas can legitimately
-    match a description ("where there were many objects"), so the seeded
-    landmark is not the only right answer: any retrieved area whose text
-    contains one of the task's match terms counts (the planner chose among
-    exactly these retrieved documents).
-    """
-    target = landmarks[task['target']]
-    candidates = [(target['x'], target['y'])]
-    terms = [t.lower() for t in task.get('match_any', [])]
-    for doc in retrieved_docs:
-        low = doc.lower()
-        if terms and not any(t in low for t in terms):
-            continue
-        m = _COORD_IN_DOC.search(doc)
-        if m:
-            candidates.append((float(m.group(1)), float(m.group(2))))
-    return candidates
-
-
-def classify(plan, task, landmarks, zones, retrieved_docs=()):
-    """Returns (decision, success) for a plan given the task type."""
-    if not plan:
-        return 'no_plan', False
-    ttype = task['type']
-    steps = plan.get('steps', [])
-
-    if ttype == 'object_nav':
-        target = landmarks[task['target']]
-        if _navigates_to_coord(plan, (target['x'], target['y'])):
-            return 'direct_nav', True
-        if any(s.get('skill') == 'explore' for s in steps):
-            return 'explore', False
-        return 'other', False
-
-    if ttype == 'attribute_nav':
-        for candidate in attribute_candidates(task, landmarks, retrieved_docs):
-            if _navigates_to_coord(plan, candidate):
-                return 'direct_nav', True
-        if any(s.get('skill') == 'explore' for s in steps):
-            return 'explore', False
-        return 'other', False
-
-    if ttype == 'zone_nav':
-        zone = task['zone']
-        for step in _navigate_steps(plan):
-            if step.get('params', {}).get('zone') == zone:
-                return 'zone_nav', True
-        if zone in zones and _navigates_to_coord(plan, zones[zone]):
-            return 'zone_nav', True
-        if any(s.get('skill') == 'explore' for s in steps):
-            return 'explore', False
-        return 'other', False
-
-    if ttype == 'negative':
-        # Success = did not invent coordinates for a nonexistent place.
-        invented = any('x' in s.get('params', {}) for s in _navigate_steps(plan))
-        return ('hallucinated', False) if invented else ('declined_or_explore', True)
-
-    return 'other', False
 
 
 def load_zone_centers():

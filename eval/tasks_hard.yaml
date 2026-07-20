@@ -1,0 +1,111 @@
+# Hard benchmark suite — built because tasks_full.yaml is saturated.
+#
+# Every cell of the main suite sits at 100% or 0%, which means it can no longer
+# measure an improvement: the roadmap's agent loop (replanning from execution
+# feedback) would score identically to today's plan-then-execute. A benchmark
+# with no headroom cannot show progress.
+#
+# These tasks are designed to be failable by the CURRENT system, so there is
+# somewhere to move. They stress what single-hop retrieval does not cover:
+# disambiguating between competing memories, holding an ordered multi-step
+# plan, and reasoning over retrieved coordinates rather than just copying them.
+#
+# PREREQUISITE: python3 seed_memory.py --hard
+# The distractor landmarks are opt-in, because adding them changes retrieval
+# for every query and would invalidate the committed tasks_full results.
+#
+# Task types (see run_benchmark.classify):
+#   distractor_nav    : semantic memory holds a name-confusable neighbour
+#                       (estacion_a vs estacion_a_norte). Success = navigates to
+#                       the requested one and NOT to the distractor. Retrieval
+#                       returns both, so the planner must disambiguate.
+#   ordered_multi_step: the plan must contain the expected steps IN ORDER.
+#                       Extra steps in between are allowed; dropping one,
+#                       reordering, or collapsing two into one is a failure.
+#   relational_nav    : the target is defined by a spatial relation
+#                       ("the station nearest the base zone") and must be
+#                       computed from retrieved coordinates, not looked up.
+#                       Ground truth is derived at scoring time from
+#                       landmarks.json + the zone store, never hardcoded.
+#   negative_plausible: a place that does not exist but whose name follows the
+#                       pattern of ones that do (estacion_d). Harder than
+#                       "el garaje": pattern-matching is exactly the failure
+#                       mode being probed. Success = invents no coordinates.
+
+success_radius_m: 0.75
+task_timeout_sec: 180
+repetitions: 3
+
+tasks:
+  # --- disambiguation ------------------------------------------------------
+  - id: distract_a
+    goal: "Ve a estacion_a"
+    type: distractor_nav
+    target: estacion_a
+    distractor: estacion_a_norte
+
+  - id: distract_a_norte
+    goal: "Ve a estacion_a_norte"
+    type: distractor_nav
+    target: estacion_a_norte
+    distractor: estacion_a
+
+  - id: distract_c
+    goal: "Llévame a estacion_c, no a la del sur"
+    type: distractor_nav
+    target: estacion_c
+    distractor: estacion_c_sur
+
+  # --- ordered multi-step --------------------------------------------------
+  - id: multi_nav_scan_nav
+    goal: "Ve a estacion_a, mira bien a tu alrededor, y después ve a estacion_c"
+    type: ordered_multi_step
+    expect:
+      - skill: navigate
+        target: estacion_a
+      - skill: [scan_360, perceive]
+      - skill: navigate
+        target: estacion_c
+
+  - id: multi_explore_then_nav
+    goal: "Explora la zona base durante 30 segundos y luego vete a estacion_c"
+    type: ordered_multi_step
+    expect:
+      - skill: explore
+      - skill: navigate
+        target: estacion_c
+
+  - id: multi_three_stops
+    goal: "Pasa por estacion_a, luego por estacion_b y termina en estacion_c"
+    type: ordered_multi_step
+    expect:
+      - skill: navigate
+        target: estacion_a
+      - skill: navigate
+        target: estacion_b
+      - skill: navigate
+        target: estacion_c
+
+  # --- spatial reasoning over retrieved coordinates ------------------------
+  - id: rel_nearest_base
+    goal: "Ve a la estación más cercana a la zona base"
+    type: relational_nav
+    relation: nearest
+    reference_zone: base
+    candidates: [estacion_a, estacion_b, estacion_c]
+
+  - id: rel_farthest_base
+    goal: "Ve a la estación más lejana de la zona base"
+    type: relational_nav
+    relation: farthest
+    reference_zone: base
+    candidates: [estacion_a, estacion_b, estacion_c]
+
+  # --- hallucination under a plausible name --------------------------------
+  - id: neg_estacion_d
+    goal: "Ve a estacion_d"
+    type: negative_plausible
+
+  - id: neg_estacion_central
+    goal: "Ve a la estación central"
+    type: negative_plausible

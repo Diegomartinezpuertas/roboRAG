@@ -1,4 +1,4 @@
-"""Seeds the RAG semantic_map with three distinct landmark coordinates.
+"""Seeds the RAG semantic_map with distinct landmark coordinates.
 
 For the planning benchmark (ADR-013) the landmarks only need to be distinct,
 plausible free-space coordinates the planner can be told about via RAG — no
@@ -9,11 +9,22 @@ SLAM map and register each directly in semantic_map.
 Landmarks go in semantic_map ONLY (not zones): a zone is resolvable from SQLite
 without RAG, which would mask the effect the benchmark isolates.
 
+Usage:
+    python3 seed_memory.py           # 3 landmarks — the tasks_full/phrasing suites
+    python3 seed_memory.py --hard    # + confusable distractors for tasks_hard
+
+The distractors are opt-in on purpose. They add competing entries to semantic
+memory, which changes retrieval for *every* query — so seeding them by default
+would silently invalidate the committed tasks_full results, which were measured
+against a three-landmark memory. See docs/EVALUATION.md.
+
 Writes eval/landmarks.json = {name: {"x": .., "y": ..}}.
 """
 
+import argparse
 import json
 import math
+import os
 import time
 from pathlib import Path
 
@@ -23,8 +34,12 @@ from robot_zones.zone_store import ZoneStore
 
 from bench_lib import BenchNode, spin_in_thread
 
-LANDMARKS_FILE = Path(__file__).resolve().parent / 'landmarks.json'
-ZONES_DB = '/home/diego/robot_ws/data/zones.db'
+HERE = Path(__file__).resolve().parent
+LANDMARKS_FILE = HERE / 'landmarks.json'
+# Workspace root: ROBOT_WS when the shell was prepared with setup_env.sh,
+# otherwise the parent of eval/ — which is the workspace root by layout.
+WS_ROOT = Path(os.environ.get('ROBOT_WS', HERE.parent))
+ZONES_DB = str(WS_ROOT / 'data' / 'zones.db')
 CONTROL_ZONE = 'base'        # known-zone control task target
 SAFE_MARGIN_CELLS = 3    # ~0.15 m clearance; landmarks need only be plausible
 MIN_SEPARATION_M = 1.2
@@ -69,6 +84,13 @@ def find_safe_cell_near(grid, target_x, target_y, exclude=None, margin=SAFE_MARG
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '--hard', action='store_true',
+        help='also seed the confusable distractor landmarks used by tasks_hard.yaml',
+    )
+    args = parser.parse_args()
+
     rclpy.init()
     node = BenchNode()
     spin = spin_in_thread(node)
@@ -98,6 +120,15 @@ def main():
         ('estacion_b', x_min + 0.50 * span, y_mid),
         ('estacion_c', x_min + 0.85 * span, y_mid),
     ]
+    if args.hard:
+        # Name-confusable neighbours for the distractor_nav tasks. Placed away
+        # from the landmark they shadow so NAV_TOLERANCE_M can tell a correct
+        # choice from a wrong one; retrieval, however, will happily return both
+        # for "ve a estacion_a", which is the point.
+        targets += [
+            ('estacion_a_norte', x_min + 0.30 * span, y_mid),
+            ('estacion_c_sur', x_min + 0.70 * span, y_mid),
+        ]
 
     landmarks = {}
     placed = []
@@ -126,6 +157,16 @@ def main():
             '(9 obstacle groups nearby)'
         ),
     }
+    if args.hard:
+        # Deliberately similar wording to the landmarks they shadow: the
+        # planner has to disambiguate on the NAME, not on the description.
+        descriptors.update({
+            'estacion_a_norte': 'predominantly white, a fairly open space',
+            'estacion_c_sur': (
+                'predominantly brown, a somewhat cluttered space with several '
+                'objects (6 obstacle groups nearby)'
+            ),
+        })
     for name, desc in descriptors.items():
         if name in landmarks:
             lm = landmarks[name]
