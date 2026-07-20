@@ -1,9 +1,12 @@
 """ROS 2 node that receives natural language goals and produces execution plans."""
 
 import json
+import os
+from pathlib import Path
 
 import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import String
 
@@ -19,6 +22,11 @@ from robot_brain.prompts import (
 )
 from robot_brain.qwen_client import QwenClient
 from robot_brain.toolkit import RobotToolkit, execute_plan
+
+# Workspace root for the default data paths. Reads ROBOT_WS (exported by
+# setup_env.sh) so the package is not tied to one developer's home directory;
+# the path is still overridable as a ROS 2 parameter.
+WS_ROOT = Path(os.environ.get('ROBOT_WS', Path.home() / 'robot_ws'))
 
 
 class LLMPlannerNode(Node):
@@ -62,7 +70,7 @@ class LLMPlannerNode(Node):
         self.declare_parameter('rag_enabled', True)
         self.declare_parameter('zones_in_prompt', True)
         self.declare_parameter('dry_run', False)
-        self.declare_parameter('zones_db', '/home/diego/robot_ws/data/zones.db')
+        self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 
         base_url = self.get_parameter('ollama_base_url').value
         llm_model = self.get_parameter('llm_model').value
@@ -228,11 +236,16 @@ def main(args: list[str] | None = None) -> None:
     executor.add_node(node)
     try:
         executor.spin()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
+        # ExternalShutdownException is how rclpy reports SIGINT/SIGTERM from
+        # `ros2 launch` shutting the stack down — an ordinary stop, not a crash.
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        # Guarded: on external shutdown the context is already down and an
+        # unconditional shutdown() raises RCLError over the real exit.
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

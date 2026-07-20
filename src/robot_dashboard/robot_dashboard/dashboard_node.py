@@ -1,18 +1,16 @@
 """ROS 2 node serving a web dashboard for observability, goals, and zone editing."""
 
-import base64
-import io
+import os
 import threading
 import time
+from pathlib import Path
+
 import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
-from PIL import Image as PILImage
-from pydantic import BaseModel
 
 import rclpy
 from nav_msgs.msg import OccupancyGrid
 from rcl_interfaces.msg import Log
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import (
     QoSDurabilityPolicy,
@@ -29,7 +27,12 @@ from robot_interfaces.msg import SemanticObject
 from robot_interfaces.srv import UpdateMap
 from robot_zones.zone_store import ZoneStore
 
-from robot_dashboard.web_page import PAGE
+from robot_dashboard.web_api import build_app, render_map_png
+
+# Workspace root for the default data paths. Reads ROBOT_WS (exported by
+# setup_env.sh) so the package is not tied to one developer's home directory;
+# the path is still overridable as a ROS 2 parameter.
+WS_ROOT = Path(os.environ.get('ROBOT_WS', Path.home() / 'robot_ws'))
 
 MAP_QOS = QoSProfile(
     depth=1,
@@ -37,13 +40,6 @@ MAP_QOS = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
 )
-
-# Occupancy value -> RGB: unknown, free, occupied.
-COLOR_UNKNOWN = (43, 48, 62)
-COLOR_FREE = (222, 227, 236)
-# Strong red + 1-cell dilation: at 0.05 m/px walls are 1px thin and near-black
-# was invisible once scaled in the canvas.
-COLOR_OCCUPIED = (226, 76, 61)
 
 
 class EventBuffer:
@@ -114,7 +110,7 @@ class DashboardNode(Node):
         super().__init__('dashboard_node')
         self.declare_parameter('http_host', '0.0.0.0')
         self.declare_parameter('http_port', 8080)
-        self.declare_parameter('zones_db', '/home/diego/robot_ws/data/zones.db')
+        self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 
         self.events = EventBuffer()
         self.zones = ZoneStore(self.get_parameter('zones_db').value)
@@ -171,7 +167,7 @@ class DashboardNode(Node):
                 return None
             stamp = grid.header.stamp.sec * 10**9 + grid.header.stamp.nanosec
             if stamp != self._map_png_stamp:
-                self._map_png_b64 = _render_map_png(grid)
+                self._map_png_b64 = render_map_png(grid)
                 self._map_png_stamp = stamp
             info = grid.info
             return {
@@ -232,130 +228,22 @@ class DashboardNode(Node):
         uvicorn.Server(config).run()
 
 
-def _render_map_png(grid: OccupancyGrid) -> str:
-    """Renders an OccupancyGrid to a base64 PNG (top row = y_max).
-
-    Occupied cells are dilated by one cell so walls stay visible when the
-    canvas scales the image.
-    """
-    width, height = grid.info.width, grid.info.height
-    image = PILImage.new('RGB', (width, height))
-    pixels = image.load()
-    data = grid.data
-
-    occupied: set[tuple[int, int]] = set()
-    for row in range(height):
-        image_row = height - 1 - row
-        base = row * width
-        for col in range(width):
-            value = data[base + col]
-            if value == -1:
-                pixels[col, image_row] = COLOR_UNKNOWN
-            elif value < 50:
-                pixels[col, image_row] = COLOR_FREE
-            else:
-                occupied.add((col, image_row))
-
-    for col, image_row in occupied:
-        for d_col in (-1, 0, 1):
-            for d_row in (-1, 0, 1):
-                n_col, n_row = col + d_col, image_row + d_row
-                if 0 <= n_col < width and 0 <= n_row < height:
-                    pixels[n_col, n_row] = COLOR_OCCUPIED
-
-    buffer = io.BytesIO()
-    image.save(buffer, format='PNG')
-    return base64.b64encode(buffer.getvalue()).decode('ascii')
-
-
-class GoalRequest(BaseModel):
-    """Body schema for POST /api/goal."""
-
-    text: str
-
-
-class ZoneRequest(BaseModel):
-    """Body schema for POST /api/zones."""
-
-    name: str
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
-
-
-def build_app(node: DashboardNode) -> FastAPI:
-    """Builds the FastAPI application bound to a dashboard node.
-
-    Args:
-        node: The dashboard node providing events, map, zones, and goal publishing.
-
-    Returns:
-        Configured FastAPI application.
-    """
-    app = FastAPI(title='Robot RAG Agent Dashboard')
-
-    @app.get('/', response_class=HTMLResponse)
-    def index() -> str:
-        return PAGE
-
-    @app.get('/api/events')
-    def events(since: int = 0) -> dict:
-        return {'events': node.events.since(since)}
-
-    @app.get('/api/map')
-    def map_snapshot() -> dict:
-        return {
-            'map': node.get_map_snapshot(),
-            'robot': node.get_robot_pose(),
-            'zones': node.zones.load_all(),
-        }
-
-    @app.post('/api/goal')
-    def send_goal(body: GoalRequest) -> JSONResponse:
-        text = body.text.strip()
-        if not text:
-            return JSONResponse({'ok': False, 'error': 'empty goal'}, status_code=400)
-        node.publish_goal(text)
-        node.get_logger().info(f'Goal submitted via dashboard: {text}')
-        return JSONResponse({'ok': True})
-
-    @app.post('/api/zones')
-    def save_zone(body: ZoneRequest) -> JSONResponse:
-        name = body.name.strip().lower().replace(' ', '_')
-        if not name:
-            return JSONResponse({'ok': False, 'error': 'empty name'}, status_code=400)
-        area = {
-            'x_min': min(body.x_min, body.x_max),
-            'y_min': min(body.y_min, body.y_max),
-            'x_max': max(body.x_min, body.x_max),
-            'y_max': max(body.y_min, body.y_max),
-        }
-        node.zones.save(name, area)
-        node.index_zone_in_memory(name, area)
-        node.get_logger().info(f'Zone saved via dashboard: {name} {area}')
-        return JSONResponse({'ok': True, 'name': name})
-
-    @app.delete('/api/zones/{name}')
-    def delete_zone(name: str) -> JSONResponse:
-        if not node.zones.delete(name):
-            return JSONResponse({'ok': False, 'error': 'unknown zone'}, status_code=404)
-        return JSONResponse({'ok': True})
-
-    return app
-
-
 def main(args: list[str] | None = None) -> None:
     """Entry point for the dashboard_node executable."""
     rclpy.init(args=args)
     node = DashboardNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
+        # ExternalShutdownException is how rclpy reports SIGINT/SIGTERM from
+        # `ros2 launch` shutting the stack down — an ordinary stop, not a crash.
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        # Guarded: on external shutdown the context is already down and an
+        # unconditional shutdown() raises RCLError over the real exit.
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

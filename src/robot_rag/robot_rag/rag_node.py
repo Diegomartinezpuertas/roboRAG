@@ -1,6 +1,10 @@
 """ROS 2 node exposing the RAG query and semantic map update services."""
 
+import os
+from pathlib import Path
+
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 
 from robot_interfaces.srv import QueryRAG, UpdateMap
@@ -10,6 +14,11 @@ from robot_rag.embedder import OllamaEmbedder
 from robot_rag.knowledge_base import KnowledgeBase
 from robot_rag.semantic_map import SemanticMap
 from robot_rag.task_history import TaskHistoryStore
+
+# Workspace root for the default data paths. Reads ROBOT_WS (exported by
+# setup_env.sh) so the package is not tied to one developer's home directory;
+# every path is still overridable as a ROS 2 parameter.
+WS_ROOT = Path(os.environ.get('ROBOT_WS', Path.home() / 'robot_ws'))
 
 
 class RagNode(Node):
@@ -35,9 +44,9 @@ class RagNode(Node):
 
         self.declare_parameter('ollama_base_url', 'http://localhost:11434')
         self.declare_parameter('embedding_model', 'bge-m3')
-        self.declare_parameter('chroma_db_path', '/home/diego/robot_ws/data/chroma_db')
-        self.declare_parameter('knowledge_dir', '/home/diego/robot_ws/data/knowledge')
-        self.declare_parameter('logs_dir', '/home/diego/robot_ws/data/logs')
+        self.declare_parameter('chroma_db_path', str(WS_ROOT / 'data' / 'chroma_db'))
+        self.declare_parameter('knowledge_dir', str(WS_ROOT / 'data' / 'knowledge'))
+        self.declare_parameter('logs_dir', str(WS_ROOT / 'data' / 'logs'))
         self.declare_parameter(
             'collections', ['semantic_map', 'knowledge_base', 'task_history'],
         )
@@ -110,11 +119,16 @@ def main(args: list[str] | None = None) -> None:
     node = RagNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
+        # ExternalShutdownException is how rclpy reports SIGINT/SIGTERM from
+        # `ros2 launch` shutting the stack down — an ordinary stop, not a crash.
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        # Guarded: on external shutdown the context is already down and an
+        # unconditional shutdown() raises RCLError over the real exit.
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

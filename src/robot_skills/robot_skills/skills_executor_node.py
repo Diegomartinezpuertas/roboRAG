@@ -2,12 +2,15 @@
 
 import json
 import math
+import os
 import threading
 import time
+from pathlib import Path
 
 import rclpy
 from nav_msgs.msg import OccupancyGrid
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, LaserScan
@@ -29,6 +32,11 @@ from robot_skills.scene_descriptor import describe_scan_360
 # scan_360 sweeps in this many equal steps (a LIDAR scan already covers 360
 # degrees in one reading; the steps are for the camera's narrow FOV).
 SCAN_360_STEPS = 8
+
+# Workspace root for the default data paths. Reads ROBOT_WS (exported by
+# setup_env.sh) so the package is not tied to one developer's home directory;
+# every path is still overridable as a ROS 2 parameter.
+WS_ROOT = Path(os.environ.get('ROBOT_WS', Path.home() / 'robot_ws'))
 
 
 class SkillsExecutorNode(Node):
@@ -61,8 +69,8 @@ class SkillsExecutorNode(Node):
     def __init__(self) -> None:
         super().__init__('skills_executor_node')
 
-        self.declare_parameter('logs_dir', '/home/diego/robot_ws/data/logs')
-        self.declare_parameter('zones_db', '/home/diego/robot_ws/data/zones.db')
+        self.declare_parameter('logs_dir', str(WS_ROOT / 'data' / 'logs'))
+        self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 
         logs_dir = self.get_parameter('logs_dir').value
         self._zones = ZoneStore(self.get_parameter('zones_db').value)
@@ -181,8 +189,14 @@ class SkillsExecutorNode(Node):
 
     def _dispatch(self, skill_name: str, params: dict) -> dict:
         if skill_name == 'navigate':
+            # Resolve the zone BEFORE blocking on the Nav2 lifecycle. An unknown
+            # zone is a pure validation error: failing fast returns an
+            # actionable message ("Unknown zone: X. Known zones: [...]") to the
+            # planner, whereas validating afterwards would hang until Nav2
+            # happened to come up — indefinitely, if it never does.
+            resolved = self._resolve_zone(params)
             self._nav_skill.wait_until_active()
-            return self._nav_skill.navigate(self._resolve_zone(params))
+            return self._nav_skill.navigate(resolved)
         if skill_name == 'explore':
             return self._run_explore(params)
         if skill_name == 'perceive':
@@ -369,11 +383,16 @@ def main(args: list[str] | None = None) -> None:
     executor.add_node(node)
     try:
         executor.spin()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
+        # ExternalShutdownException is how rclpy reports SIGINT/SIGTERM from
+        # `ros2 launch` shutting the stack down — an ordinary stop, not a crash.
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        # Guarded: on external shutdown the context is already down and an
+        # unconditional shutdown() raises RCLError over the real exit.
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

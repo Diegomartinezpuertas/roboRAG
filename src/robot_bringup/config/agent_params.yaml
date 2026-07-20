@@ -1,3 +1,10 @@
+# Tuning parameters only. Filesystem paths (zones_db, chroma_db_path,
+# knowledge_dir, logs_dir) are deliberately NOT set here: each node derives its
+# default from the ROBOT_WS environment variable (exported by setup_env.sh), so
+# the workspace is not pinned to one developer's home directory. Override an
+# individual path with `ros2 run ... --ros-args -p zones_db:=/some/path` or by
+# re-adding the key under the relevant node below.
+
 llm_planner_node:
   ros__parameters:
     ollama_base_url: "http://localhost:11434"
@@ -8,7 +15,6 @@ llm_planner_node:
     # the LLM disambiguates within the surviving top-k. (For nomic-embed-text
     # the calibrated value was 0.45.)
     rag_score_threshold: 0.40
-    zones_db: "/home/diego/robot_ws/data/zones.db"
 
 rag_node:
   ros__parameters:
@@ -18,22 +24,17 @@ rag_node:
     # If you change this, delete data/chroma_db (embedding dims differ) and
     # re-seed; consider recalibrating rag_score_threshold.
     embedding_model: "bge-m3"
-    chroma_db_path: "/home/diego/robot_ws/data/chroma_db"
-    knowledge_dir: "/home/diego/robot_ws/data/knowledge"
-    logs_dir: "/home/diego/robot_ws/data/logs"
     collections:
       - "semantic_map"
       - "knowledge_base"
       - "task_history"
     top_k_default: 5
 
-skills_executor_node:
-  ros__parameters:
-    logs_dir: "/home/diego/robot_ws/data/logs"
-    zones_db: "/home/diego/robot_ws/data/zones.db"
+# skills_executor_node has no tuning parameters — logs_dir and zones_db both
+# come from ROBOT_WS (see the header). An empty `ros__parameters:` block is
+# invalid for the parameter loader, so the stanza is omitted entirely.
 
 dashboard_node:
   ros__parameters:
     http_host: "0.0.0.0"
     http_port: 8080
-    zones_db: "/home/diego/robot_ws/data/zones.db"
