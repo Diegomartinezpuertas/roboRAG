@@ -1,0 +1,860 @@
+[
+  {
+    "task_id": "distract_a",
+    "type": "distractor_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "Navigating directly to estacion_a since its coordinates are known.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "distract_a",
+    "type": "distractor_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "Navigating directly to estacion_a since its coordinates are known.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "distract_a",
+    "type": "distractor_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "Navigating directly to estacion_a since its coordinates are known.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "distract_a_norte",
+    "type": "distractor_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_a_norte",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_a_norte' is specified by name and has known coordinates.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -0.14,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "distract_a_norte",
+    "type": "distractor_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_a_norte",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_a_norte' has known coordinates, so we can navigate directly there.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -0.14,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "distract_a_norte",
+    "type": "distractor_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a estacion_a_norte",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_a_norte' has known coordinates, so we can navigate directly there.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -0.14,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "distract_c",
+    "type": "distractor_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Llévame a estacion_c, no a la del sur",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.0,
+    "plan": {
+      "reasoning": "The target is clearly defined with coordinates, so we can navigate directly to estacion_c.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "distract_c",
+    "type": "distractor_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Llévame a estacion_c, no a la del sur",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.0,
+    "plan": {
+      "reasoning": "The target is clearly defined with coordinates, so we can navigate directly to estacion_c.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "distract_c",
+    "type": "distractor_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Llévame a estacion_c, no a la del sur",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.0,
+    "plan": {
+      "reasoning": "The target is clearly defined with coordinates, so we can navigate directly to estacion_c.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_nav_scan_nav",
+    "type": "ordered_multi_step",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_a, mira bien a tu alrededor, y después ve a estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 3.2,
+    "plan": {
+      "reasoning": "First navigate to estacion_a, then use scan_360 to look around, and finally navigate to estacion_c.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "scan_360"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_nav_scan_nav",
+    "type": "ordered_multi_step",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_a, mira bien a tu alrededor, y después ve a estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 3.0,
+    "plan": {
+      "reasoning": "First navigate to estacion_a, then use scan_360 to look around, and finally navigate to estacion_c.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "scan_360"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_nav_scan_nav",
+    "type": "ordered_multi_step",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a estacion_a, mira bien a tu alrededor, y después ve a estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 3.0,
+    "plan": {
+      "reasoning": "First navigate to estacion_a, then use scan_360 to look around, and finally navigate to estacion_c.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "scan_360"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_explore_then_nav",
+    "type": "ordered_multi_step",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Explora la zona base durante 30 segundos y luego vete a estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "First explore the base zone for 30 seconds to gather information, then navigate directly to estacion_c.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30,
+            "zone": "base"
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_explore_then_nav",
+    "type": "ordered_multi_step",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Explora la zona base durante 30 segundos y luego vete a estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "First explore the base zone for 30 seconds to gather information, then navigate directly to estacion_c.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30,
+            "zone": "base"
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_explore_then_nav",
+    "type": "ordered_multi_step",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Explora la zona base durante 30 segundos y luego vete a estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "First explore the base zone for 30 seconds to gather information, then navigate directly to estacion_c.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30,
+            "zone": "base"
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_three_stops",
+    "type": "ordered_multi_step",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Pasa por estacion_a, luego por estacion_b y termina en estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 3.8,
+    "plan": {
+      "reasoning": "Navigate to each station in sequence based on their known coordinates.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.76,
+            "y": -0.12
+          }
+        },
+        {
+          "skill": "perceive"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_three_stops",
+    "type": "ordered_multi_step",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Pasa por estacion_a, luego por estacion_b y termina en estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 3.6,
+    "plan": {
+      "reasoning": "Navigate to each station in sequence based on their known coordinates.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.76,
+            "y": -0.12
+          }
+        },
+        {
+          "skill": "perceive"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "multi_three_stops",
+    "type": "ordered_multi_step",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Pasa por estacion_a, luego por estacion_b y termina en estacion_c",
+    "decision": "ordered_plan",
+    "success": true,
+    "latency_sec": 3.6,
+    "plan": {
+      "reasoning": "Navigate to each station in sequence based on their known coordinates.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.76,
+            "y": -0.12
+          }
+        },
+        {
+          "skill": "perceive"
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.56,
+            "y": 0.58
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "rel_nearest_base",
+    "type": "relational_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a la estación más cercana a la zona base",
+    "decision": "wrong_landmark",
+    "success": false,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "The closest station to the base zone is either estacion_a or estacion_b. We will navigate directly to estacion_a since it's closer.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "rel_nearest_base",
+    "type": "relational_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a la estación más cercana a la zona base",
+    "decision": "wrong_landmark",
+    "success": false,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "The closest station to the base zone is either estacion_a or estacion_b. We will navigate directly to estacion_a since it's closer.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "rel_nearest_base",
+    "type": "relational_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a la estación más cercana a la zona base",
+    "decision": "wrong_landmark",
+    "success": false,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "The closest station to the base zone is either estacion_a or estacion_b. We will navigate directly to estacion_a since it's closer.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "list all objects"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "rel_farthest_base",
+    "type": "relational_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a la estación más lejana de la zona base",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "The goal is to go to the farthest station from the base zone and navigate there directly since coordinates are provided.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "rel_farthest_base",
+    "type": "relational_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a la estación más lejana de la zona base",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "The goal is to go to the farthest station from the base zone and navigate there directly since coordinates are provided.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "rel_farthest_base",
+    "type": "relational_nav",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a la estación más lejana de la zona base",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "The goal is to go to the farthest station from the base zone and navigate there directly since coordinates are provided.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.64,
+            "y": -0.37
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_estacion_d",
+    "type": "negative_plausible",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_d",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "The target 'estacion_d' is not recognized and no coordinates are provided, so we need to explore first to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {}
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_estacion_d",
+    "type": "negative_plausible",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_d",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_d' is not recognized and no coordinates are provided, so we need to explore first to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {}
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_estacion_d",
+    "type": "negative_plausible",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a estacion_d",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_d' is not recognized and no coordinates are provided, so we need to explore first to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {}
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_estacion_central",
+    "type": "negative_plausible",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a la estación central",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "The goal is to navigate to the known zone 'estacion central'. However, since 'estacion central' is not listed among the known zones or coordinates, we will explore first to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "describe surroundings"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_estacion_central",
+    "type": "negative_plausible",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a la estación central",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "The goal is to navigate to the known zone 'estacion central'. However, since 'estacion central' is not listed among the known zones or coordinates, we will explore first to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "describe surroundings"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_estacion_central",
+    "type": "negative_plausible",
+    "rep": 2,
+    "condition": "rag",
+    "goal": "Ve a la estación central",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "The goal is to navigate to the known zone 'estacion central'. However, since 'estacion central' is not listed among the known zones or coordinates, we will explore first to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 30
+          }
+        },
+        {
+          "skill": "perceive",
+          "params": {
+            "query": "describe surroundings"
+          }
+        }
+      ]
+    }
+  }
+]

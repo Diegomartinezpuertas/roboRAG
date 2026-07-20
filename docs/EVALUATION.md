@@ -58,11 +58,32 @@ SQLite. Writes `eval/landmarks.json` for the scorer.
 
 ```bash
 cd ~/robot_ws/eval
-python3 seed_memory.py
+python3 seed_memory.py --reset-zones
 ```
 
 Expect three `seeded at (...) ok=True` lines. Requires the SLAM map
 (Option A at least once).
+
+> **Start from clean session state.** The numbers assume the memory contains
+> only what seeding puts there. Two kinds of leftover on a development machine
+> silently confound the measurement — a fresh clone has neither:
+>
+> - **Stale zones.** Every known zone name goes into the planner prompt, so a
+>   leftover zone can capture a control goal. `--reset-zones` deletes all zones
+>   but the control `base` before seeding; without the flag, `seed_memory.py`
+>   warns if others exist.
+> - **Stale task logs.** `data/logs/*.json` from earlier sessions hold absolute
+>   coordinates from *old maps*, which retrieval will happily hand the planner
+>   as if current (see [rag-pipeline.md §6](rag-pipeline.md)). Before a clean
+>   run, empty them and rebuild the vector store:
+>
+>   ```bash
+>   rm -f ~/robot_ws/data/logs/*.json
+>   rm -rf ~/robot_ws/data/chroma_db    # re-ingested on next rag_node start
+>   ```
+>
+> Skipping this is what makes the `zone_nav` control appear to fail — a
+> session-state artefact, not a property of RAG.
 
 ## 3. Run the benchmark suites
 
@@ -76,7 +97,7 @@ decision, the raw plan, and goal→plan latency). The script flips
 `rag_enabled` live with `ros2 param set` — no restarts, same memory state in
 both conditions.
 
-### 3b. The hard suite (has headroom — not yet run)
+### 3b. The hard suite (has headroom)
 
 `tasks_full.yaml` is **saturated**: every cell is 100% or 0%, so it cannot show
 an improvement from here. `tasks_hard.yaml` is built to be failable by the
@@ -88,7 +109,7 @@ coordinates, and declining a plausible-sounding place that does not exist.
 It needs extra landmarks, which are **opt-in**:
 
 ```bash
-python3 seed_memory.py --hard                # adds estacion_a_norte, estacion_c_sur
+python3 seed_memory.py --hard --reset-zones  # adds estacion_a_norte, estacion_c_sur
 python3 run_benchmark.py tasks_hard.yaml     # 60 runs (~6 min)
 python3 report.py hard
 ```
@@ -99,13 +120,11 @@ python3 report.py hard
 > against a three-landmark memory. Run plain `seed_memory.py` to reproduce the
 > published numbers; add `--hard` only for this suite.
 
-No results are committed for this suite and none are claimed anywhere in the
-docs. `plot_results.py` skips its charts until `results/hard/` exists.
-
-The per-run `decision` label is richer here than pass/fail — `visited_both`,
-`out_of_order`, `incomplete_2_of_3`, `wrong_landmark`, `hallucinated` — so a
-failure says *how* the planner was wrong. `plot_results.py` renders that
-breakdown as `results/hard_decisions.png`.
+Measured result: **27/30 with RAG vs 3/30 without** (see
+[rag-analysis.md §2.6](rag-analysis.md)). The per-run `decision` label is richer
+than pass/fail — `visited_both`, `out_of_order`, `incomplete_2_of_3`,
+`wrong_landmark`, `hallucinated` — so a failure says *how* the planner was
+wrong. `plot_results.py` renders that breakdown as `results/hard_decisions.png`.
 
 The scoring rules live in `eval/scoring.py` (pure logic, no ROS) and are
 covered by `tests/test_benchmark_scoring.py`, so the suite's definition of
@@ -126,7 +145,7 @@ Writes `results/embeddings.json` and prints the accuracy/margin table. Run it
 python3 report.py full            # markdown table -> results/full/report.md
 python3 report.py phrasing
 python3 plot_results.py           # results/{benchmark,phrasing,embeddings}.png
-                                  # + hard{,_decisions}.png once the hard suite has run
+                                  # + hard{,_decisions}.png when results/hard/ exists
 ```
 
 The PNGs are the ones embedded in the README and docs/rag-analysis.md.
@@ -138,7 +157,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 106 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 111 tests
 ruff check .
 ```
 

@@ -49,7 +49,7 @@ More measured findings (full data and charts in
   first only **43%** of the time (negative separation margin), while
   **bge-m3 reaches 86%** with a positive margin — both stay 100% in English.
   bge-m3 is the project default as a result.
-- **RAG's latency cost is measurable but small**: 2.2 s vs 1.7 s mean
+- **RAG's latency cost is measurable but small**: 2.2 s vs 1.8 s mean
   goal→plan (three collection retrievals with bge-m3), dwarfed by LLM
   inference either way.
 
@@ -168,7 +168,7 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 Three layers, each defined by what it needs to run
 ([ADR-018](docs/decisions/ADR-018-test-strategy.md)):
 
-**1. Pure logic — 106 tests, no ROS required.**
+**1. Pure logic — 111 tests, no ROS required.**
 RAG chunking, plan parsing, prompt building and language detection, frontier
 selection, the scene descriptor, the SQLite zone store, the ChromaDB wrapper,
 the dashboard's HTTP layer, and the benchmark plan scorer.
@@ -236,14 +236,15 @@ silently dropping frames over DDS),
   SR/SPL run on better hardware is future work — the end-to-end harness
   (reset-to-home, odometry integration, SPL) is written and ready in
   `eval/run_benchmark.py`'s history.
-- **The headline suite is saturated.** Every cell of `tasks_full.yaml` sits at
-  100% or 0%, which means it can no longer measure an improvement — the
-  roadmap's agent loop would score identically to today's plan-then-execute.
-  `eval/tasks_hard.yaml` exists for that reason: disambiguating between
-  confusable memories, holding an ordered multi-step plan, and resolving
-  spatial relations over retrieved coordinates. It is designed to be failable
-  by the current system, and has not been run yet — no numbers are claimed for
-  it. See [docs/EVALUATION.md](docs/EVALUATION.md).
+- **The headline suite is saturated** (every cell 100% or 0%), so it cannot
+  measure an improvement — the roadmap's agent loop would score identically.
+  `eval/tasks_hard.yaml` (60 runs) exists for that reason, built to be failable
+  by the current system. Measured result: **27/30 with RAG vs 3/30 without**.
+  It does leave headroom, and points precisely at where — the planner solves
+  disambiguation (9/9) and ordered multi-step plans (9/9) but only **half of
+  the spatial-reasoning tasks** ("go to the station nearest the base", 3/6),
+  which is the clearest target for the agent-loop work. Full breakdown in
+  [docs/rag-analysis.md §2.6](docs/rag-analysis.md).
 - **RAG's value is scale-dependent.** For a handful of places, a SQLite lookup
   covers most of it (see the known-zone control). RAG matters as remembered,
   open-vocabulary memory grows.

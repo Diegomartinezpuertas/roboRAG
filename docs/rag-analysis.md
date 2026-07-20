@@ -45,18 +45,16 @@ stable exact name, RAG is overhead.
 | Known-zone nav (control) | 3/3 (100%) | 3/3 (100%) |
 | Impossible goal (hallucination check) | 3/3 (100%) | 3/3 (100%) |
 
-(Two no-RAG object_nav runs hit a 60 s Ollama stall and produced no plan;
-they are recorded as `no_plan` failures — the conclusion is unchanged.)
-
 Four findings, one per row:
 
 1. **RAG is decisive exactly where the information lives only in semantic
    memory.** With RAG, the planner retrieves
-   `"estacion_a at (x=-1.79, y=-0.44) ..."` and emits `navigate(x, y)`
-   directly; without it, it has no source for the coordinates and falls back
-   to blind exploration. The LLM's own reasoning strings state the mechanism:
-   *"The target has explicit coordinates, so we can navigate directly"* vs
-   *"no coordinates are provided, we need to explore"*.
+   `"estacion_a at (x=-1.64, y=-0.37) ..."` and emits
+   `navigate(x=-1.64, y=-0.37)` directly, reasoning *"Navigating directly to
+   estacion_a since its coordinates are known"*; without it, it has no source
+   for the coordinates and falls back to blind exploration (*"no coordinates
+   are provided, we need to explore"*). Same goal, opposite plan — the only
+   thing that changed is whether the memory was in the prompt.
 2. **Description-referenced navigation works on memory the robot built
    itself.** "Ve a la habitación blanca y despejada" resolves against scene
    descriptions (dominant colors + LIDAR clutter, ADR-014) stored
@@ -103,9 +101,9 @@ exactness) is what catches it.
 
 ### 2.3 What does RAG cost? Planning latency
 
-Mean goal→plan latency is **2.2 s with RAG vs 1.7 s without** (right panel
-of the benchmark figure; runs that produced no plan due to an Ollama stall
-are excluded). Retrieval — three collection queries through `/rag/query`,
+Mean goal→plan latency is **2.2 s with RAG vs 1.8 s without** (right panel
+of the benchmark figure, 21 runs per condition). Retrieval — three collection
+queries through `/rag/query`,
 each a bge-m3 embedding call plus a vector search — costs **~0.5 s**,
 small next to the 7B model's inference either way. (With the lighter
 nomic-embed-text the difference was unmeasurable at ~1.4 s in both
@@ -171,6 +169,49 @@ that satisfies the description"*, not *"the place I planted"*; (2) this is
 also the strongest evidence in the whole benchmark that the self-building
 pipeline works end-to-end: explore → describe → store → retrieve → navigate,
 with no human in the loop.
+
+### 2.6 A harder suite, because the main one is saturated
+
+Every cell of §2.1 is 100% or 0%. That is a clean result, but a saturated
+one: it cannot measure an *improvement*, so it is useless for the roadmap's
+next step (a replanning agent loop would score identically). `tasks_hard.yaml`
+(60 runs, `seed_memory.py --hard`) exists to have headroom — tasks built to be
+failable by the current plan-then-execute system.
+
+![Hard suite](../eval/results/hard.png)
+
+| Task type | With RAG | Without RAG |
+|---|---|---|
+| Disambiguation (name-confusable neighbour) | **9/9** | 0/9 |
+| Ordered multi-step plan | **9/9** | 0/9 |
+| Spatial relation ("nearest to base") | **3/6** | 0/6 |
+| Plausible nonexistent place | **6/6** | 3/6 |
+
+The suite does what it was meant to — it leaves room to improve, and the
+*decision* labels say where:
+
+- **Disambiguation is solved.** Retrieval returns both `estacion_a` and
+  `estacion_a_norte`; the planner picks the requested one 9/9 and never hedges
+  by visiting both. Semantic memory plus a name is enough here.
+- **Ordered multi-step is solved** (9/9) — "go to A, look around, then go to C"
+  comes back as `navigate(A) → scan_360 → navigate(C)`, in order.
+- **Spatial reasoning is the real gap: 3/6.** "Go to the station *nearest the
+  base zone*" needs the planner to compare retrieved coordinates, not just copy
+  one. Half the time it navigates to the wrong station (`wrong_landmark`) — it
+  retrieves the right candidates but does not do the distance arithmetic. This
+  is the single clearest target for the agent-loop work, and now it is measured
+  rather than asserted.
+- **Plausible hallucination is only half-caught without RAG** (3/6): faced with
+  `estacion_d` when a/b/c exist, the RAG-equipped planner declines 6/6, but
+  without the memory to check against, the bare LLM invents a target half the
+  time. Concrete evidence that RAG *suppresses* hallucination here rather than
+  causing it.
+
+![Hard-suite outcome breakdown](../eval/results/hard_decisions.png)
+
+The one failure mode with RAG is `wrong_landmark` (3 runs), all from the
+spatial-relation tasks — exactly the capability the next iteration should
+target.
 
 ---
 

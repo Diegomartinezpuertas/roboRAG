@@ -211,3 +211,36 @@ capability the robot no longer had. It has been replaced by
 
 The general rule: **when a capability changes, the knowledge base is part of
 the code that has to change with it.**
+
+### The same trap in `task_history`: absolute coordinates outlive their map
+
+`task_history` stores what happened, and past outcomes often contain absolute
+coordinates — "moved to the base at (x=-0.30, y=-1.06)". Those coordinates are
+only meaningful relative to the SLAM map that was live when the task ran. This
+sim builds its map fresh on every launch (no saved map — see the roadmap), so
+**a coordinate logged in one session points somewhere else in the next.**
+
+Retrieval does not know that. A later goal like "go to the base" can match the
+old log, and the planner will copy a coordinate from a map that no longer
+exists — over the correct, freshly-observed entry sitting right next to it in
+`semantic_map`.
+
+This surfaced while running the benchmark end-to-end: with development logs
+from earlier sessions present, the `zone_nav` **control** task failed in both
+conditions, because the planner navigated to a stale logged coordinate instead
+of resolving the zone by name. It had nothing to do with RAG on vs off — it was
+session state leaking into the measurement, the same class of problem as a
+leftover zone name (see `seed_memory.py --reset-zones` and
+[EVALUATION.md](EVALUATION.md)). `data/logs/` is not committed, so a fresh
+clone does not hit it; a development machine that has run real tasks does.
+
+Two honest takeaways:
+
+1. **For the benchmark:** start from clean session state — empty `data/logs/`
+   and `data/chroma_db`, exactly what a fresh clone has. EVALUATION.md says so.
+2. **For the design:** storing absolute coordinates in a memory that outlives
+   the map is a latent correctness bug, not just a benchmark nuisance. The
+   real fix is a persistent, versioned map (roadmap item 4) so that a logged
+   pose keeps meaning what it meant. Until then, `task_history` is best treated
+   as *episodic* memory — useful for "have I done something like this before",
+   not as a source of coordinates to navigate to.

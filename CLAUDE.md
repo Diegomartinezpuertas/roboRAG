@@ -230,7 +230,7 @@ ros2 topic echo /robot/response
 ros2 service call /rag/query robot_interfaces/srv/QueryRAG \
   "{query_text: 'where is the kitchen', collection_name: 'knowledge_base', top_k: 3}"
 
-# Layer 1 — pure logic, no ROS needed (106 tests) + lint
+# Layer 1 — pure logic, no ROS needed (111 tests) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
 

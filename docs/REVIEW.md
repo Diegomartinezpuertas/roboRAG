@@ -22,7 +22,7 @@ goal, retrieves context from a semantic memory (RAG over ChromaDB), plans with
 a local LLM (Qwen2.5-7B via Ollama), executes the plan through ROS 2 skills,
 and reports back on what actually happened.
 
-Seven ROS 2 packages, ~5,000 lines of Python, 18 ADRs, 126 automated tests, a
+Seven ROS 2 packages, ~5,000 lines of Python, 18 ADRs, 131 automated tests, a
 measured ablation benchmark, and a web dashboard.
 
 The distinguishing claim is not "I built a RAG robot" — it is **"I measured
@@ -37,20 +37,23 @@ Everything below was executed during this review, not inferred.
 
 | Check | Command | Result |
 |---|---|---|
-| Pure-logic tests | `pytest tests/` | **106 passed** (was 52) |
+| Pure-logic tests | `pytest tests/` | **111 passed** (was 52) |
 | Node-level tests | `colcon test` | **20 passed** (was 10 failures — §3.3) |
 | Python lint | `ruff check .` | **clean** |
 | Workspace build | `colcon build --symlink-install` (from clean) | **7/7 packages** |
 | Dashboard HTTP API | live node, every endpoint exercised with `curl` | **all correct** |
 | Clean shutdown | `kill -INT <pid>` | **silent exit** (was 2 tracebacks — §3.2) |
 | Path portability | ran with `ROBOT_WS` pointed at a scratch dir | **data written there** |
-| Charts | regenerated from committed result JSON | **reproduce exactly** |
+| Full stack, end to end | `full_system.launch.py` + explore + seed + all 3 suites, live | **runs; numbers reproduce** |
+| Headline ablation | `tasks_full.yaml`, live | **9/9·6/6·3/3·3/3 with RAG; 0·0·3/3·3/3 without** |
+| Hard suite | `tasks_hard.yaml`, live | **27/30 with RAG vs 3/30 without** |
+| Charts | regenerated from live result JSON | **reproduce** |
 | Committed artefacts | `git ls-files` vs `.gitignore` | **no build/venv/DB leakage** |
 | Fresh clone | `git clone` + build + `colcon test` in a `ros:jazzy-ros-base` container | **20/20, no reference to the original home dir** |
 | GitHub Actions | both jobs on the pushed commit | **green** |
 
-Not verified: end-to-end robot behaviour in Gazebo and the hard benchmark
-suite — both need the full sim stack plus Ollama (§6.2, §6.3).
+Not verified: physical navigation success (SR/SPL) — the benchmark is at the
+planning level by design (§6.2).
 
 ---
 
@@ -119,7 +122,7 @@ strip dots no longer collide with the axis edge.
 
 ### 3.6 Stale documentation claims — *low, but corrosive*
 
-- README claimed **47** tests; there were **52** (now 106 + 20).
+- README claimed **47** tests; there were **52** (now 111 + 20).
 - README claimed *"ROS nodes and wiring are exercised locally with `colcon test`"*.
   False twice over: the command was red, and those tests were stock linters
   that exercise no node and no wiring. The testing section now states plainly
@@ -135,7 +138,7 @@ only by hand. That gap is what let §3.2 survive the project's entire life.
 
 **Fixed:** a three-layer strategy (→ **[ADR-018](decisions/ADR-018-test-strategy.md)**).
 
-- **Layer 1, 106 tests, no ROS.** Two modules were restructured to join it:
+- **Layer 1, 111 tests, no ROS.** Two modules were restructured to join it:
   `robot_dashboard/web_api.py` (the FastAPI app split out of the node, built
   against a node *interface* so a stub can drive it — this also finally uses the
   `httpx` dependency that was sitting unused) and `eval/scoring.py` (the
@@ -159,7 +162,7 @@ testable (after the `package.xml` schema violation in §3.4).
 ### 3.8 The benchmark could not measure progress — *medium*
 
 Covered in §6.3. **Added:** `eval/tasks_hard.yaml` — four task types built to
-have headroom, with strict scoring in `eval/scoring.py` and 26 unit tests
+have headroom, with strict scoring in `eval/scoring.py` and 31 unit tests
 pinning down what counts as success:
 
 | Type | What it probes | How it can fail |
@@ -179,6 +182,34 @@ and would silently invalidate the committed `tasks_full` results; and the
 relational ground truth is **computed at scoring time** from the seeded
 coordinates rather than written into the YAML, so it cannot drift out of sync
 with the map.
+
+### 3.9 Two bugs the benchmark could only find by actually running — *medium*
+
+Running the full stack end-to-end (the thing §8 previously listed as *to do*)
+turned up two reproducibility defects the offline tests could not:
+
+- **Stale zones confounded the control.** A leftover zone named `zona_b` from an
+  earlier session captured the control goal "Ve a la zona base", so `zone_nav`
+  failed in *both* conditions for a reason unrelated to RAG. `seed_memory.py`
+  now takes `--reset-zones` (delete all zones but the control before seeding)
+  and warns when stray zones exist.
+- **Stale task logs fed the planner coordinates from a dead map.** `task_history`
+  had a log — "moved to the base at (-0.30, -1.06)" — from a *previous* SLAM
+  map. Retrieval handed it to the planner as current, and it navigated to a
+  coordinate that no longer meant anything, over the correct freshly-observed
+  entry. `data/logs/` is not committed, so a fresh clone is clean; a dev machine
+  is not. This is more than a benchmark nuisance: storing absolute coordinates
+  in a memory that outlives the map is a latent **correctness** bug, now
+  documented in [rag-pipeline.md §6](rag-pipeline.md) with the real fix
+  (a persistent versioned map, roadmap item 4).
+
+Neither was a code defect in the usual sense — both were session state leaking
+into a measurement. The fix was partly procedural (EVALUATION.md now specifies
+starting from clean session state, exactly what a fresh clone has) and partly a
+scorer correction: `zone_nav` now counts `explore(zone=X)` as resolving the
+zone, not only `navigate(zone=X)`, because both read the zone from SQLite and
+send the robot there — which is precisely what the control is meant to test.
+That correction is covered by five new scoring tests.
 
 ## 4. Technical decisions
 
@@ -238,7 +269,7 @@ trade capability for honesty, and the README says so.
 ## 6. What does not work
 
 ### 6.1 Test coverage — *resolved, see §3.7*
-Previously the nodes had no automated coverage at all. Now 106 pure-logic +
+Previously the nodes had no automated coverage at all. Now 111 pure-logic +
 20 node-level tests. What remains uncovered is layer 3 — anything needing
 Gazebo, Nav2 or Ollama — which is documented as manual rather than claimed.
 
@@ -248,7 +279,7 @@ success, on software-rendered physics. This is why the benchmark measures
 planning (ADR-013) — a legitimate choice, *provided* it stays clearly labelled,
 which it currently is. Physical SR/SPL numbers do not exist.
 
-### 6.3 The headline benchmark is saturated — *addressed, but unrun*
+### 6.3 The headline benchmark is saturated — *addressed and now run*
 21 runs per condition, split 9/6/3/3 across task types, every cell at 100% or
 0%. Two consequences:
 - **The control cells are thin.** 3/3 is weak evidence; the `n=` labels now make
@@ -256,11 +287,14 @@ which it currently is. Physical SR/SPL numbers do not exist.
 - **No headroom.** It cannot show improvement from here, which makes it a poor
   instrument for the roadmap's agent loop.
 
-`eval/tasks_hard.yaml` now exists to fix the second point — 10 tasks across four
-new types, designed to be failable by the current system (§3.8). **It has not
-been run**: that needs the full sim stack plus Ollama. No numbers are claimed
-for it anywhere, and `plot_results.py` refuses to draw a chart until real
-results exist. Running it is the first item in §8.
+`eval/tasks_hard.yaml` fixes the second point — 10 tasks across four new types,
+built to be failable by the current system (§3.8). **It has now been run** on
+the full stack: **27/30 with RAG vs 3/30 without.** It behaves exactly as
+intended — leaves headroom and localises it. The planner solves disambiguation
+(9/9) and ordered multi-step plans (9/9), but only 3/6 of the spatial-relation
+tasks ("nearest to base"): it retrieves the right candidates and then fails the
+distance comparison. That is now a *measured* target for the agent loop rather
+than a guess. Full analysis in [rag-analysis.md §2.6](rag-analysis.md).
 
 ### 6.4 Perception cannot name objects
 Colors and clutter only (ADR-014). "Go to the white, open room" works; "go to
@@ -329,21 +363,20 @@ rather than by pushing repeatedly: `ros:jazzy-ros-base` ships no pip at all, and
 `git clone` built and passed 20/20 inside that container, which is independent
 confirmation of the ROBOT_WS portability fix.
 
-**Still to do:**
-1. **Run the hard suite** (`seed_memory.py --hard`, then
-   `run_benchmark.py tasks_hard.yaml`). Needs Gazebo + Ollama. Until then it is
-   scaffolding with verified scoring and no data — stated as such everywhere it
-   appears, and it should stay that way until it has really run. Do this
-   *before* the agent loop: a baseline taken afterwards is worth much less.
-2. **Launch the full stack from a clean clone once.** Build and tests are
-   confirmed; `ros2 launch robot_bringup full_system.launch.py` on a fresh
-   checkout, with Gazebo actually coming up, is the part no container can prove.
+**Also done in this pass — the full stack, end to end.** Launched
+`full_system.launch.py` (Gazebo + Nav2 + SLAM + agent + dashboard), explored to
+build a map, seeded, and ran all three benchmark suites live against Qwen and
+bge-b3 on the GPU. Everything reproduces: the headline table matches the
+published numbers, phrasing is 18/18 vs 0/18, and the hard suite ran for the
+first time (§6.3). Two real issues surfaced and were fixed in the process
+(§3.9), which is the entire reason for running it rather than trusting the
+numbers already in the repo.
 
 **Recommended, in priority order:**
-3. Bring `dashboard_node` onto a `MultiThreadedExecutor` (§6.5) — the only
+1. Bring `dashboard_node` onto a `MultiThreadedExecutor` (§6.5) — the only
    place the codebase contradicts its own ADR-007.
-4. Default `http_host` to `127.0.0.1`.
-5. Make `POST /api/zones` fire-and-forget.
+2. Default `http_host` to `127.0.0.1`.
+3. Make `POST /api/zones` fire-and-forget.
 
 **Deliberately not done**, listed so the decisions are visible: the
 `src/robot_bringup/config/install/` directory — a stray colcon artefact sitting
@@ -375,17 +408,23 @@ a control condition that shows the project's central technology losing.
 The defects found were real but almost all of a single kind: **the project was
 never run as anyone other than its author**. Hardcoded home directories, a
 shutdown path only exercised by Ctrl-C in a foreground terminal, a `colcon test`
-nobody had run, a stale test count. None of them touched the architecture, which
-held up under review.
+nobody had run, a stale test count, session state (zones, task logs) leaking
+into the benchmark. None of them touched the architecture, which held up under
+review — every one was a boundary the author never had to cross because they
+only ever ran it in place, on their own machine, with their own accumulated
+state.
 
-The two substantive weaknesses named in the first pass have now been addressed
-rather than merely documented: node-level coverage went from zero to 20 tests
-(§3.7), and the saturated benchmark gained a suite with actual headroom (§3.8).
-Both fixes paid for themselves immediately — making the nodes testable exposed
-two further bugs (the `navigate` validation ordering, the `package.xml` schema
-violation), which is the usual return on that kind of work.
+The two substantive weaknesses named in the first pass are now addressed and
+verified, not merely documented: node-level coverage went from zero to 20 tests
+(§3.7), and the saturated benchmark gained a suite with headroom that **has
+been run** — 27/30 vs 3/30, localising the planner's weakness to spatial
+reasoning (§3.8, §6.3). Every fix paid for itself by exposing another real
+issue: making the nodes testable found two bugs (§3.7), and running the full
+stack found two more (§3.9). That is the whole argument for doing this work
+rather than trusting the numbers already checked in.
 
-What is left is honest and worth saying out loud: **the hard suite has no
-numbers yet**, and until it is run the claim "the benchmark has headroom" is a
-design argument rather than a measured one. Run it before the roadmap's agent
-loop, not after — a baseline taken afterwards is worth much less.
+What remains is genuine and stated plainly throughout: the planning-level
+benchmark is not physical SR/SPL (§6.2), spatial reasoning is measured but not
+yet improved (the agent-loop target, §6.3), and perception is attribute-level
+(§6.4). None of these are hidden; they are the honest edges of a project whose
+defining trait is that it says where its own limits are.

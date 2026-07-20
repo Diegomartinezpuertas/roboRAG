@@ -293,13 +293,19 @@ def fig_hard():
     print('Wrote', RESULTS / 'hard.png')
 
 
+# Decision labels that mean the task was solved (everything else is a failure
+# mode). Kept in sync with scoring.classify's success returns.
+_HARD_SUCCESS_DECISIONS = {'direct_nav', 'ordered_plan', 'declined_or_explore', 'zone_nav'}
+
+
 def fig_hard_decisions():
     """Breaks the hard suite's RAG condition down by decision label.
 
-    Success rate alone says the planner failed; the decision labels say how —
-    hedging across both candidates, right steps in the wrong order, an outright
-    hallucination. That distinction is what makes the suite useful for guiding
-    the next iteration rather than just scoring it.
+    A success rate alone says the planner missed; the decision labels say how —
+    the wrong landmark, hedging across both candidates, right steps in the wrong
+    order. Successes (blue) and failures (green) are coloured distinctly so the
+    chart is a breakdown of outcomes, not just of failures. That "how" is what
+    makes the suite useful for guiding the next iteration.
     """
     rag = load('hard', 'rag')
     if not rag:
@@ -309,13 +315,18 @@ def fig_hard_decisions():
         counts[run['decision']] += 1
     if not counts:
         return
-    ordered = sorted(counts.items(), key=lambda kv: -kv[1])
+    # Failures first (they are the point), then successes; each block by size.
+    ordered = sorted(
+        counts.items(),
+        key=lambda kv: (kv[0] in _HARD_SUCCESS_DECISIONS, -kv[1]),
+    )
     labels = [k.replace('_', ' ') for k, _ in ordered]
     values = [v for _, v in ordered]
+    colors = [BLUE if k in _HARD_SUCCESS_DECISIONS else GREEN for k, _ in ordered]
 
-    fig, ax = plt.subplots(figsize=(8.0, 0.42 * len(labels) + 1.9), facecolor=SURFACE)
+    fig, ax = plt.subplots(figsize=(8.0, 0.42 * len(labels) + 2.1), facecolor=SURFACE)
     positions = range(len(labels))
-    ax.barh(list(positions), values, height=0.55, color=BLUE,
+    ax.barh(list(positions), values, height=0.55, color=colors,
             edgecolor=SURFACE, linewidth=2, zorder=3)
     for y, v in zip(positions, values, strict=True):
         ax.annotate(f'{v}', (v, y), textcoords='offset points', xytext=(5, 0),
@@ -323,9 +334,10 @@ def fig_hard_decisions():
     ax.set_yticks(list(positions))
     ax.set_yticklabels(labels, fontsize=9, color=INK)
     ax.invert_yaxis()
-    ax.set_xlabel('Runs (with RAG)', fontsize=10, color=INK_2)
+    ax.set_xlabel('Runs (with RAG, 30 total)', fontsize=10, color=INK_2)
     ax.set_xlim(0, max(values) * 1.15)
-    ax.set_title('How the planner fails on the hard suite',
+    ax.set_title('Hard suite — outcome breakdown with RAG\n'
+                 '(green = failure modes, blue = solved)',
                  fontsize=11, color=INK, pad=10)
     style_axes(ax)
     ax.xaxis.grid(True, color=GRID, linewidth=0.8)
