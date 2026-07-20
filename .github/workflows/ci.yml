@@ -7,7 +7,7 @@ on:
 
 jobs:
   lint-and-test:
-    name: Lint + unit tests (no ROS)
+    name: Lint + pure-logic tests (no ROS)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +26,55 @@ jobs:
         run: ruff check .
 
       - name: Unit tests (pytest)
-        # These tests exercise the pure-logic modules (RAG chunking, plan
-        # parsing, prompt building, frontier selection, the SQLite zone store,
-        # the ChromaDB wrapper) without needing a ROS 2 install. The nodes and
-        # ROS wiring are covered by `colcon test` locally (see README).
+        # The pure-logic modules: RAG chunking, plan parsing, prompt building,
+        # frontier selection, the scene descriptor, the SQLite zone store, the
+        # ChromaDB wrapper, and the dashboard's HTTP layer — which is kept free
+        # of rclpy precisely so it can be covered here (ADR-018).
         run: pytest tests/
+
+  ros-node-tests:
+    name: ROS node tests (colcon test)
+    runs-on: ubuntu-latest
+    container: ros:jazzy-ros-base
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ROS and system dependencies
+        # cv_bridge + opencv for perceive_skill, nav2_simple_commander for
+        # nav_skill, rosidl generators to build robot_interfaces.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            python3-colcon-common-extensions \
+            python3-opencv \
+            python3-pytest \
+            ros-jazzy-cv-bridge \
+            ros-jazzy-nav2-simple-commander \
+            ros-jazzy-rosidl-default-generators \
+            ros-jazzy-tf2-ros
+
+      - name: Install Python dependencies
+        # Only what the nodes under test import. Deliberately NOT chromadb or
+        # ollama: rag_node ingests on startup against a live Ollama server and
+        # is excluded from this job (ADR-018). numpy comes from apt so it keeps
+        # matching cv_bridge's ABI.
+        run: pip install --break-system-packages fastapi uvicorn httpx pillow pydantic
+
+      - name: Build workspace
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          colcon build --symlink-install
+
+      - name: Run node tests
+        env:
+          # The launch_testing pytest plugin shipped with Jazzy is incompatible
+          # with current pytest and breaks collection. Nothing here uses it.
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          # Keep DDS discovery on this container's loopback.
+          ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          . install/setup.sh
+          export ROBOT_WS="$GITHUB_WORKSPACE"
+          colcon test --event-handlers console_direct+
+          colcon test-result --all --verbose
