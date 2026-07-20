@@ -21,6 +21,7 @@ from tf2_ros.transform_listener import TransformListener
 
 from robot_interfaces.msg import SemanticObject
 from robot_interfaces.srv import ExecuteSkill, UpdateMap
+from robot_rag.map_session import MapSession, read_active_map_id
 from robot_zones.zone_store import ZoneStore
 
 from robot_skills.explore_skill import find_nearest_frontier
@@ -64,6 +65,9 @@ class SkillsExecutorNode(Node):
     Parameters:
         logs_dir (str): Directory for task history logs.
         zones_db (str): SQLite file with user-defined navigation zones.
+        maps_dir (str): Directory holding the map session (see ADR-019); its
+            active id is stamped into each task log so the memory it becomes
+            is scoped to the map the task actually ran on.
     """
 
     def __init__(self) -> None:
@@ -71,8 +75,10 @@ class SkillsExecutorNode(Node):
 
         self.declare_parameter('logs_dir', str(WS_ROOT / 'data' / 'logs'))
         self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
+        self.declare_parameter('maps_dir', str(WS_ROOT / 'data' / 'maps'))
 
         logs_dir = self.get_parameter('logs_dir').value
+        self._maps_dir = self.get_parameter('maps_dir').value
         self._zones = ZoneStore(self.get_parameter('zones_db').value)
 
         self._nav_skill = NavSkill()
@@ -89,6 +95,10 @@ class SkillsExecutorNode(Node):
         self._update_map_client = self.create_client(
             UpdateMap, '/rag/update_map', callback_group=self._io_group,
         )
+        # Client for persisting the SLAM map (save_map maintenance skill,
+        # ADR-019). Created lazily-typed: the service type is imported inside
+        # _run_save_map so this module stays importable without slam_toolbox.
+        self._serialize_map_client = None
 
         self._latest_image: Image | None = None
         self._latest_scan: LaserScan | None = None
@@ -205,6 +215,11 @@ class SkillsExecutorNode(Node):
             return self._run_scan_360(params)
         if skill_name == 'report':
             return self._run_report(params)
+        if skill_name == 'save_map':
+            # Maintenance skill, deliberately absent from the planner's prompt
+            # and from toolkit.VALID_SKILLS, so the LLM never emits it. Reached
+            # only by a direct `ros2 service call /skills/execute` (ADR-019).
+            return self._run_save_map(params)
         raise ValueError(f'Unknown skill: {skill_name}')
 
     def _wait_for_future(self, future, timeout_sec: float) -> None:
@@ -366,8 +381,63 @@ class SkillsExecutorNode(Node):
         task_context = {
             'task_id': str(self.get_clock().now().nanoseconds),
             'goal_text': params.get('goal_text', ''),
+            # Stamp the map session so this log, once ingested into
+            # task_history, is scoped to the map it ran on (ADR-019).
+            'map_id': read_active_map_id(self._maps_dir),
         }
         return self._report_skill.report(params, task_context)
+
+    def _run_save_map(self, params: dict) -> dict:
+        """Serializes the current SLAM map so it (and its memories) survive a restart.
+
+        Writes `<maps_dir>/<map_id>/map.{posegraph,data}` via SLAM Toolbox's
+        serialize service, under the active map-session id. Relaunching with
+        `saved_map:=<map_id>` deserializes it and re-pins the session, so the
+        coordinate memories tagged with that id become valid again (ADR-019).
+
+        Args:
+            params: Optional {"name": str} to store under a stable name instead
+                of the current session id.
+
+        Returns:
+            Dict with the map_id, the file path, and a message.
+
+        Raises:
+            RuntimeError: If SLAM Toolbox's serialize service is unavailable.
+        """
+        from slam_toolbox.srv import SerializePoseGraph
+
+        if self._serialize_map_client is None:
+            self._serialize_map_client = self.create_client(
+                SerializePoseGraph, '/slam_toolbox/serialize_map',
+                callback_group=self._io_group,
+            )
+        if not self._serialize_map_client.wait_for_service(timeout_sec=5.0):
+            raise RuntimeError('/slam_toolbox/serialize_map unavailable (is SLAM running?)')
+
+        map_id = params.get('name') or read_active_map_id(self._maps_dir) or 'default'
+        map_dir = Path(self._maps_dir) / map_id
+        map_dir.mkdir(parents=True, exist_ok=True)
+        filename = str(map_dir / 'map')
+
+        future = self._serialize_map_client.call_async(
+            SerializePoseGraph.Request(filename=filename),
+        )
+        self._wait_for_future(future, timeout_sec=30.0)
+        response = future.result()
+        if response is None:
+            raise RuntimeError('serialize_map timed out')
+        # If a name was given, pin the session to it so the saved map and its
+        # memories share one id. If not, the map is saved under the id already
+        # active, so nothing to re-pin.
+        if params.get('name'):
+            MapSession(self._maps_dir).set_id(map_id)
+        self.get_logger().info(f'Saved SLAM map "{map_id}" to {filename}.posegraph')
+        return {
+            'map_id': map_id,
+            'path': f'{filename}.posegraph',
+            'message': f'Saved map "{map_id}". Reload with saved_map:={map_id}.',
+        }
 
 
 def main(args: list[str] | None = None) -> None:

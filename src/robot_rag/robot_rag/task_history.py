@@ -33,6 +33,13 @@ class TaskHistoryStore:
         derived from filenames, so upserting is idempotent and picks up
         tasks completed since the last rag_node start.
 
+        Each memory is tagged with the map_id the log itself records — the one
+        that was active when the task ran (report_skill writes it). A log with
+        no map_id (written before versioning, or against an unknown map) stays
+        untagged and is therefore not retrieved for any current session, which
+        is the safe default: an outcome carrying a coordinate from a dead map
+        must never resurface as if current (ADR-019).
+
         Returns:
             Number of task logs ingested.
         """
@@ -52,7 +59,10 @@ class TaskHistoryStore:
             if not goal_text and not response:
                 continue
             documents.append(f'Goal: {goal_text}\nOutcome: {response}')
-            metadatas.append({'task_id': entry.get('task_id', file_path.stem)})
+            metadatas.append({
+                'task_id': entry.get('task_id', file_path.stem),
+                'map_id': entry.get('map_id', ''),
+            })
             ids.append(f'task-{file_path.stem}')
 
         if not documents:

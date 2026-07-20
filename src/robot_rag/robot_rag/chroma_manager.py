@@ -49,6 +49,7 @@ class ChromaManager:
 
     def query(
         self, collection_name: str, query_embedding: list[float], top_k: int,
+        where: dict | None = None,
     ) -> tuple[list[str], list[float]]:
         """Retrieves the most similar documents to a query embedding.
 
@@ -56,6 +57,9 @@ class ChromaManager:
             collection_name: Target collection name.
             query_embedding: Embedding vector of the query.
             top_k: Number of results to return.
+            where: Optional ChromaDB metadata filter, e.g. {'map_id': 'abc'}.
+                Only documents whose metadata matches are considered — used to
+                scope coordinate memories to the active map session (ADR-019).
 
         Returns:
             Tuple of (contexts, scores) where scores are cosine similarities
@@ -68,8 +72,12 @@ class ChromaManager:
         count = collection.count()
         if count == 0:
             return [], []
+        # n_results is capped at the collection count, not the filtered count
+        # (ChromaDB has no cheap filtered-count); it returns as many matches as
+        # exist up to that cap, which is always enough.
         result = collection.query(
             query_embeddings=[query_embedding], n_results=min(top_k, count),
+            where=where or None,
         )
         documents = result['documents'][0]
         distances = result['distances'][0]

@@ -17,6 +17,7 @@
   <depend>nav_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>robot_zones</depend>
+  <depend>robot_rag</depend>
 
   <test_depend>python3-pytest</test_depend>
 

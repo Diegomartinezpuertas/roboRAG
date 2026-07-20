@@ -20,7 +20,7 @@ class SemanticMap:
         self._chroma = chroma_manager
         self._embedder = embedder
 
-    def upsert_object(self, obj: SemanticObject) -> None:
+    def upsert_object(self, obj: SemanticObject, map_id: str = '') -> None:
         """Inserts or updates a detected object in the semantic map.
 
         The stored document embeds the map-frame coordinates in the text
@@ -30,6 +30,10 @@ class SemanticMap:
 
         Args:
             obj: Semantic object observation to store.
+            map_id: Active map-session id, tagged into metadata so retrieval
+                can scope this coordinate memory to the map it belongs to
+                (ADR-019). Empty means "untagged" — retrievable only by an
+                untagged/legacy query.
         """
         zone = obj.room_zone or 'unknown area'
         location = f'at (x={obj.pose.position.x:.2f}, y={obj.pose.position.y:.2f}) in {zone}'
@@ -46,6 +50,7 @@ class SemanticMap:
             'room_zone': obj.room_zone,
             'pose_x': obj.pose.position.x,
             'pose_y': obj.pose.position.y,
+            'map_id': map_id,
         }
         self._chroma.add(
             COLLECTION_NAME,

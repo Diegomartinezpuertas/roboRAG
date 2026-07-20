@@ -12,6 +12,7 @@ data/logs/
 data/zones.db
 data/zones.db-shm
 data/zones.db-wal
+data/maps/
 
 # Benchmark run artifacts tied to a specific SLAM map
 eval/landmarks.json
