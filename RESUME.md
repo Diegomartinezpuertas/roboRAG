@@ -3,7 +3,7 @@
 **Review date:** 2026-07-20
 **Scope:** full pre-publication review — code, docs, evaluation, dashboard,
 packaging, CI readiness.
-**Verdict:** ready to publish once the two manual items in §8 are done.
+**Verdict:** published and green. Remaining work is listed in §8.
 
 This document is the honest state of the project: what was verified by
 actually running it, what was broken and got fixed, what the technical
@@ -43,10 +43,11 @@ Everything below was executed during this review, not inferred.
 | Path portability | ran with `ROBOT_WS` pointed at a scratch dir | **data written there** |
 | Charts | regenerated from committed result JSON | **reproduce exactly** |
 | Committed artefacts | `git ls-files` vs `.gitignore` | **no build/venv/DB leakage** |
+| Fresh clone | `git clone` + build + `colcon test` in a `ros:jazzy-ros-base` container | **20/20, no reference to the original home dir** |
+| GitHub Actions | both jobs on the pushed commit | **green** |
 
-Not verified: end-to-end robot behaviour in Gazebo (needs the full sim stack
-running; see §6.2), the hard benchmark suite (§6.3), and the new ROS CI job,
-which cannot be exercised locally (§8).
+Not verified: end-to-end robot behaviour in Gazebo and the hard benchmark
+suite — both need the full sim stack plus Ollama (§6.2, §6.3).
 
 ---
 
@@ -316,25 +317,30 @@ evidence that the benchmark was not built to flatter the conclusion.
 
 ## 8. Before publishing
 
-**Must do (manual — I cannot do these):**
-1. **Watch the ROS CI job on the first push.** The `ros-node-tests` job is written
-   from the same steps that pass locally, but a GitHub Actions container cannot
-   be exercised here — apt package names, the `--break-system-packages` pip
-   call, and DDS discovery inside the container are the likely first failures.
-   The local `colcon test` is green, so any red is CI plumbing, not the code.
-2. **Run the hard suite** (`seed_memory.py --hard`, then
-   `run_benchmark.py tasks_hard.yaml`). It needs Gazebo + Ollama. Until then it
-   is scaffolding with verified scoring and no data — which is stated
-   everywhere it appears, and should stay that way until it has really run.
-3. **Verify the first-run experience on a clean clone.** The path fix is
-   verified in isolation, but a full `git clone && source setup_env.sh &&
-   colcon build && ros2 launch` is the only real proof.
+**Done since the first pass:** the repository is published at
+[Diegomartinezpuertas/roboRAG](https://github.com/Diegomartinezpuertas/roboRAG),
+the CI badge points at the real workflow, and **both CI jobs are green**. The
+ROS job needed two fixes, both found by reproducing it in the container locally
+rather than by pushing repeatedly: `ros:jazzy-ros-base` ships no pip at all, and
+`llm_planner_node` imports the `ollama` client library at module load. A fresh
+`git clone` built and passed 20/20 inside that container, which is independent
+confirmation of the ROBOT_WS portability fix.
+
+**Still to do:**
+1. **Run the hard suite** (`seed_memory.py --hard`, then
+   `run_benchmark.py tasks_hard.yaml`). Needs Gazebo + Ollama. Until then it is
+   scaffolding with verified scoring and no data — stated as such everywhere it
+   appears, and it should stay that way until it has really run. Do this
+   *before* the agent loop: a baseline taken afterwards is worth much less.
+2. **Launch the full stack from a clean clone once.** Build and tests are
+   confirmed; `ros2 launch robot_bringup full_system.launch.py` on a fresh
+   checkout, with Gazebo actually coming up, is the part no container can prove.
 
 **Recommended, in priority order:**
-4. Bring `dashboard_node` onto a `MultiThreadedExecutor` (§6.5) — the only
+3. Bring `dashboard_node` onto a `MultiThreadedExecutor` (§6.5) — the only
    place the codebase contradicts its own ADR-007.
-5. Default `http_host` to `127.0.0.1`.
-6. Make `POST /api/zones` fire-and-forget.
+4. Default `http_host` to `127.0.0.1`.
+5. Make `POST /api/zones` fire-and-forget.
 
 **Deliberately not done**, listed so the decisions are visible: the
 `src/robot_bringup/config/install/` directory — a stray colcon artefact sitting
