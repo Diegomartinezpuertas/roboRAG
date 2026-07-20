@@ -173,3 +173,20 @@ def test_map_endpoint_is_serviceable_before_slam_publishes(client):
     body = client.get('/api/map').json()
     assert body['map'] is None
     assert 'zones' in body
+
+
+def test_saving_a_zone_does_not_block_when_rag_is_down(client, node):
+    """Fire-and-forget: no rag_node runs in this test, so /rag/update_map is
+    never available. The save must still return promptly (SQLite write only) —
+    it must not stall on the RAG service. Regression guard for the 2 s
+    wait_for_service that used to block the HTTP handler.
+    """
+    start = time.monotonic()
+    response = client.post('/api/zones', json={
+        'name': 'sin_rag', 'x_min': 0.0, 'y_min': 0.0, 'x_max': 1.0, 'y_max': 1.0,
+    })
+    elapsed = time.monotonic() - start
+    assert response.status_code == 200
+    assert elapsed < 1.0, f'zone save took {elapsed:.2f}s with RAG down — should be instant'
+    assert 'sin_rag' in node.zones.load_all()
+    client.delete('/api/zones/sin_rag')

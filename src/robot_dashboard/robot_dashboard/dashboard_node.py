@@ -10,6 +10,7 @@ import uvicorn
 import rclpy
 from nav_msgs.msg import OccupancyGrid
 from rcl_interfaces.msg import Log
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import (
@@ -123,7 +124,16 @@ class DashboardNode(Node):
         self._tf_listener = TransformListener(self._tf_buffer, self)
 
         self._goal_pub = self.create_publisher(String, '/robot/goal', 10)
-        self._update_map_client = self.create_client(UpdateMap, '/rag/update_map')
+        # The map-update client lives in its own callback group so a
+        # MultiThreadedExecutor thread delivers its response while the (light,
+        # serialized) topic subscriptions run on the default group. The node is
+        # driven from two sides — the executor and uvicorn's server thread —
+        # so it follows the same executor discipline as the other nodes (ADR-007)
+        # rather than the single-threaded spin it used to run on.
+        self._client_group = MutuallyExclusiveCallbackGroup()
+        self._update_map_client = self.create_client(
+            UpdateMap, '/rag/update_map', callback_group=self._client_group,
+        )
         self.create_subscription(String, '/robot/goal', self._on_goal, 10)
         self.create_subscription(String, '/robot/status', self._on_status, 10)
         self.create_subscription(String, '/robot/response', self._on_response, 10)
@@ -180,13 +190,19 @@ class DashboardNode(Node):
             }
 
     def index_zone_in_memory(self, name: str, area: dict) -> None:
-        """Upserts a named zone into semantic memory via /rag/update_map.
+        """Fire-and-forget: upserts a named zone into semantic memory via /rag/update_map.
+
+        Called from the HTTP request handler, so it must never block it. The
+        readiness check is instantaneous (`service_is_ready`, not a timed
+        `wait_for_service`), and the request itself is dispatched with
+        `call_async` whose result is not awaited — the zone is already safely
+        in SQLite by the time this runs; indexing it in the RAG is best-effort.
 
         Args:
             name: Zone name, e.g. "cocina".
             area: {x_min, y_min, x_max, y_max} in map-frame meters.
         """
-        if not self._update_map_client.wait_for_service(timeout_sec=2.0):
+        if not self._update_map_client.service_is_ready():
             self.get_logger().warning('/rag/update_map unavailable, zone not indexed in memory')
             return
         obj = SemanticObject()
@@ -232,13 +248,24 @@ def main(args: list[str] | None = None) -> None:
     """Entry point for the dashboard_node executable."""
     rclpy.init(args=args)
     node = DashboardNode()
+    # MultiThreadedExecutor so the map-update client's response (own callback
+    # group) is delivered while the topic subscriptions run, and so the node's
+    # callbacks are not starved by uvicorn's server thread calling into it.
+    executor = rclpy.executors.MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         # ExternalShutdownException is how rclpy reports SIGINT/SIGTERM from
         # `ros2 launch` shutting the stack down — an ordinary stop, not a crash.
         pass
     finally:
+        # Stop the executor's worker threads BEFORE destroying the node. uvicorn
+        # runs in a daemon thread that keeps calling into the node, and with
+        # multiple executor threads still live a concurrent destroy_node races
+        # the rmw teardown into a segfault. Shutting the executor first joins
+        # the workers so teardown is single-threaded and safe.
+        executor.shutdown()
         node.destroy_node()
         # Guarded: on external shutdown the context is already down and an
         # unconditional shutdown() raises RCLError over the real exit.
