@@ -76,6 +76,41 @@ decision, the raw plan, and goal→plan latency). The script flips
 `rag_enabled` live with `ros2 param set` — no restarts, same memory state in
 both conditions.
 
+### 3b. The hard suite (has headroom — not yet run)
+
+`tasks_full.yaml` is **saturated**: every cell is 100% or 0%, so it cannot show
+an improvement from here. `tasks_hard.yaml` is built to be failable by the
+current system, which is what makes it useful for measuring the roadmap's agent
+loop. It adds four task types: disambiguating between name-confusable memories,
+holding an ordered multi-step plan, resolving a spatial relation over retrieved
+coordinates, and declining a plausible-sounding place that does not exist.
+
+It needs extra landmarks, which are **opt-in**:
+
+```bash
+python3 seed_memory.py --hard                # adds estacion_a_norte, estacion_c_sur
+python3 run_benchmark.py tasks_hard.yaml     # 60 runs (~6 min)
+python3 report.py hard
+```
+
+> **Why opt-in.** The distractors add competing entries to semantic memory,
+> which changes retrieval for *every* query. Seeding them by default would
+> silently invalidate the committed `tasks_full` results, which were measured
+> against a three-landmark memory. Run plain `seed_memory.py` to reproduce the
+> published numbers; add `--hard` only for this suite.
+
+No results are committed for this suite and none are claimed anywhere in the
+docs. `plot_results.py` skips its charts until `results/hard/` exists.
+
+The per-run `decision` label is richer here than pass/fail — `visited_both`,
+`out_of_order`, `incomplete_2_of_3`, `wrong_landmark`, `hallucinated` — so a
+failure says *how* the planner was wrong. `plot_results.py` renders that
+breakdown as `results/hard_decisions.png`.
+
+The scoring rules live in `eval/scoring.py` (pure logic, no ROS) and are
+covered by `tests/test_benchmark_scoring.py`, so the suite's definition of
+success is verified without needing a simulator (ADR-018).
+
 ## 4. Embedding model comparison (no ROS needed)
 
 ```bash
@@ -91,21 +126,32 @@ Writes `results/embeddings.json` and prints the accuracy/margin table. Run it
 python3 report.py full            # markdown table -> results/full/report.md
 python3 report.py phrasing
 python3 plot_results.py           # results/{benchmark,phrasing,embeddings}.png
+                                  # + hard{,_decisions}.png once the hard suite has run
 ```
 
 The PNGs are the ones embedded in the README and docs/rag-analysis.md.
 
-## 6. Unit tests and lint (no ROS needed)
+## 6. Tests and lint
+
+Pure logic — no ROS needed (includes the benchmark scorer):
 
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 47 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 106 tests
 ruff check .
 ```
 
-(`PYTEST_DISABLE_PLUGIN_AUTOLOAD` avoids ROS-installed pytest plugins that
-are incompatible with pytest ≥ 9; CI doesn't need it because CI has no ROS.)
+Node level — needs a sourced workspace:
+
+```bash
+source ~/robot_ws/setup_env.sh
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 20 tests
+```
+
+(`PYTEST_DISABLE_PLUGIN_AUTOLOAD` avoids the ROS-installed `launch_testing`
+pytest plugin, which is incompatible with current pytest and breaks collection
+outright. The no-ROS CI job doesn't need it; the ROS job sets it. See ADR-018.)
 
 ## Changing conditions manually
 

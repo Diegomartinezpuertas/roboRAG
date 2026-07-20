@@ -70,8 +70,10 @@ LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
 │   ├── robot_brain/        # LLM planner (cognitive core)
 │   ├── robot_dashboard/    # Web dashboard: observability + goals (text/voice)
 │   └── robot_bringup/      # Launch files for the whole system
-├── eval/                   # RAG ablation benchmark (seed, run, report)
-├── tests/                  # Pure-logic pytest suite (runs without ROS)
+├── eval/                   # RAG ablation benchmark (seed, run, score, report)
+│                           #   scoring.py is pure logic — no ROS, unit-tested
+├── tests/                  # Layer 1: pure-logic pytest suite (runs without ROS)
+├── src/*/test/             # Layer 2: node-level tests (need ROS, run by colcon test)
 ├── data/
 │   ├── chroma_db/          # Persistent vector DB (do NOT commit)
 │   ├── knowledge/          # Static RAG documents (DO commit)
@@ -224,9 +226,14 @@ ros2 topic echo /robot/response
 ros2 service call /rag/query robot_interfaces/srv/QueryRAG \
   "{query_text: 'where is the kitchen', collection_name: 'knowledge_base', top_k: 3}"
 
-# Unit tests (pure logic, no ROS needed) + lint
+# Layer 1 — pure logic, no ROS needed (106 tests) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
+
+# Layer 2 — node level, needs a sourced workspace (20 tests). The env var is
+# required: Jazzy's launch_testing pytest plugin breaks collection (ADR-018).
+source ~/robot_ws/setup_env.sh
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all
 
 # Benchmark suite (see docs/EVALUATION.md)
 cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
@@ -240,20 +247,31 @@ curl -s http://localhost:11434/api/tags | python3 -m json.tool
 
 ## Important environment variables
 
+All of these are exported by `source setup_env.sh`.
+
 ```bash
+# Project — ROBOT_WS is load-bearing (ADR-015): setup_env.sh resolves its own
+# directory, and every node builds its default data paths from this variable.
+# Never hardcode an absolute path; derive it from ROBOT_WS.
+ROBOT_WS=<resolved from setup_env.sh's location>
+CHROMA_DB_PATH=${ROBOT_WS}/data/chroma_db
+KNOWLEDGE_DIR=${ROBOT_WS}/data/knowledge
+
 # ROS 2
 ROS_DOMAIN_ID=0
-RMW_IMPLEMENTATION=rmw_cyclonedds_cpp        # Best middleware for WSL2
-CYCLONEDDS_URI=file://~/robot_ws/cyclonedds.xml  # DDS pinned to loopback (ADR-006)
+RMW_IMPLEMENTATION=rmw_cyclonedds_cpp            # Best middleware for WSL2
+CYCLONEDDS_URI=file://${ROBOT_WS}/cyclonedds.xml # DDS pinned to loopback (ADR-006)
 TURTLEBOT3_MODEL=waffle
 
 # Ollama
-OLLAMA_KEEP_ALIVE=-1                         # Never evict models from VRAM
+OLLAMA_KEEP_ALIVE=-1                             # Never evict models from VRAM
+```
 
-# Project
-ROBOT_WS=/home/diego/robot_ws
-CHROMA_DB_PATH=${ROBOT_WS}/data/chroma_db
-KNOWLEDGE_DIR=${ROBOT_WS}/data/knowledge
+In node code, path parameters follow this pattern (never a literal path):
+
+```python
+WS_ROOT = Path(os.environ.get('ROBOT_WS', Path.home() / 'robot_ws'))
+self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 ```
 
 ---
@@ -282,7 +300,9 @@ KNOWLEDGE_DIR=${ROBOT_WS}/data/knowledge
 4. Write an ADR if there is an architecture decision
 5. Manual test with `ros2 service call` / `ros2 topic pub`
 6. Update `docs/api_reference.md` for new srv/msg/topics/params
-7. `pytest tests/` + `ruff check .` green
+7. `pytest tests/` + `ruff check .` green; `colcon test` too if you touched a node
+   — and if the change is in a node's *logic*, ask whether it belongs in a
+   pure-logic module that layer 1 can cover (ADR-018)
 8. Commit with a descriptive English message:
    ```
    feat(robot_rag): add semantic_map collection with pose indexing
@@ -299,6 +319,9 @@ KNOWLEDGE_DIR=${ROBOT_WS}/data/knowledge
 - **Do not forget** `source ~/robot_ws/install/setup.bash` after `colcon build`
 - **No public functions without docstrings**
 - **No nested `rclpy.spin_*` or throwaway executors** (ADR-007)
+- **No `main()` that catches only `KeyboardInterrupt`** — catch
+  `ExternalShutdownException` too and guard `rclpy.shutdown()` with
+  `rclpy.ok()`, or every `ros2 launch` stop prints a traceback (ADR-016)
 
 ---
 

@@ -7,8 +7,7 @@ Ollama), and executes the plan through ROS 2 skills (navigation, exploration,
 perception, reporting). A FastAPI dashboard gives live observability, an
 interactive SLAM map, and text/voice goal input.
 
-<!-- Replace <user>/<repo> once pushed to GitHub. -->
-![CI](https://github.com/<user>/<repo>/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/Diegomartinezpuertas/roboRAG/actions/workflows/ci.yml/badge.svg)](https://github.com/Diegomartinezpuertas/roboRAG/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![ROS 2 Jazzy](https://img.shields.io/badge/ROS_2-Jazzy-blue)
 
@@ -136,12 +135,17 @@ Requires ROS 2 Jazzy, Gazebo Harmonic, and Ollama with `qwen2.5:7b` and
 `bge-m3` pulled. See
 [`CLAUDE.md`](CLAUDE.md) for the full environment (WSL2 + venv bridge).
 
+The workspace is not pinned to a fixed location: `setup_env.sh` derives its own
+directory and exports it as `ROBOT_WS`, which every node uses to build its
+default data paths. Clone it wherever you like.
+
 ```bash
-# Prepare the shell (sources ROS 2, bridges the venv via PYTHONPATH — ADR-003)
-source ~/robot_ws/setup_env.sh
+# Prepare the shell (sources ROS 2, exports ROBOT_WS, bridges the venv via
+# PYTHONPATH — ADR-003)
+source <your-clone>/setup_env.sh
 
 # Build
-cd ~/robot_ws && colcon build --symlink-install
+cd "$ROBOT_WS" && colcon build --symlink-install
 
 # Launch everything: Gazebo + Nav2 + SLAM + agent + dashboard + RViz
 ros2 launch robot_bringup full_system.launch.py
@@ -156,13 +160,41 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 
 ## Testing & CI
 
-- **Unit tests** (`tests/`): 47 pytest tests over the pure-logic modules — RAG
-  chunking, plan parsing, prompt building and language detection, frontier
-  selection, the scene descriptor (colors + clutter), the SQLite zone store,
-  and the ChromaDB wrapper. They run without a ROS install (`pytest tests/`).
-- **Lint**: `ruff check .` (config in `ruff.toml`).
-- **CI**: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs lint + tests on every push/PR.
-- ROS nodes and wiring are exercised locally with `colcon test`.
+Three layers, each defined by what it needs to run
+([ADR-018](docs/decisions/ADR-018-test-strategy.md)):
+
+**1. Pure logic — 106 tests, no ROS required.**
+RAG chunking, plan parsing, prompt building and language detection, frontier
+selection, the scene descriptor, the SQLite zone store, the ChromaDB wrapper,
+the dashboard's HTTP layer, and the benchmark plan scorer.
+
+```bash
+pytest tests/
+```
+
+**2. Node level — 20 tests, needs a ROS 2 install.**
+The real nodes on real executors: `/skills/execute` called over a real service
+client (dispatch, malformed input, executor survival), the dashboard's
+HTTP↔ROS bridge (a POSTed goal arriving on `/robot/goal` as a real message),
+and the shutdown contract of every node (spawn, SIGINT, assert a clean silent
+exit — this one is a direct guard on [ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)).
+
+```bash
+source setup_env.sh
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all
+```
+
+> The env var is required: the `launch_testing` pytest plugin shipped with
+> Jazzy is incompatible with current pytest and breaks collection.
+
+**3. Manual — anything needing Gazebo, Nav2 or Ollama.**
+End-to-end navigation, exploration, perception, and the planner's LLM calls.
+Not faked, not claimed as covered — see "Honest limitations".
+
+**Lint:** `ruff check .` (config in `ruff.toml`), the project's single linter
+([ADR-017](docs/decisions/ADR-017-single-linter-ruff.md)).
+**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs layer 1 on a
+plain runner and layer 2 in a `ros:jazzy-ros-base` container, on every push/PR.
 
 ---
 
@@ -179,7 +211,7 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [14 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [18 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
@@ -199,6 +231,14 @@ silently dropping frames over DDS),
   SR/SPL run on better hardware is future work — the end-to-end harness
   (reset-to-home, odometry integration, SPL) is written and ready in
   `eval/run_benchmark.py`'s history.
+- **The headline suite is saturated.** Every cell of `tasks_full.yaml` sits at
+  100% or 0%, which means it can no longer measure an improvement — the
+  roadmap's agent loop would score identically to today's plan-then-execute.
+  `eval/tasks_hard.yaml` exists for that reason: disambiguating between
+  confusable memories, holding an ordered multi-step plan, and resolving
+  spatial relations over retrieved coordinates. It is designed to be failable
+  by the current system, and has not been run yet — no numbers are claimed for
+  it. See [docs/EVALUATION.md](docs/EVALUATION.md).
 - **RAG's value is scale-dependent.** For a handful of places, a SQLite lookup
   covers most of it (see the known-zone control). RAG matters as remembered,
   open-vocabulary memory grows.

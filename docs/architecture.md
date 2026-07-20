@@ -139,6 +139,12 @@ clients/subscriptions in separate callback groups, and wait on futures with
 [ADR-007](decisions/ADR-007-executors-callback-groups.md) for the two failed
 patterns that motivated this.
 
+Shutdown is the other half of that discipline: every `main()` catches
+`ExternalShutdownException` alongside `KeyboardInterrupt` and guards
+`rclpy.shutdown()` with `rclpy.ok()`, so stopping a launch exits silently
+instead of printing a traceback per node
+([ADR-016](decisions/ADR-016-node-shutdown-contract.md)).
+
 ## Evaluation (eval/)
 
 The `eval/` harness quantifies whether RAG improves navigation, at the
@@ -155,7 +161,12 @@ ROS 2 nodes build and run with the system Python (the one that ships
 `agent_env` venv. The two are bridged via `PYTHONPATH` in `setup_env.sh` —
 never by activating the venv — see
 [ADR-003](decisions/ADR-003-venv-pythonpath-bridge.md). Every new terminal
-must `source ~/robot_ws/setup_env.sh` before building or launching.
+must `source setup_env.sh` before building or launching.
+
+That script also resolves its own directory and exports it as `ROBOT_WS`, which
+is what every node uses to build its default data paths — no absolute path is
+hardcoded anywhere, so the workspace works from any clone location
+([ADR-015](decisions/ADR-015-workspace-relative-paths.md)).
 
 ## Known limitations
 

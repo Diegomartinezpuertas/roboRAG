@@ -143,13 +143,43 @@ Creates (and indexes into semantic memory) or deletes a named zone. See
 
 ## ROS 2 parameters
 
-Defaults live in `robot_bringup/config/agent_params.yaml`. Highlights:
+Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 
 | Node | Parameter | Meaning |
 |---|---|---|
+| llm_planner_node | `ollama_base_url` (`http://localhost:11434`) | Ollama server URL |
+| llm_planner_node | `llm_model` (`qwen2.5:7b`) | Planner model name |
 | llm_planner_node | `llm_temperature` (0.0) | Sampling temperature; 0 = deterministic plans |
+| llm_planner_node | `max_plan_steps` (10) | Plan steps executed at most, after `report` steps are stripped |
 | llm_planner_node | `rag_score_threshold` (0.40) | Minimum cosine similarity for RAG context to enter the prompt (calibrated for bge-m3) |
 | llm_planner_node | `rag_enabled` (true) | Ablation switch: disables all RAG retrieval |
 | llm_planner_node | `zones_in_prompt` (true) | Ablation switch: withholds known-zone names |
 | llm_planner_node | `dry_run` (false) | Produce/publish the plan but skip execution (benchmark mode) |
-| * | `zones_db` | Shared path to `data/zones.db` |
+| rag_node | `embedding_model` (`bge-m3`) | Ollama embedding model (see [rag-analysis](rag-analysis.md) §2.4) |
+| rag_node | `collections` | Collections created on startup |
+| rag_node | `top_k_default` (5) | Results returned when a request sets `top_k <= 0` |
+| dashboard_node | `http_host` (`0.0.0.0`) / `http_port` (8080) | HTTP bind address and port |
+
+`rag_enabled`, `zones_in_prompt` and `dry_run` are re-read on every goal, so the
+benchmark can flip conditions with `ros2 param set` without restarting the node
+(a restart would reset the shared SLAM map and break cross-condition fairness).
+
+### Filesystem paths
+
+Path parameters are deliberately **absent** from `agent_params.yaml`. Each node
+derives its default from the `ROBOT_WS` environment variable (exported by
+`setup_env.sh`, which resolves its own directory), falling back to
+`~/robot_ws`. This keeps the workspace clone-location independent.
+
+| Node | Parameter | Default |
+|---|---|---|
+| llm_planner_node, skills_executor_node, dashboard_node | `zones_db` | `$ROBOT_WS/data/zones.db` |
+| rag_node, skills_executor_node | `logs_dir` | `$ROBOT_WS/data/logs` |
+| rag_node | `chroma_db_path` | `$ROBOT_WS/data/chroma_db` |
+| rag_node | `knowledge_dir` | `$ROBOT_WS/data/knowledge` |
+
+Override an individual path the usual way:
+
+```bash
+ros2 run robot_dashboard dashboard_node --ros-args -p zones_db:=/tmp/zones.db
+```
