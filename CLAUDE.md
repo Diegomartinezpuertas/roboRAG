@@ -82,8 +82,12 @@ LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
 ├── docs/
 │   ├── architecture.md
 │   ├── api_reference.md
+│   ├── rag-pipeline.md     # What the RAG stores, how it embeds and retrieves
+│   ├── rag-analysis.md     # Whether it helps — the measured ablation
+│   ├── EVALUATION.md       # How to reproduce every benchmark number
+│   ├── REVIEW.md           # Engineering review / audit trail
 │   └── decisions/          # ADRs — Architecture Decision Records
-├── .github/workflows/      # CI (lint + unit tests)
+├── .github/workflows/      # CI (lint + tests, no-ROS job + ROS job)
 └── requirements.txt
 ```
 

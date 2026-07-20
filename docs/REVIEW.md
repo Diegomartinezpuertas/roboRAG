@@ -1,14 +1,17 @@
-# Project Review — Robot RAG Agent
+# Engineering review — Robot RAG Agent
 
-**Review date:** 2026-07-20
+**Date:** 2026-07-20
 **Scope:** full pre-publication review — code, docs, evaluation, dashboard,
-packaging, CI readiness.
-**Verdict:** published and green. Remaining work is listed in §8.
+packaging, CI.
 
-This document is the honest state of the project: what was verified by
-actually running it, what was broken and got fixed, what the technical
-decisions are and why, and what still does not work. It is deliberately not a
-sales pitch — the weaknesses are listed with the same weight as the strengths.
+An internal engineering record, not a summary of the project: for what the
+project *is*, start at the [README](../README.md); for the reasoning behind
+individual decisions, see [decisions/](decisions/).
+
+What this document is for is the audit trail — what was verified by actually
+running it, what was broken and how it was fixed, and what still does not
+work. The weaknesses are listed with the same weight as the strengths, which
+is the only way a document like this stays useful.
 
 ---
 
@@ -65,7 +68,7 @@ every node derives its defaults from it, falling back to `~/robot_ws`. Path
 keys were removed from `agent_params.yaml` entirely (they were a second,
 drift-prone definition site — and which one won depended on whether the node
 was started via `ros2 launch` or `ros2 run`). Paths remain overridable as
-ordinary ROS 2 parameters. → **[ADR-015](docs/decisions/ADR-015-workspace-relative-paths.md)**
+ordinary ROS 2 parameters. → **[ADR-015](decisions/ADR-015-workspace-relative-paths.md)**
 
 ### 3.2 Every node crashed on shutdown — *high*
 
@@ -79,7 +82,7 @@ exit is indistinguishable in the log from the genuine crash respawn exists to
 recover from. It made the launch stack read as flaky and buried real errors.
 
 **Fixed:** both exceptions caught, `rclpy.shutdown()` guarded by `rclpy.ok()`,
-applied uniformly. → **[ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)**
+applied uniformly. → **[ADR-016](decisions/ADR-016-node-shutdown-contract.md)**
 
 ### 3.3 `colcon test` failed in all five Python packages — *medium*
 
@@ -92,7 +95,7 @@ codebase's consistent third-person Google style. Ten failures, permanent.
 **Fixed:** boilerplate removed, `ruff` confirmed as the single Python linter.
 `robot_interfaces` keeps `ament_lint_auto` because it checks a different
 artefact class (manifest XML, CMake) — and it immediately earned its keep by
-catching a real schema violation (§3.4). → **[ADR-017](docs/decisions/ADR-017-single-linter-ruff.md)**
+catching a real schema violation (§3.4). → **[ADR-017](decisions/ADR-017-single-linter-ruff.md)**
 
 ### 3.4 `robot_interfaces/package.xml` did not validate — *low*
 
@@ -130,7 +133,7 @@ The pure-logic suite stopped at the point where anything touched `rclpy`, so
 service wiring, callback groups, the HTTP↔ROS bridge and shutdown were verified
 only by hand. That gap is what let §3.2 survive the project's entire life.
 
-**Fixed:** a three-layer strategy (→ **[ADR-018](docs/decisions/ADR-018-test-strategy.md)**).
+**Fixed:** a three-layer strategy (→ **[ADR-018](decisions/ADR-018-test-strategy.md)**).
 
 - **Layer 1, 106 tests, no ROS.** Two modules were restructured to join it:
   `robot_dashboard/web_api.py` (the FastAPI app split out of the node, built
@@ -179,7 +182,7 @@ with the map.
 
 ## 4. Technical decisions
 
-The full reasoning lives in `docs/decisions/`. Condensed:
+The full reasoning lives in [decisions/](decisions/). Condensed:
 
 | # | Decision | The real reason |
 |---|---|---|
@@ -290,7 +293,7 @@ Two latent issues, neither observed to fail but both real:
   or drop the dependency.
 - `eval/landmarks.json` is gitignored — correctly, since it is tied to one SLAM
   map, but it means the benchmark cannot be replayed from a clone without
-  re-seeding. `docs/EVALUATION.md` covers the procedure.
+  re-seeding. [EVALUATION.md](EVALUATION.md) covers the procedure.
 
 ---
 

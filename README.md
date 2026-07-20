@@ -81,6 +81,11 @@ Reproduce everything (suites, charts, embedding comparison) with
 wins, when plain SQL wins, when an LLM→SQL design would be better — is in
 [docs/rag-analysis.md](docs/rag-analysis.md).
 
+**How the memory itself works** — what is stored in each of the three
+collections, where the content comes from, how it is chunked and embedded, and
+how a retrieved fragment ends up in the planning prompt — is documented in
+[docs/rag-pipeline.md](docs/rag-pipeline.md).
+
 ---
 
 ## Architecture
