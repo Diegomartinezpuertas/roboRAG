@@ -50,6 +50,15 @@ already exist from a previous session):**
 ros2 launch robot_bringup agent.launch.py
 ```
 
+**Option C — no simulator at all (the fast path, [ADR-020](decisions/ADR-020-offline-benchmark-seeding.md)):**
+seed fixed landmark coordinates offline, so a fresh clone reproduces the
+planning suites with just Ollama and the agent nodes — no Gazebo, no SLAM.
+
+```bash
+ros2 launch robot_bringup agent.launch.py use_sim_time:=false   # rag + planner, no sim clock
+# then seed with --offline in step 2
+```
+
 ## 2. Seed the memory
 
 Registers 3 distinct landmarks in `semantic_map` (RAG-only), two contrasting
@@ -58,11 +67,20 @@ SQLite. Writes `eval/landmarks.json` for the scorer.
 
 ```bash
 cd ~/robot_ws/eval
-python3 seed_memory.py --reset-zones
+python3 seed_memory.py --reset-zones             # Option A/B: poses from the live map
+python3 seed_memory.py --offline --reset-zones   # Option C: fixed poses, no sim needed
 ```
 
-Expect three `seeded at (...) ok=True` lines. Requires the SLAM map
-(Option A at least once).
+Expect three `seeded ... ok=True` lines. The default reads the SLAM map (needs
+Option A at least once); `--offline` uses fixed coordinates and needs no map.
+Either way seeding goes through `/rag/update_map`, so `rag_node` tags each memory
+with the active map session ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md))
+— that tagging is what makes retrieval return them.
+
+> **Stale local memory?** A `data/chroma_db` seeded *before* ADR-019 holds
+> untagged memories the current `rag_node` hides (retrieval returns nothing, so
+> the benchmark reports 0/6 with RAG). Re-seeding — `--offline` is the quickest
+> — re-registers the landmarks under the current session and fixes it.
 
 > **Start from clean session state.** The numbers assume the memory contains
 > only what seeding puts there. Two kinds of leftover on a development machine
@@ -95,7 +113,10 @@ python3 run_benchmark.py tasks_phrasing.yaml    # 36 runs (~4 min): phrasing/lan
 Each writes `results/<suite>/{rag,norag}.json` (per-run records with the
 decision, the raw plan, and goal→plan latency). The script flips
 `rag_enabled` live with `ros2 param set` — no restarts, same memory state in
-both conditions.
+both conditions. It **reads the flag back and retries** before each condition;
+if you see `WARNING: could not confirm ... rag_enabled=...`, DDS discovery has
+not settled (common right after launch) — the run would be invalid, so wait a
+few seconds after `rag_node ready` before starting, and re-run.
 
 ### 3b. The hard suite (has headroom)
 

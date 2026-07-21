@@ -241,6 +241,8 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all
 
 # Benchmark suite (see docs/EVALUATION.md)
 cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
+# Reproduce WITHOUT a simulator (ADR-020): agent.launch.py + offline seed, Ollama only
+cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Ollama status
 ollama ps

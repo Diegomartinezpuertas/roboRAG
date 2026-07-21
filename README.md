@@ -76,7 +76,11 @@ How to read this — it is deliberately not "RAG is magic":
   condition invents coordinates. RAG does not cause hallucination, and its
   absence does not either.
 
-Reproduce everything (suites, charts, embedding comparison) with
+The planning suites reproduce **without a simulator** — `agent.launch.py` +
+`seed_memory.py --offline` + `run_benchmark.py`, with only Ollama running
+([ADR-020](docs/decisions/ADR-020-offline-benchmark-seeding.md)): a fresh clone
+gets the headline numbers in minutes, no Gazebo bring-up. Reproduce everything
+(suites, charts, embedding comparison) with
 [docs/EVALUATION.md](docs/EVALUATION.md); the full interpretation — when RAG
 wins, when plain SQL wins, when an LLM→SQL design would be better — is in
 [docs/rag-analysis.md](docs/rag-analysis.md).
@@ -216,7 +220,7 @@ plain runner and layer 2 in a `ros:jazzy-ros-base` container, on every push/PR.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [19 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [20 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera

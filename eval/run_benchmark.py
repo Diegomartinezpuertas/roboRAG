@@ -47,8 +47,23 @@ CONDITIONS = [('rag', True), ('norag', False)]
 
 
 def set_param(name: str, value: str) -> None:
-    subprocess.run(['ros2', 'param', 'set', PLANNER, name, value],
-                   check=False, capture_output=True, text=True)
+    """Sets a planner parameter, verifying it actually took effect.
+
+    `ros2 param set` can silently no-op when node discovery has not settled yet
+    (observed right after launch, and on WSL2's multi-NIC DDS). A missed
+    `rag_enabled` flip would run a whole condition under the wrong ablation and
+    quietly corrupt the result — so set the value, read it back, and retry until
+    it sticks.
+    """
+    for _ in range(10):
+        subprocess.run(['ros2', 'param', 'set', PLANNER, name, value],
+                       check=False, capture_output=True, text=True)
+        got = subprocess.run(['ros2', 'param', 'get', PLANNER, name],
+                             check=False, capture_output=True, text=True)
+        if value.lower() in got.stdout.lower():
+            return
+        time.sleep(0.5)
+    print(f'WARNING: could not confirm {PLANNER} {name}={value}', file=sys.stderr)
 
 
 def load_zone_centers():

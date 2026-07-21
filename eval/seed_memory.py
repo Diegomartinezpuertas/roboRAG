@@ -12,6 +12,13 @@ without RAG, which would mask the effect the benchmark isolates.
 Usage:
     python3 seed_memory.py           # 3 landmarks — the tasks_full/phrasing suites
     python3 seed_memory.py --hard    # + confusable distractors for tasks_hard
+    python3 seed_memory.py --offline # 3 landmarks WITHOUT a SLAM map (no simulator)
+
+Online (the default) picks obstacle-free cells from the live SLAM map; offline
+uses fixed, well-separated coordinates so the whole planning benchmark can be
+reproduced from a plain agent stack (agent.launch.py + Ollama, no Gazebo). Both
+seed through /rag/update_map, so the rag_node stamps each memory with the active
+map session (ADR-019) either way — that tagging is what makes retrieval work.
 
 The distractors are opt-in on purpose. They add competing entries to semantic
 memory, which changes retrieval for *every* query — so seeding them by default
@@ -43,6 +50,28 @@ ZONES_DB = str(WS_ROOT / 'data' / 'zones.db')
 CONTROL_ZONE = 'base'        # known-zone control task target
 SAFE_MARGIN_CELLS = 3    # ~0.15 m clearance; landmarks need only be plausible
 MIN_SEPARATION_M = 1.2
+
+# Fixed landmark poses for offline seeding (`seed_memory.py --offline`):
+# well-separated, plausible free-space coordinates, so the planning benchmark
+# can be reproduced without launching Gazebo/SLAM. Online seeding derives
+# equivalent poses from the live occupancy grid instead.
+_OFFLINE_LANDMARKS = {
+    'estacion_a': (-1.64, -0.37),
+    'estacion_b': (1.76, -0.12),
+    'estacion_c': (3.56, 0.58),
+}
+_OFFLINE_DISTRACTORS = {  # --hard only
+    'estacion_a_norte': (-0.14, -0.37),
+    'estacion_c_sur': (-1.64, -1.57),
+}
+
+
+def _offline_targets(include_hard: bool):
+    """Returns [(name, (x, y)), ...] of the fixed landmark poses for offline seeding."""
+    items = list(_OFFLINE_LANDMARKS.items())
+    if include_hard:
+        items += list(_OFFLINE_DISTRACTORS.items())
+    return items
 
 
 def _cell_is_safe(grid, row, col, margin):
@@ -94,63 +123,84 @@ def main():
         help='DELETE every existing zone before seeding the control zone, so the '
              'zone_nav control runs against a known fixture (see the warning below)',
     )
+    parser.add_argument(
+        '--offline', action='store_true',
+        help='seed fixed landmark coordinates without a SLAM map (no simulator '
+             'needed) — the quickest way to reproduce the planning benchmark',
+    )
     args = parser.parse_args()
 
     rclpy.init()
     node = BenchNode()
     spin = spin_in_thread(node)
 
-    node.get_logger().info('Waiting for SLAM map...')
-    grid = None
-    for _ in range(60):
-        grid = node.get_map()
-        if grid is not None:
-            break
-        # Plain sleep: the node is already spinning on its own executor thread
-        # (spin_in_thread); never nest rclpy.spin_once on top — see ADR-007.
-        time.sleep(1.0)
-    if grid is None:
-        node.get_logger().error('No map received; is the sim running?')
-        spin.stop()
-        rclpy.shutdown()
-        return
+    if args.offline:
+        # No SLAM map — and therefore no simulator — required. Seeding still goes
+        # through /rag/update_map, so the rag_node stamps each memory with the
+        # active map session (ADR-019), which is what makes retrieval work.
+        landmarks = {}
+        for name, (x, y) in _offline_targets(args.hard):
+            ok = node.seed_semantic_object(
+                object_id=f'landmark-{name}', label=name, x=x, y=y,
+                description=f'{name}, a named location in the house',
+            )
+            landmarks[name] = {'x': round(x, 3), 'y': round(y, 3)}
+            node.get_logger().info(f'{name}: seeded offline at ({x:.2f}, {y:.2f}) ok={ok}')
+    else:
+        node.get_logger().info('Waiting for SLAM map...')
+        grid = None
+        for _ in range(60):
+            grid = node.get_map()
+            if grid is not None:
+                break
+            # Plain sleep: the node is already spinning on its own executor thread
+            # (spin_in_thread); never nest rclpy.spin_once on top — see ADR-007.
+            time.sleep(1.0)
+        if grid is None:
+            node.get_logger().error(
+                'No map received; is the sim running? '
+                '(use --offline to seed without a simulator)',
+            )
+            spin.stop()
+            rclpy.shutdown()
+            return
 
-    info = grid.info
-    x_min = info.origin.position.x
-    x_max = x_min + info.width * info.resolution
-    y_mid = info.origin.position.y + info.height * info.resolution / 2.0
-    span = x_max - x_min
-    targets = [
-        ('estacion_a', x_min + 0.15 * span, y_mid),
-        ('estacion_b', x_min + 0.50 * span, y_mid),
-        ('estacion_c', x_min + 0.85 * span, y_mid),
-    ]
-    if args.hard:
-        # Name-confusable neighbours for the distractor_nav tasks. Placed away
-        # from the landmark they shadow so NAV_TOLERANCE_M can tell a correct
-        # choice from a wrong one; retrieval, however, will happily return both
-        # for "ve a estacion_a", which is the point.
-        targets += [
-            ('estacion_a_norte', x_min + 0.30 * span, y_mid),
-            ('estacion_c_sur', x_min + 0.70 * span, y_mid),
+        info = grid.info
+        x_min = info.origin.position.x
+        x_max = x_min + info.width * info.resolution
+        y_mid = info.origin.position.y + info.height * info.resolution / 2.0
+        span = x_max - x_min
+        targets = [
+            ('estacion_a', x_min + 0.15 * span, y_mid),
+            ('estacion_b', x_min + 0.50 * span, y_mid),
+            ('estacion_c', x_min + 0.85 * span, y_mid),
         ]
+        if args.hard:
+            # Name-confusable neighbours for the distractor_nav tasks. Placed away
+            # from the landmark they shadow so NAV_TOLERANCE_M can tell a correct
+            # choice from a wrong one; retrieval, however, will happily return both
+            # for "ve a estacion_a", which is the point.
+            targets += [
+                ('estacion_a_norte', x_min + 0.30 * span, y_mid),
+                ('estacion_c_sur', x_min + 0.70 * span, y_mid),
+            ]
 
-    landmarks = {}
-    placed = []
-    for name, tx, ty in targets:
-        cell = find_safe_cell_near(grid, tx, ty, exclude=placed)
-        if cell is None:
-            node.get_logger().warning(f'{name}: no distinct safe cell found, skipping')
-            continue
-        ok = node.seed_semantic_object(
-            object_id=f'landmark-{name}',
-            label=name,
-            x=cell[0], y=cell[1],
-            description=f'{name}, a named location in the house',
-        )
-        placed.append(cell)
-        landmarks[name] = {'x': round(cell[0], 3), 'y': round(cell[1], 3)}
-        node.get_logger().info(f'{name}: seeded at ({cell[0]:.2f}, {cell[1]:.2f}) ok={ok}')
+        landmarks = {}
+        placed = []
+        for name, tx, ty in targets:
+            cell = find_safe_cell_near(grid, tx, ty, exclude=placed)
+            if cell is None:
+                node.get_logger().warning(f'{name}: no distinct safe cell found, skipping')
+                continue
+            ok = node.seed_semantic_object(
+                object_id=f'landmark-{name}',
+                label=name,
+                x=cell[0], y=cell[1],
+                description=f'{name}, a named location in the house',
+            )
+            placed.append(cell)
+            landmarks[name] = {'x': round(cell[0], 3), 'y': round(cell[1], 3)}
+            node.get_logger().info(f'{name}: seeded at ({cell[0]:.2f}, {cell[1]:.2f}) ok={ok}')
 
     # Controlled scene descriptors for the attribute_nav tasks ("go to the
     # white open room"). Two landmarks get contrasting attributes, in the
