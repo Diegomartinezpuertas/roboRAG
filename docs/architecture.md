@@ -168,6 +168,30 @@ is what every node uses to build its default data paths — no absolute path is
 hardcoded anywhere, so the workspace works from any clone location
 ([ADR-015](decisions/ADR-015-workspace-relative-paths.md)).
 
+### The container
+
+A second, narrower environment covers everything that does not need rendering
+or a GPU: the workspace build, `ruff`, and both test layers
+([ADR-021](decisions/ADR-021-container-reproducibility.md)).
+
+```bash
+docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
+```
+
+Two details make it a verification tool rather than a convenience. It sources
+this same `setup_env.sh`, so the container has no private copy of the
+environment to drift from; and it runs at `/robot_ws`, so every execution is a
+standing check on the ADR-015 path portability that the review found broken.
+
+There is no venv in it. ADR-003's bridge exists because activating a venv
+swaps the `python3` that `colcon` and the generated console-script shebangs
+expect — in a container the system Python is the project Python, so the problem
+it solves does not exist.
+
+The simulator stays outside. Gazebo already renders on `llvmpipe` here, and
+containerising it would advertise the one capability the documentation is
+careful to call unreliable.
+
 ## Known limitations
 
 - **DDS on WSL2:** CycloneDDS is pinned to loopback via `cyclonedds.xml` +

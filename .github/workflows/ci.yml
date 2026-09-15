@@ -43,6 +43,10 @@ jobs:
         # cv_bridge + opencv for perceive_skill, nav2_simple_commander for
         # nav_skill, rosidl generators to build robot_interfaces.
         # ros:jazzy-ros-base ships no pip at all, hence python3-pip.
+        #
+        # KEEP IN SYNC with the apt list in the root Dockerfile, which mirrors
+        # this job deliberately (ADR-021). A package added here must be added
+        # there, or the container stops reproducing what CI verifies.
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \

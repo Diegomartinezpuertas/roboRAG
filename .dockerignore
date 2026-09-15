@@ -1,0 +1,24 @@
+# Build outputs — the image builds the workspace itself.
+build/
+install/
+log/
+
+# The venv is a host-side construct (ADR-003): inside the image the Python
+# deps are installed system-wide, so agent_env would only be dead weight.
+agent_env/
+
+# Runtime state. The container starts from an empty memory on purpose —
+# a benchmark that inherits the author's ChromaDB is not a reproduction.
+data/chroma_db/
+data/logs/
+data/zones.db*
+data/maps/
+
+# Not needed to build or verify.
+.git/
+.github/
+.claude/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/

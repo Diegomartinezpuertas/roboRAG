@@ -22,7 +22,7 @@ goal, retrieves context from a semantic memory (RAG over ChromaDB), plans with
 a local LLM (Qwen2.5-7B via Ollama), executes the plan through ROS 2 skills,
 and reports back on what actually happened.
 
-Seven ROS 2 packages, ~5,000 lines of Python, 19 ADRs, 141 automated tests, a
+Seven ROS 2 packages, ~5,000 lines of Python, 21 ADRs, 141 automated tests, a
 measured ablation benchmark, and a web dashboard.
 
 The distinguishing claim is not "I built a RAG robot" — it is **"I measured
@@ -406,14 +406,17 @@ that surfaced), `POST /api/zones` fire-and-forget, and the stale-coordinate bug
 fixed at the source via map-session versioning (ADR-019). All verified live and
 unit-tested.
 
-**Deliberately left, out of scope this pass:**
-- Default `http_host` to `127.0.0.1` (the no-auth `0.0.0.0` bind). A one-line
-  change; skipped because it slightly changes access on the dev box and the
-  user scoped it out.
+**Done in the publication pass:** the two items this review had deferred are
+closed — `http_host` now defaults to `127.0.0.1` (§6.5, the WSL2 concern
+measured rather than assumed) and the stray `src/robot_bringup/config/install/`
+colcon artefact is deleted. The repository also gained a container
+([ADR-021](decisions/ADR-021-container-reproducibility.md)), which makes the
+fresh-clone verification above a single command for anyone, not a claim.
+
+**Deliberately left, out of scope:**
 - Physical SR/SPL — planning-level is the design (§6.2, ADR-013).
-- The `src/robot_bringup/config/install/` directory — a stray colcon artefact in
-  the source tree. Gitignored, so it will not reach GitHub, and not mine to
-  delete; left for the author.
+- Gazebo inside the container: the image covers build, both test layers and
+  the offline benchmark, not the simulator (ADR-021 states the boundary).
 
 ---
 
@@ -429,7 +432,8 @@ unit-tested.
    `map_file_name`, `map_session_id`, ADR-019); a single `saved_map:=<id>`
    launch arg wiring SLAM + rag_node is the remaining convenience, and the
    prerequisite for a reproducible physical SR/SPL run.
-5. **Docker/devcontainer** — kills the "works on my WSL2" caveat entirely.
+5. ~~**Docker/devcontainer**~~ — **done** (ADR-021). What is left of the
+   "works on my WSL2" caveat is the simulator, which is where it belongs.
 
 ---
 

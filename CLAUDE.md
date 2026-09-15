@@ -88,6 +88,9 @@ LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
 │   ├── REVIEW.md           # Engineering review / audit trail
 │   └── decisions/          # ADRs — Architecture Decision Records
 ├── .github/workflows/      # CI (lint + tests, no-ROS job + ROS job)
+├── .devcontainer/          # VS Code devcontainer (same image as the Dockerfile)
+├── Dockerfile              # Build + lint + both test layers, no sim (ADR-021)
+├── docker-entrypoint.sh    # Sources setup_env.sh; `verify` = the whole check
 └── requirements.txt
 ```
 
@@ -243,6 +246,11 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all
 cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 # Reproduce WITHOUT a simulator (ADR-020): agent.launch.py + offline seed, Ollama only
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
+
+# Reproduce the offline verification in a clean container (ADR-021) — needs no
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 120 + 21, exit 0.
+# The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
+docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 
 # Ollama status
 ollama ps

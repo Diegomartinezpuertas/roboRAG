@@ -1,0 +1,55 @@
+{
+  // Interactive development container for the Robot RAG Agent (ADR-021).
+  //
+  // Same image the verification run uses, so what passes in CI, what passes in
+  // `docker run`, and what you develop against cannot drift apart. The
+  // simulator is deliberately NOT in here — Gazebo and RViz stay on the host.
+  "name": "Robot RAG Agent (ROS 2 Jazzy)",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+
+  "workspaceFolder": "/robot_ws",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/robot_ws,type=bind,consistency=cached",
+
+  // build/ and install/ live in named volumes rather than in the bind mount.
+  // The host's copies are full of absolute paths into the host workspace
+  // (colcon --symlink-install), so letting them show through would break every
+  // import inside the container and, worse, let a container build corrupt the
+  // host one. Separate volumes keep both usable at the same time.
+  "mounts": [
+    "source=robot-rag-build,target=/robot_ws/build,type=volume",
+    "source=robot-rag-install,target=/robot_ws/install,type=volume"
+  ],
+
+  // The container shares the WSL2 VM's network namespace, which is where the
+  // Ollama server listens — so ollama_base_url's default (localhost:11434)
+  // resolves without touching agent_params.yaml, and the offline benchmark
+  // (ADR-020) runs in here unchanged.
+  "runArgs": ["--network=host"],
+
+  "containerEnv": {
+    "ROBOT_WS": "/robot_ws",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+    "ROS_AUTOMATIC_DISCOVERY_RANGE": "LOCALHOST"
+  },
+
+  // The volumes start empty, so the workspace needs one build before the ROS
+  // packages are importable.
+  "postCreateCommand": "bash -lc 'chown -R $(id -u):$(id -g) build install 2>/dev/null; . /opt/ros/jazzy/setup.sh && colcon build --symlink-install'",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-iot.vscode-ros",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3"
+      }
+    }
+  }
+}

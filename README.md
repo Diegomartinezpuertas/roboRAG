@@ -140,6 +140,29 @@ flowchart TD
 
 ## Quickstart
 
+### Verify it works, without installing anything
+
+Everything that does not need a simulator or a GPU — the build, the linter and
+both test layers — runs in a container
+([ADR-021](docs/decisions/ADR-021-container-reproducibility.md)). No ROS 2, no
+Python, no GPU on your machine:
+
+```bash
+docker build -t robot-rag-agent .
+docker run --rm robot-rag-agent
+```
+
+Expected: `ruff` clean, **120** pure-logic tests, **21** node-level tests, exit
+`0`. The image sources the project's own `setup_env.sh`, so it cannot drift
+from the documented environment, and it runs at `/robot_ws` rather than the
+author's home directory — which keeps the path-portability fix honest.
+
+The simulator is deliberately **not** in the image: Gazebo already renders on
+`llvmpipe` here, and containerising it would ship a headline capability that
+fails on first contact. `.devcontainer/` opens the same image in VS Code.
+
+### Run the real thing
+
 Requires ROS 2 Jazzy, Gazebo Harmonic, and Ollama with `qwen2.5:7b` and
 `bge-m3` pulled. See
 [`CLAUDE.md`](CLAUDE.md) for the full environment (WSL2 + venv bridge).
@@ -222,7 +245,7 @@ plain runner and layer 2 in a `ros:jazzy-ros-base` container, on every push/PR.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [20 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [21 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
@@ -275,8 +298,9 @@ silently dropping frames over DDS),
    a detector.
 4. **SLAM map save/load** (`map_saver_cli`) for reproducible scenarios and a
    physical SR/SPL benchmark run.
-5. **Docker/devcontainer** for full reproducibility (kills the "works on my
-   WSL2" caveat).
+5. ~~**Docker/devcontainer** for full reproducibility.~~ **Done** —
+   [ADR-021](docs/decisions/ADR-021-container-reproducibility.md). The
+   remaining "works on my WSL2" caveat is now the simulator alone.
 
 ## License
 
