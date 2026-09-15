@@ -203,18 +203,58 @@ def test_map_endpoint_reports_nulls_before_slam_publishes(client):
     assert client.get('/api/map').json() == {'map': None, 'robot': None, 'zones': {}}
 
 
-def test_map_endpoint_returns_snapshot_pose_and_zones():
-    snapshot = {'png_b64': 'AAA', 'resolution': 0.05, 'origin_x': -1.0,
-                'origin_y': -2.0, 'width': 4, 'height': 4}
+def test_map_endpoint_returns_geometry_pose_and_zones_but_not_the_png():
+    snapshot = {'png_b64': 'AAAA', 'resolution': 0.05, 'origin_x': -1.0,
+                'origin_y': -2.0, 'width': 4, 'height': 4, 'stamp': 3}
     node = FakeNode(
         zones={'base': {'x_min': 0, 'y_min': 0, 'x_max': 1, 'y_max': 1}},
         map_snapshot=snapshot,
         pose={'x': 0.5, 'y': 1.5},
     )
     body = TestClient(build_app(node)).get('/api/map').json()
-    assert body['map'] == snapshot
+    # The image goes through /api/map/png (with an ETag); this poll stays light.
+    assert body['map'] == {k: v for k, v in snapshot.items() if k != 'png_b64'}
     assert body['robot'] == {'x': 0.5, 'y': 1.5}
     assert 'base' in body['zones']
+
+
+def test_map_png_endpoint_returns_an_image_with_an_etag():
+    snapshot = {'png_b64': 'AAAA', 'resolution': 0.05, 'origin_x': -1.0,
+                'origin_y': -2.0, 'width': 4, 'height': 4, 'stamp': 1234}
+    node = FakeNode(map_snapshot=snapshot)
+    response = TestClient(build_app(node)).get('/api/map/png')
+    assert response.status_code == 200
+    assert response.headers['content-type'] == 'image/png'
+    assert response.content == b'\x00\x00\x00'   # 'AAAA' decoded
+    assert response.headers['etag'] == '"1234"'
+    assert response.headers['cache-control'] == 'no-cache'
+
+
+def test_map_png_endpoint_answers_304_when_the_client_has_the_current_version():
+    snapshot = {'png_b64': 'AAAA', 'resolution': 0.05, 'origin_x': 0.0,
+                'origin_y': 0.0, 'width': 4, 'height': 4, 'stamp': 1234}
+    client = TestClient(build_app(FakeNode(map_snapshot=snapshot)))
+    etag = client.get('/api/map/png').headers['etag']
+    response = client.get('/api/map/png', headers={'If-None-Match': etag})
+    assert response.status_code == 304
+    assert response.content == b''
+    assert response.headers['etag'] == etag
+
+
+def test_map_png_endpoint_sends_the_image_again_once_the_map_changes():
+    snapshot = {'png_b64': 'AAAA', 'resolution': 0.05, 'origin_x': 0.0,
+                'origin_y': 0.0, 'width': 4, 'height': 4, 'stamp': 1234}
+    node = FakeNode(map_snapshot=snapshot)
+    client = TestClient(build_app(node))
+    old_etag = client.get('/api/map/png').headers['etag']
+    node._map_snapshot = {**snapshot, 'stamp': 5678}   # SLAM published a newer grid
+    response = client.get('/api/map/png', headers={'If-None-Match': old_etag})
+    assert response.status_code == 200
+    assert response.headers['etag'] == '"5678"'
+
+
+def test_map_png_endpoint_is_404_before_slam_publishes(client):
+    assert client.get('/api/map/png').status_code == 404
 
 
 # --- helpers ---------------------------------------------------------------

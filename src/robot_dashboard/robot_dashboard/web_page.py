@@ -260,7 +260,7 @@ function toggleMic() {
 const canvas = document.getElementById('mapCanvas');
 const ctx = canvas.getContext('2d');
 const mapImg = new Image();
-let mapMeta = null, robot = null, zones = {};
+let mapMeta = null, mapStamp = null, robot = null, zones = {};
 let view = null;              // {ox, oy, scale} px de canvas por metro
 let sel = null, dragging = false, pendingArea = null;
 
@@ -271,7 +271,13 @@ async function pollMap() {
     robot = data.robot; zones = data.zones || {};
     if (data.map) {
       mapMeta = data.map;
-      mapImg.src = 'data:image/png;base64,' + data.map.png_b64;
+      // Refetch the image only when SLAM has published a newer grid. The stamp
+      // in the URL is what makes the browser skip the request otherwise;
+      // /api/map/png's ETag covers reloads and back/forward.
+      if (data.map.stamp !== mapStamp) {
+        mapStamp = data.map.stamp;
+        mapImg.src = '/api/map/png?v=' + mapStamp;
+      }
       document.getElementById('mapdims').textContent =
         `${(mapMeta.width * mapMeta.resolution).toFixed(1)}×${(mapMeta.height * mapMeta.resolution).toFixed(1)} m`;
     }

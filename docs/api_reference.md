@@ -131,13 +131,22 @@ Events with id greater than `since`.
 
 ### `GET /api/map`
 
-Rendered SLAM map + robot pose + zones.
+Map geometry + robot pose + zones. Light enough to poll every 2 s for the
+pose; the image itself comes from `/api/map/png`.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| map | object\|null | `{png_b64, resolution, origin_x, origin_y, width, height}` (PNG top row = y_max) |
+| map | object\|null | `{stamp, resolution, origin_x, origin_y, width, height}` — `stamp` is the grid's timestamp (ns), the version key for `/api/map/png` |
 | robot | object\|null | `{x, y}` in the map frame (TF map→base_link) |
 | zones | object | `{name: {x_min, y_min, x_max, y_max}}` |
+
+### `GET /api/map/png`
+
+The rendered SLAM map as `image/png` (top row = y_max). Versioned with an
+`ETag` equal to the grid's `stamp` and `Cache-Control: no-cache`, so a
+client that sends `If-None-Match` gets `304 Not Modified` while SLAM has not
+published a newer grid — the dashboard used to resend tens of KB of
+unchanged base64 on every poll. `404` before the first map arrives.
 
 ### `POST /api/goal`
 

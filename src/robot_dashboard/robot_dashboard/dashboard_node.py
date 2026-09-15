@@ -170,8 +170,9 @@ class DashboardNode(Node):
     def get_map_snapshot(self) -> dict | None:
         """Returns the rendered map PNG (base64) plus geometry metadata.
 
-        The PNG is re-rendered only when a newer grid has arrived. Rows are
-        flipped so the image's top edge corresponds to y_max.
+        The PNG is re-rendered only when a newer grid has arrived, and the
+        grid's stamp travels with it so the HTTP layer can version the image
+        (ETag). Rows are flipped so the image's top edge corresponds to y_max.
         """
         with self._map_lock:
             grid = self._latest_map
@@ -189,6 +190,7 @@ class DashboardNode(Node):
                 'origin_y': info.origin.position.y,
                 'width': info.width,
                 'height': info.height,
+                'stamp': stamp,
             }
 
     def index_zone_in_memory(self, name: str, area: dict) -> None:

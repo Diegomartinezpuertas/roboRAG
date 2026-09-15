@@ -12,8 +12,8 @@ See docs/decisions/ADR-018-test-strategy.md.
 import base64
 import io
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from PIL import Image as PILImage
 from pydantic import BaseModel
 
@@ -146,11 +146,34 @@ def build_app(node) -> FastAPI:
 
     @app.get('/api/map')
     def map_snapshot() -> dict:
+        # The PNG itself is served by /api/map/png with an ETag, so this stays
+        # light enough to poll for the robot pose every couple of seconds.
+        snapshot = node.get_map_snapshot()
+        if snapshot is not None:
+            snapshot = {k: v for k, v in snapshot.items() if k != 'png_b64'}
         return {
-            'map': node.get_map_snapshot(),
+            'map': snapshot,
             'robot': node.get_robot_pose(),
             'zones': node.zones.load_all(),
         }
+
+    @app.get('/api/map/png')
+    def map_png(request: Request) -> Response:
+        # The rendered map only changes when SLAM publishes a newer grid, while
+        # the UI polls every 2 s — so the PNG (tens of KB of base64) used to be
+        # resent unchanged most of the time. The grid's stamp is the version:
+        # sent as an ETag, answered with 304 when the client already has it.
+        snapshot = node.get_map_snapshot()
+        if snapshot is None:
+            return Response(status_code=404)
+        etag = f'"{snapshot["stamp"]}"'
+        headers = {'ETag': etag, 'Cache-Control': 'no-cache'}
+        if request.headers.get('if-none-match') == etag:
+            return Response(status_code=304, headers=headers)
+        return Response(
+            content=base64.b64decode(snapshot['png_b64']),
+            media_type='image/png', headers=headers,
+        )
 
     @app.post('/api/goal')
     def send_goal(body: GoalRequest) -> JSONResponse:
