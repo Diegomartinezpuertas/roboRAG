@@ -40,6 +40,7 @@ import rclpy
 from robot_zones.zone_store import ZoneStore
 
 from bench_lib import BenchNode, spin_in_thread
+from scoring import NAV_TOLERANCE_M
 
 HERE = Path(__file__).resolve().parent
 LANDMARKS_FILE = HERE / 'landmarks.json'
@@ -49,7 +50,16 @@ WS_ROOT = Path(os.environ.get('ROBOT_WS', HERE.parent))
 ZONES_DB = str(WS_ROOT / 'data' / 'zones.db')
 CONTROL_ZONE = 'base'        # known-zone control task target
 SAFE_MARGIN_CELLS = 3    # ~0.15 m clearance; landmarks need only be plausible
+# Landmarks must stay far enough apart that the scorer can tell which one a plan
+# chose. Below NAV_TOLERANCE_M the hard suite's disambiguation tasks would be
+# unscorable; between that and 2x it, a plan aimed between two landmarks matches
+# both and is recorded as hedging (visited_both) — a failure, so the suite
+# under-reports success rather than inflating it. Raising the scorer's tolerance
+# without raising this would silently weaken the whole suite.
 MIN_SEPARATION_M = 1.2
+assert MIN_SEPARATION_M > NAV_TOLERANCE_M, (
+    'landmarks closer than the scorer tolerance cannot be told apart'
+)
 
 # Fixed landmark poses for offline seeding (`seed_memory.py --offline`):
 # well-separated, plausible free-space coordinates, so the planning benchmark
