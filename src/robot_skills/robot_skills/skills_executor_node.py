@@ -22,6 +22,7 @@ from tf2_ros.transform_listener import TransformListener
 from robot_interfaces.msg import SemanticObject
 from robot_interfaces.srv import ExecuteSkill, UpdateMap
 from robot_rag.map_session import MapSession, read_active_map_id
+from robot_zones.room_semantics import classify_room, scene_context
 from robot_zones.zone_store import ZoneStore
 
 from robot_skills.explore_skill import find_nearest_frontier
@@ -336,13 +337,29 @@ class SkillsExecutorNode(Node):
         The object_id is derived from the pose rounded to a 0.5 m grid, so
         re-visiting a place UPDATES its description instead of accumulating
         near-duplicates.
+
+        What the sensors measure is colors and clutter — nothing in that says
+        "kitchen". So when the spot falls inside a zone whose name denotes a
+        kind of room, that room's purpose is appended to the stored text (in
+        both languages) and used as the object's label: the observation then
+        answers "where does one usually cook?" as well as "where is the white
+        open room?" (ADR-022).
         """
         pose_x, pose_y = self._get_robot_pose()
         zone = zone or self._zone_at(pose_x, pose_y)
         object_id = f'scene-{round(pose_x * 2) / 2:.1f}-{round(pose_y * 2) / 2:.1f}'
+        room = classify_room(zone)
+        description = result['description']
+        context = scene_context(zone)
+        if context:
+            description = f'{description} {context}'
         result['object_id'] = object_id
+        # Reported back to the planner (and from there to the user): "I saw
+        # this, and it was in the kitchen" is a better answer than "I saw this".
+        result['zone'] = zone
         result['stored'] = self._update_map(
-            object_id, 'area', result['description'], zone, pose_x, pose_y,
+            object_id, room.key if room is not None else 'area',
+            description, zone, pose_x, pose_y,
         )
         return result
 

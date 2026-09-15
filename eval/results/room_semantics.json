@@ -1,0 +1,204 @@
+{
+  "model": "bge-m3",
+  "score_threshold": 0.4,
+  "queries": 11,
+  "zones": [
+    "cocina",
+    "salon",
+    "dormitorio",
+    "bano",
+    "despacho"
+  ],
+  "styles": {
+    "name_and_bounds": {
+      "runs": [
+        {
+          "query": "donde se suele cocinar",
+          "expected": "cocina",
+          "top1": true,
+          "retrieved": "cocina",
+          "correct_score": 0.5406,
+          "above_threshold": true
+        },
+        {
+          "query": "ve donde se prepara la comida",
+          "expected": "cocina",
+          "top1": true,
+          "retrieved": "cocina",
+          "correct_score": 0.5247,
+          "above_threshold": true
+        },
+        {
+          "query": "where people usually cook",
+          "expected": "cocina",
+          "top1": true,
+          "retrieved": "cocina",
+          "correct_score": 0.5048,
+          "above_threshold": true
+        },
+        {
+          "query": "donde se ve la television",
+          "expected": "salon",
+          "top1": false,
+          "retrieved": "dormitorio",
+          "correct_score": 0.3839,
+          "above_threshold": false
+        },
+        {
+          "query": "ve donde la gente se sienta a descansar",
+          "expected": "salon",
+          "top1": false,
+          "retrieved": "dormitorio",
+          "correct_score": 0.4888,
+          "above_threshold": true
+        },
+        {
+          "query": "donde se duerme",
+          "expected": "dormitorio",
+          "top1": true,
+          "retrieved": "dormitorio",
+          "correct_score": 0.5651,
+          "above_threshold": true
+        },
+        {
+          "query": "ve donde la gente duerme por la noche",
+          "expected": "dormitorio",
+          "top1": true,
+          "retrieved": "dormitorio",
+          "correct_score": 0.5807,
+          "above_threshold": true
+        },
+        {
+          "query": "donde me puedo duchar",
+          "expected": "bano",
+          "top1": false,
+          "retrieved": "salon",
+          "correct_score": 0.3522,
+          "above_threshold": false
+        },
+        {
+          "query": "ve donde esta el retrete",
+          "expected": "bano",
+          "top1": false,
+          "retrieved": "despacho",
+          "correct_score": 0.3671,
+          "above_threshold": false
+        },
+        {
+          "query": "donde se trabaja con el ordenador",
+          "expected": "despacho",
+          "top1": true,
+          "retrieved": "despacho",
+          "correct_score": 0.5438,
+          "above_threshold": true
+        },
+        {
+          "query": "ve al sitio donde se estudia",
+          "expected": "despacho",
+          "top1": false,
+          "retrieved": "dormitorio",
+          "correct_score": 0.5187,
+          "above_threshold": true
+        }
+      ],
+      "top1_acc": 0.5454545454545454,
+      "above_threshold": 8,
+      "mean_correct_score": 0.4882
+    },
+    "functional": {
+      "runs": [
+        {
+          "query": "donde se suele cocinar",
+          "expected": "cocina",
+          "top1": true,
+          "retrieved": "cocina",
+          "correct_score": 0.6373,
+          "above_threshold": true
+        },
+        {
+          "query": "ve donde se prepara la comida",
+          "expected": "cocina",
+          "top1": true,
+          "retrieved": "cocina",
+          "correct_score": 0.6225,
+          "above_threshold": true
+        },
+        {
+          "query": "where people usually cook",
+          "expected": "cocina",
+          "top1": true,
+          "retrieved": "cocina",
+          "correct_score": 0.6219,
+          "above_threshold": true
+        },
+        {
+          "query": "donde se ve la television",
+          "expected": "salon",
+          "top1": true,
+          "retrieved": "salon",
+          "correct_score": 0.5451,
+          "above_threshold": true
+        },
+        {
+          "query": "ve donde la gente se sienta a descansar",
+          "expected": "salon",
+          "top1": true,
+          "retrieved": "salon",
+          "correct_score": 0.5653,
+          "above_threshold": true
+        },
+        {
+          "query": "donde se duerme",
+          "expected": "dormitorio",
+          "top1": true,
+          "retrieved": "dormitorio",
+          "correct_score": 0.6178,
+          "above_threshold": true
+        },
+        {
+          "query": "ve donde la gente duerme por la noche",
+          "expected": "dormitorio",
+          "top1": true,
+          "retrieved": "dormitorio",
+          "correct_score": 0.6145,
+          "above_threshold": true
+        },
+        {
+          "query": "donde me puedo duchar",
+          "expected": "bano",
+          "top1": true,
+          "retrieved": "bano",
+          "correct_score": 0.5562,
+          "above_threshold": true
+        },
+        {
+          "query": "ve donde esta el retrete",
+          "expected": "bano",
+          "top1": true,
+          "retrieved": "bano",
+          "correct_score": 0.4399,
+          "above_threshold": true
+        },
+        {
+          "query": "donde se trabaja con el ordenador",
+          "expected": "despacho",
+          "top1": true,
+          "retrieved": "despacho",
+          "correct_score": 0.676,
+          "above_threshold": true
+        },
+        {
+          "query": "ve al sitio donde se estudia",
+          "expected": "despacho",
+          "top1": true,
+          "retrieved": "despacho",
+          "correct_score": 0.5379,
+          "above_threshold": true
+        }
+      ],
+      "top1_acc": 1.0,
+      "above_threshold": 11,
+      "mean_correct_score": 0.5849
+    }
+  }
+}

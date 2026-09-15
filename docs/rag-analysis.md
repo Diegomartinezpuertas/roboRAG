@@ -213,6 +213,45 @@ The one failure mode with RAG is `wrong_landmark` (3 runs), all from the
 spatial-relation tasks — exactly the capability the next iteration should
 target.
 
+### 2.7 What a zone is *called* vs what it is *for*
+
+![Zone described by name vs by purpose](../eval/results/room_semantics.png)
+
+A zone was stored as its name plus a bounding box, which answers "ve a la
+cocina" and fails "ve donde se suele cocinar" — a goal that names the room's
+function and never the room. `eval/room_semantics_bench.py` measures the gap on
+five named zones (cocina, salón, dormitorio, baño, despacho) and 11 functional
+queries, 9 Spanish and 2 English, with bge-m3:
+
+| Zone description | Top-1 | Above the 0.40 threshold | Mean score of the right zone |
+|---|---|---|---|
+| Name + bounds (before) | **55%** (6/11) | 8/11 | 0.488 |
+| Name + what the room is for (now) | **100%** (11/11) | 11/11 | 0.585 |
+
+The failures are more informative than the average. With only a name to go on,
+"donde me puedo duchar" retrieved the **living room**, "ve donde está el
+retrete" the **office**, and "ve al sitio donde se estudia" the **bedroom** —
+plausible-looking retrievals that would have sent the robot confidently to the
+wrong room. All five are fixed by attaching the room's purpose in both
+languages ([ADR-022](decisions/ADR-022-room-semantics.md)).
+
+Three queries also sat *below* `rag_score_threshold` before, meaning the correct
+zone was not merely outranked — it never entered the prompt at all, and the
+planner fell back to exploring.
+
+Verified end to end afterwards, outside the micro-benchmark: with a `cocina`
+zone created through the dashboard on a live stack, "ve donde se suele cocinar"
+retrieves it at **0.631**, ahead of every landmark in a store of 36 memories —
+and, with zone names withheld from the prompt so that only retrieval can supply
+the answer, the planner emits `navigate(x=1.75, y=-0.75)`, the zone's center,
+reasoning that "the kitchen is identified as the place where meals are cooked".
+The same goal with `rag_enabled:=false` falls back to `explore`.
+
+Scope, honestly: this measures retrieval over one small, clean zone set, not
+end-to-end task success, and the vocabulary is a fixed table of eleven room
+types. It says that a functional query now reaches the right zone; it does not
+say the robot understands rooms.
+
 ---
 
 ## 3. Interpretation: choosing a design

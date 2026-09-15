@@ -4,8 +4,11 @@ Reads:
   results/full/{rag,norag}.json       — main ablation suite (with latency)
   results/phrasing/{rag,norag}.json   — phrasing/language robustness suite
   results/embeddings.json             — nomic-embed-text vs bge-m3 comparison
+  results/room_semantics.json         — zone described by name vs by purpose
 
-Writes results/benchmark.png, results/phrasing.png, results/embeddings.png.
+Writes results/benchmark.png, results/phrasing.png, results/embeddings.png,
+results/room_semantics.png (plus hard{,_decisions}.png when the hard suite
+has been run).
 
 Chart conventions (see the project's data-viz method): fixed categorical
 color assignment (never re-mapped between charts), thin bars with a surface
@@ -253,6 +256,85 @@ def fig_embeddings():
     print('Wrote', RESULTS / 'embeddings.png')
 
 
+
+def fig_room_semantics():
+    """Renders the zone-description comparison, if the bench has been run.
+
+    Two things have to be visible at once: that describing a zone by what the
+    room is *for* retrieves the right room more often, and that several of the
+    old descriptions did not merely rank lower — they fell under the planner's
+    relevance threshold and never entered the prompt at all. Hence the
+    threshold as a drawn line rather than a number in the caption, and the
+    wrong room named next to each query the old text got wrong.
+    """
+    path = RESULTS / 'room_semantics.json'
+    if not path.exists():
+        print('No room_semantics.json yet, skipping room_semantics.png '
+              '(run: room_semantics_bench.py)')
+        return
+    data = json.loads(path.read_text(encoding='utf-8'))
+    plain, rich = data['styles']['name_and_bounds'], data['styles']['functional']
+    threshold = data['score_threshold']
+    n = data['queries']
+
+    fig, (ax1, ax2) = plt.subplots(
+        1, 2, figsize=(12, 5.0), facecolor=SURFACE, gridspec_kw={'width_ratios': [1, 1.5]},
+    )
+    grouped_bars(
+        ax1, ['Right zone\nranked first', f'Right zone above\nthe {threshold:.2f} threshold'],
+        [('Name + what the room is for', BLUE,
+          [rich['top1_acc'], rich['above_threshold'] / n]),
+         ('Name + bounds (before)', GREEN,
+          [plain['top1_acc'], plain['above_threshold'] / n])],
+        ylabel='Share of functional queries',
+        counts=[n, n],
+    )
+    # A two-row legend needs more clearance than the one-row ones elsewhere in
+    # this file, or the title lands on top of it.
+    ax1.set_title('Asking for a room by what happens in it',
+                  fontsize=11, color=INK, pad=48)
+    ax1.legend(frameon=False, fontsize=9, ncol=1, loc='lower left',
+               bbox_to_anchor=(0.0, 1.0), labelcolor=INK)
+
+    # Per-query score of the *correct* zone, so a bar that falls left of the
+    # threshold line is a query the planner would have answered with no context.
+    height = 0.36
+    positions = range(n)
+    # Colours carry over from ax1's legend, as in fig_embeddings — one legend
+    # per figure, not per axes.
+    for i, (style, color) in enumerate([(rich, BLUE), (plain, GREEN)]):
+        ys = [y + (0.5 - i) * height for y in positions]
+        ax2.barh(ys, [r['correct_score'] for r in style['runs']], height=height,
+                 color=color, edgecolor=SURFACE, linewidth=1.5, zorder=3)
+    # Name the room the old description actually retrieved — the failure is
+    # more instructive than the average. Anchored on the "before" bar (the
+    # upper one of each pair), past its end, where nothing else is drawn.
+    for y, run in zip(positions, plain['runs'], strict=True):
+        if not run['top1']:
+            ax2.annotate(f'→ {run["retrieved"]}', (run['correct_score'], y - 0.5 * height),
+                         textcoords='offset points', xytext=(5, -3),
+                         fontsize=8, color=INK_2)
+    ax2.axvline(threshold, color=INK_2, linewidth=0.9, linestyle='--', zorder=5)
+    ax2.annotate(f'planner threshold ({threshold:.2f})', (threshold, -0.85),
+                 textcoords='offset points', xytext=(4, 0), fontsize=8, color=INK_2)
+    ax2.set_yticks(list(positions))
+    ax2.set_yticklabels([r['query'] for r in plain['runs']], fontsize=8, color=INK)
+    ax2.invert_yaxis()
+    ax2.set_xlim(0, 0.78)
+    ax2.set_xlabel('Similarity to the correct zone', fontsize=10, color=INK_2)
+    ax2.set_title('Per query — upper bar: name + bounds, lower: with purpose\n'
+                  '(arrow = the room the old description actually retrieved)',
+                  fontsize=11, color=INK, pad=14)
+    style_axes(ax2)
+    ax2.xaxis.grid(True, color=GRID, linewidth=0.8)
+    ax2.yaxis.grid(False)
+
+    fig.tight_layout()
+    fig.savefig(RESULTS / 'room_semantics.png', dpi=200, facecolor=SURFACE,
+                bbox_inches='tight')
+    print('Wrote', RESULTS / 'room_semantics.png')
+
+
 HARD_LABELS = {
     'distractor_nav': 'Disambiguation\n(confusable neighbour)',
     'ordered_multi_step': 'Ordered\nmulti-step plan',
@@ -352,6 +434,7 @@ def main():
     fig_benchmark()
     fig_phrasing()
     fig_embeddings()
+    fig_room_semantics()
     fig_hard()
     fig_hard_decisions()
 
