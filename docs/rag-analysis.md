@@ -62,7 +62,7 @@ Four findings, one per row:
 3. **The known-zone control proves the ablation isolates RAG, not language
    understanding.** Zone names travel to the planner through SQLite
    (design A embedded inside D), and both conditions score 100%. This is the
-   honest core of the analysis: *for a small closed vocabulary of named
+   core of the analysis: *for a small closed vocabulary of named
    places, SQL alone is enough* — removing RAG costs nothing there.
 4. **RAG neither causes nor prevents hallucination.** For a nonexistent
    place, both conditions correctly refuse to invent coordinates (the prompt

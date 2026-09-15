@@ -3,6 +3,9 @@
 **Date:** 2026-07-20
 **Scope:** full pre-publication review — code, docs, evaluation, dashboard,
 packaging, CI.
+**Method:** a review pass run with Claude Code, directed and verified by the
+author. Every result in §2 was executed, not inferred; every defect in §3 was
+reproduced before it was fixed.
 
 An internal engineering record, not a summary of the project: for what the
 project *is*, start at the [README](../README.md); for the reasoning behind
@@ -22,7 +25,7 @@ goal, retrieves context from a semantic memory (RAG over ChromaDB), plans with
 a local LLM (Qwen2.5-7B via Ollama), executes the plan through ROS 2 skills,
 and reports back on what actually happened.
 
-Seven ROS 2 packages, ~5,000 lines of Python, 21 ADRs, 141 automated tests, a
+Seven ROS 2 packages, ~5,000 lines of Python, 21 ADRs, 145 automated tests, a
 measured ablation benchmark, and a web dashboard.
 
 The distinguishing claim is not "I built a RAG robot" — it is **"I measured
@@ -37,7 +40,7 @@ Everything below was executed during this review, not inferred.
 
 | Check | Command | Result |
 |---|---|---|
-| Pure-logic tests | `pytest tests/` | **120 passed** (was 52) |
+| Pure-logic tests | `pytest tests/` | **124 passed** (was 52) |
 | Node-level tests | `colcon test` | **21 passed** (was 10 failures — §3.3) |
 | Python lint | `ruff check .` | **clean** |
 | Workspace build | `colcon build --symlink-install` (from clean) | **7/7 packages** |
@@ -122,7 +125,7 @@ strip dots no longer collide with the axis edge.
 
 ### 3.6 Stale documentation claims — *low, but corrosive*
 
-- README claimed **47** tests; there were **52** (now 120 + 21).
+- README claimed **47** tests; there were **52** (now 124 + 21).
 - README claimed *"ROS nodes and wiring are exercised locally with `colcon test`"*.
   False twice over: the command was red, and those tests were stock linters
   that exercise no node and no wiring. The testing section now states plainly
@@ -138,7 +141,7 @@ only by hand. That gap is what let §3.2 survive the project's entire life.
 
 **Fixed:** a three-layer strategy (→ **[ADR-018](decisions/ADR-018-test-strategy.md)**).
 
-- **Layer 1, 120 tests, no ROS.** Two modules were restructured to join it:
+- **Layer 1, 124 tests, no ROS.** Two modules were restructured to join it:
   `robot_dashboard/web_api.py` (the FastAPI app split out of the node, built
   against a node *interface* so a stub can drive it — this also finally uses the
   `httpx` dependency that was sitting unused) and `eval/scoring.py` (the
@@ -252,7 +255,7 @@ The full reasoning lives in [decisions/](decisions/). Condensed:
 | 011 | Zones in SQLite; RAG relevance threshold | Hardcoded fallback coordinates were fictional and sent the robot to the wrong place; an irrelevant top hit is *worse* than no context, because it enters the prompt as ground truth |
 | 012 | LangChain removed; post-execution report | LangChain was a name→callable registry the LLM never tool-called. The report is now a **second** LLM call over real results, instead of the planner pre-writing the answer before anything ran |
 | 013 | Benchmark at planning level | End-to-end nav is unreliable on this sim; the planning decision is the causal mechanism of the hypothesis *and* is reproducible at `temperature=0` |
-| 014 | Classical scene descriptor, no VLM | The VLM was unreliable on software-rendered frames; colors + LIDAR clutter are honest about what they measure |
+| 014 | Classical scene descriptor, no VLM | The VLM was unreliable on software-rendered frames; colors + LIDAR clutter only claim what they measure |
 | 015 | `ROBOT_WS`-relative paths | §3.1 |
 | 016 | Node shutdown contract | §3.2 |
 | 017 | Single linter (ruff) | §3.3 |
@@ -262,7 +265,7 @@ The full reasoning lives in [decisions/](decisions/). Condensed:
 **Architectural through-line:** every one of these is a decision to *remove* an
 unreliable component rather than paper over it — LangChain, AMCL, the VLM, the
 fallback coordinates, the second linter. ADR-012 and ADR-014 in particular
-trade capability for honesty, and the README says so.
+trade capability for reliability, and the README says so.
 
 ---
 
@@ -292,7 +295,7 @@ trade capability for honesty, and the README says so.
 ## 6. What does not work
 
 ### 6.1 Test coverage — *resolved, see §3.7*
-Previously the nodes had no automated coverage at all. Now 120 pure-logic +
+Previously the nodes had no automated coverage at all. Now 124 pure-logic +
 20 node-level tests. What remains uncovered is layer 3 — anything needing
 Gazebo, Nav2 or Ollama — which is documented as manual rather than claimed.
 
@@ -347,8 +350,10 @@ the room with the chair" does not. Documented.
 - `_render_map_png` is a pure-Python per-pixel loop plus dilation, re-run on
   every new map (~160k iterations for a 20 m map). Cached by timestamp, so not
   hot, but numpy would make it trivial.
-- `/api/map` ships the full base64 PNG every 2 s whether or not it changed —
-  no ETag or change check.
+- `/api/map` shipped the full base64 PNG every 2 s whether or not it changed.
+  **Fixed:** the image moved to `/api/map/png` with an `ETag` (the grid's
+  stamp) and `304` on `If-None-Match`; `/api/map` keeps only geometry, pose
+  and zones. Covered by four tests in the pure-logic suite.
 - Planner status strings mix English and Spanish (`Received goal:` alongside
   `Qwen razona:`, `Plan paso 1/2`). The dashboard UI is entirely Spanish while
   all documentation is English. Deliberate for the robot's *responses* (it
@@ -397,7 +402,7 @@ build a map, seeded, and ran all three benchmark suites live against Qwen and
 bge-b3 on the GPU. Everything reproduces: the headline table matches the
 published numbers, phrasing is 18/18 vs 0/18, and the hard suite ran for the
 first time (§6.3). Two real issues surfaced and were fixed in the process
-(§3.9), which is the entire reason for running it rather than trusting the
+(§3.9), which is the reason for running it rather than trusting the
 numbers already in the repo.
 
 **Also done in this pass — three follow-ups (§3.10):** `dashboard_node` on a
@@ -413,7 +418,7 @@ colcon artefact is deleted. The repository also gained a container
 ([ADR-021](decisions/ADR-021-container-reproducibility.md)), which makes the
 fresh-clone verification above a single command for anyone, not a claim.
 
-**Deliberately left, out of scope:**
+**Left out of scope:**
 - Physical SR/SPL — planning-level is the design (§6.2, ADR-013).
 - Gazebo inside the container: the image covers build, both test layers and
   the offline benchmark, not the simulator (ADR-021 states the boundary).
@@ -439,9 +444,9 @@ fresh-clone verification above a single command for anyone, not a claim.
 
 ## 10. Overall assessment
 
-The engineering is solid and, more unusually, **honest**. The ADRs record real
+The engineering is solid and it does not oversell itself. The ADRs record real
 failures and the reasoning that resolved them rather than reconstructing a
-clean story after the fact; the README's "Honest limitations" section
+clean story after the fact; the README's "Limitations" section
 volunteers weaknesses most portfolio projects hide; and the benchmark includes
 a control condition that shows the project's central technology losing.
 
@@ -466,5 +471,5 @@ rather than trusting the numbers already checked in.
 What remains is genuine and stated plainly throughout: the planning-level
 benchmark is not physical SR/SPL (§6.2), spatial reasoning is measured but not
 yet improved (the agent-loop target, §6.3), and perception is attribute-level
-(§6.4). None of these are hidden; they are the honest edges of a project whose
+(§6.4). None of these are hidden; they are the known edges of a project whose
 defining trait is that it says where its own limits are.

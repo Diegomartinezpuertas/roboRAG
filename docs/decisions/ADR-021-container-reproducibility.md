@@ -5,7 +5,7 @@
 
 ## Context
 
-Every claim this project makes about itself — 120 pure-logic tests, 21 node
+Every claim this project makes about itself — 124 pure-logic tests, 21 node
 tests, a lint-clean tree, a reproducible ablation benchmark — was, until now,
 verifiable only by first reproducing the author's environment: ROS 2 Jazzy,
 Gazebo Harmonic, a CUDA-capable Ollama, a WSL2 Ubuntu 24.04 with a venv bridged
@@ -38,14 +38,14 @@ Concretely:
 - **Base `ros:jazzy-ros-base`, apt dependencies mirroring the ROS job in CI** —
   the configuration these tests are known green under — plus
   `ros-jazzy-rmw-cyclonedds-cpp`, so the project's own `setup_env.sh` runs
-  unmodified inside the container (ADR-006). The pip side deliberately does
+  unmodified inside the container (ADR-006). The pip side does
   *not* mirror CI: that job installs only what the nodes import at module load,
   whereas this image also runs layer 1 and the offline benchmark, so it takes
   the full `requirements.txt`. That difference is what surfaced the one real
   packaging problem here — `chromadb` pulls a newer `pyyaml`, which pip cannot
   install because it cannot uninstall the apt-owned 6.0.1 underneath it. Fixed
   by installing PyYAML first with `--ignore-installed`, into the pip
-  dist-packages that precedes apt's on `sys.path`. `numpy` is pointedly not
+  dist-packages that precedes apt's on `sys.path`. `numpy` is not
   handled that way: it has to keep matching the ABI of the apt `cv_bridge`.
 - **The entrypoint sources `setup_env.sh`**, the same script a host developer
   sources. The container cannot drift from the documented environment because
@@ -69,20 +69,20 @@ Concretely:
 ## Rationale
 
 **Why not put Gazebo in the image.** It is technically possible and it would
-read better in a README. It is also the dishonest option. Gazebo here already
+read better in a README. It would also misrepresent what works. Gazebo here already
 renders on `llvmpipe` because WSL2's GPU passthrough is incomplete; adding a
 container layer and an X socket makes a slow, software-rendered simulation
 slower and more fragile, and the resulting image would invite a reader to run
 the *one* part of this project that the documentation is careful to say is
 unreliable (`REVIEW.md` §6.2). An image whose advertised capability fails on
-first contact is worse than no image. The boundary is drawn where the honest
-claim is: everything deterministic is in, everything needing rendering is out.
+first contact is worse than no image. The boundary is drawn where the
+claim holds: everything deterministic is in, everything needing rendering is out.
 
 **Why mirror CI rather than the host.** The host is WSL2 with a venv bridge and
 a GPU; CI is the minimal environment in which the tests are actually known to
 pass. Mirroring CI means the image is a *third* independent confirmation of the
-same green result rather than a second copy of the author's machine — which is
-the entire point, given the class of defect the review found.
+same green result rather than a second copy of the author's machine — which
+matters, given the class of defect the review found.
 
 **Alternatives rejected:**
 

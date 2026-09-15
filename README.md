@@ -13,6 +13,7 @@ interactive SLAM map, and text/voice goal input.
 
 > Personal portfolio project. Documentation is treated as first-class: every
 > significant decision is recorded as an ADR in [`docs/decisions/`](docs/decisions).
+> Built with Claude Code as a pair programmer — [what that means here](#how-this-was-built).
 
 ---
 
@@ -55,40 +56,28 @@ More measured findings (full data and charts in
 
 ![Embedding comparison](eval/results/embeddings.png)
 
-How to read this — it is deliberately not "RAG is magic":
+How to read this:
 
-- **Object-referenced navigation** ("go to *estacion_a*", a place stored in
-  semantic memory): RAG makes all the difference. With it, the planner
-  retrieves the coordinates and navigates directly; without it, it has no idea
-  where the place is and falls back to exploring.
-- **Description-referenced navigation** ("go to the white, open room"): the
-  memory here is **self-built** — the robot stores a classical scene
-  description (dominant colors + LIDAR clutter, no ML) of every place it
-  reaches while exploring. Several remembered areas can legitimately match a
-  description, so the scorer accepts any retrieved area whose stored text
+- **Object-referenced** ("go to *estacion_a*"): RAG makes the difference. With
+  it the planner retrieves the coordinates and navigates directly; without it,
+  it has nothing to go on and falls back to exploring.
+- **Description-referenced** ("go to the white, open room"): the memory is
+  **self-built** — the robot stores a scene description (dominant colours +
+  LIDAR clutter, no ML) of every place it reaches while exploring. Several
+  areas can match, so the scorer accepts any retrieved area whose stored text
   matches the requested attributes.
-- **Known-zone navigation** (a place stored in a plain SQLite table): both
-  conditions succeed. This control shows the ablation isolates RAG's *object
-  memory* specifically — when the information is available another way, RAG is
-  not needed. At this scale a lookup would often suffice; RAG earns its keep
-  as the remembered vocabulary grows.
-- **Impossible goal** ("go to the garage", which does not exist): neither
-  condition invents coordinates. RAG does not cause hallucination, and its
-  absence does not either.
+- **Known zone** (a plain SQLite table): both conditions succeed. This control
+  shows the ablation isolates RAG's *object memory* — when the information is
+  available another way, RAG is not needed.
+- **Impossible goal** ("the garage", which does not exist): neither condition
+  invents coordinates.
 
-The planning suites reproduce **without a simulator** — `agent.launch.py` +
-`seed_memory.py --offline` + `run_benchmark.py`, with only Ollama running
-([ADR-020](docs/decisions/ADR-020-offline-benchmark-seeding.md)): a fresh clone
-gets the headline numbers in minutes, no Gazebo bring-up. Reproduce everything
-(suites, charts, embedding comparison) with
-[docs/EVALUATION.md](docs/EVALUATION.md); the full interpretation — when RAG
-wins, when plain SQL wins, when an LLM→SQL design would be better — is in
-[docs/rag-analysis.md](docs/rag-analysis.md).
-
-**How the memory itself works** — what is stored in each of the three
-collections, where the content comes from, how it is chunked and embedded, and
-how a retrieved fragment ends up in the planning prompt — is documented in
-[docs/rag-pipeline.md](docs/rag-pipeline.md).
+The planning suites reproduce **without a simulator**, with only Ollama
+running ([ADR-020](docs/decisions/ADR-020-offline-benchmark-seeding.md)).
+[docs/EVALUATION.md](docs/EVALUATION.md) reproduces every number;
+[docs/rag-analysis.md](docs/rag-analysis.md) is the full interpretation;
+[docs/rag-pipeline.md](docs/rag-pipeline.md) explains what the memory stores
+and how it retrieves.
 
 ---
 
@@ -152,14 +141,13 @@ docker build -t robot-rag-agent .
 docker run --rm robot-rag-agent
 ```
 
-Expected: `ruff` clean, **120** pure-logic tests, **21** node-level tests, exit
-`0`. The image sources the project's own `setup_env.sh`, so it cannot drift
-from the documented environment, and it runs at `/robot_ws` rather than the
-author's home directory — which keeps the path-portability fix honest.
+Expected: `ruff` clean, **124** + **21** tests, exit `0`. The image sources the
+project's own `setup_env.sh` and runs at `/robot_ws`, which also exercises the
+path-portability fix ([ADR-015](docs/decisions/ADR-015-workspace-relative-paths.md)).
 
-The simulator is deliberately **not** in the image: Gazebo already renders on
-`llvmpipe` here, and containerising it would ship a headline capability that
-fails on first contact. `.devcontainer/` opens the same image in VS Code.
+The simulator is not in the image — Gazebo already renders on `llvmpipe` here
+and a containerised copy would only be slower. `.devcontainer/` opens the same
+image in VS Code.
 
 ### Run the real thing
 
@@ -194,41 +182,19 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno dur
 
 ## Testing & CI
 
-Three layers, each defined by what it needs to run
+Three layers, split by what each needs to run
 ([ADR-018](docs/decisions/ADR-018-test-strategy.md)):
 
-**1. Pure logic — 120 tests, no ROS required.**
-RAG chunking, plan parsing, prompt building and language detection, frontier
-selection, the scene descriptor, the SQLite zone store, the ChromaDB wrapper,
-the dashboard's HTTP layer, and the benchmark plan scorer.
+| Layer | Covers | Needs | Tests | Run |
+|---|---|---|---|---|
+| Pure logic | chunking, plan parsing, prompts, frontier selection, scene descriptor, zone store, HTTP layer, benchmark scorer | nothing | 124 | `pytest tests/` |
+| Node level | real services on real executors, the HTTP↔ROS bridge, the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 21 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
+| Manual | navigation, exploration, perception, the LLM calls | Gazebo + Ollama | — | see [Limitations](#limitations) |
 
-```bash
-pytest tests/
-```
-
-**2. Node level — 21 tests, needs a ROS 2 install.**
-The real nodes on real executors: `/skills/execute` called over a real service
-client (dispatch, malformed input, executor survival), the dashboard's
-HTTP↔ROS bridge (a POSTed goal arriving on `/robot/goal` as a real message),
-and the shutdown contract of every node (spawn, SIGINT, assert a clean silent
-exit — this one is a direct guard on [ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)).
-
-```bash
-source setup_env.sh
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all
-```
-
-> The env var is required: the `launch_testing` pytest plugin shipped with
-> Jazzy is incompatible with current pytest and breaks collection.
-
-**3. Manual — anything needing Gazebo, Nav2 or Ollama.**
-End-to-end navigation, exploration, perception, and the planner's LLM calls.
-Not faked, not claimed as covered — see "Honest limitations".
-
-**Lint:** `ruff check .` (config in `ruff.toml`), the project's single linter
-([ADR-017](docs/decisions/ADR-017-single-linter-ruff.md)).
-**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs layer 1 on a
-plain runner and layer 2 in a `ros:jazzy-ros-base` container, on every push/PR.
+The env var is required: Jazzy's `launch_testing` pytest plugin breaks
+collection on current pytest. Lint is `ruff check .`
+([ADR-017](docs/decisions/ADR-017-single-linter-ruff.md)). CI runs layer 1 on
+a plain runner and layer 2 in `ros:jazzy-ros-base`, on every push.
 
 ---
 
@@ -256,35 +222,27 @@ silently dropping frames over DDS),
 
 ---
 
-## Honest limitations
+## Limitations
 
-- **Benchmark is at the planning level, not physical SR/SPL.** End-to-end
-  navigation on this WSL2/software-rendered sim is unreliable (the robot wedges
-  in narrow doorways; `navigate` occasionally reports false success). The
-  planning-level metric measures the RAG mechanism reproducibly; a physical
-  SR/SPL run on better hardware is future work — the end-to-end harness
-  (reset-to-home, odometry integration, SPL) is written and ready in
-  `eval/run_benchmark.py`'s history.
+- **Planning-level benchmark, not physical SR/SPL.** End-to-end navigation on
+  this software-rendered sim is unreliable (the robot wedges in doorways;
+  `navigate` sometimes reports false success). The planning metric isolates
+  the RAG mechanism reproducibly; a physical run needs better hardware.
 - **The headline suite is saturated** (every cell 100% or 0%), so it cannot
-  measure an improvement — the roadmap's agent loop would score identically.
-  `eval/tasks_hard.yaml` (60 runs) exists for that reason, built to be failable
-  by the current system. Measured result: **27/30 with RAG vs 3/30 without**.
-  It does leave headroom, and points precisely at where — the planner solves
-  disambiguation (9/9) and ordered multi-step plans (9/9) but only **half of
-  the spatial-reasoning tasks** ("go to the station nearest the base", 3/6),
-  which is the clearest target for the agent-loop work. Full breakdown in
-  [docs/rag-analysis.md §2.6](docs/rag-analysis.md).
-- **RAG's value is scale-dependent.** For a handful of places, a SQLite lookup
-  covers most of it (see the known-zone control). RAG matters as remembered,
+  show improvement. `eval/tasks_hard.yaml` (60 runs) can: **27/30 with RAG vs
+  3/30 without**, with the misses concentrated in spatial reasoning ("the
+  station nearest the base", 3/6) — the target for the agent loop. Breakdown
+  in [docs/rag-analysis.md §2.6](docs/rag-analysis.md).
+- **RAG's value is scale-dependent.** For a handful of places a SQLite lookup
+  does the job (the known-zone control shows it). RAG matters as the
   open-vocabulary memory grows.
-- **Perception is attribute-level, not object-level.** The VLM was removed
-  (unreliable on software-rendered frames, [ADR-014](docs/decisions/ADR-014-classical-scene-descriptor.md));
-  the classical descriptor characterizes places (colors, clutter) but cannot
-  name objects — that needs a detector (roadmap).
-- **Cross-lingual retrieval quality depends heavily on the embedder.** With
-  nomic-embed-text, Spanish queries over English docs hit only 43% top-1;
-  the default is now bge-m3 (86% measured), with a relevance threshold as a
-  noise floor — see [docs/rag-analysis.md](docs/rag-analysis.md) §2.4.
+- **Perception is attribute-level.** The descriptor characterises places
+  (colours, clutter) but cannot name objects. The VLM was removed as
+  unreliable on software-rendered frames
+  ([ADR-014](docs/decisions/ADR-014-classical-scene-descriptor.md)).
+- **Cross-lingual retrieval depends on the embedder.** nomic-embed-text: 43%
+  top-1 for Spanish queries over English memories; bge-m3: 86%, and it is the
+  default ([rag-analysis §2.4](docs/rag-analysis.md)).
 
 ## Roadmap
 
@@ -301,6 +259,14 @@ silently dropping frames over DDS),
 5. ~~**Docker/devcontainer** for full reproducibility.~~ **Done** —
    [ADR-021](docs/decisions/ADR-021-container-reproducibility.md). The
    remaining "works on my WSL2" caveat is now the simulator alone.
+
+## How this was built
+
+With [Claude Code](https://claude.com/claude-code) as the coding assistant,
+which is why every commit carries its co-author line. The decisions — what to
+build, what to measure, what to remove — and the hours in front of the
+simulator finding the failures the ADRs record are mine; most of the typing is
+Claude's. The claim this project makes is the measurement, not the code.
 
 ## License
 
