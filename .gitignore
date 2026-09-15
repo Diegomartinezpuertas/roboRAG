@@ -3,7 +3,8 @@ build/
 install/
 log/
 
-# Python virtualenv (deps installed via requirements.txt)
+# Local tooling / virtualenv (deps installed via requirements.txt)
+.claude/
 agent_env/
 
 # Runtime data — regenerated, not committed
@@ -17,8 +18,11 @@ data/maps/
 # Benchmark run artifacts tied to a specific SLAM map
 eval/landmarks.json
 
-# Personal promo working docs (video script, LinkedIn drafts) — local only
+# Personal promo working material — local only. demo_preflight.sh belongs
+# here rather than with the launch files: it exists to stage a recording
+# session (explore, seed, verify, GO/NO-GO), not to run the system.
 docs/promo/
+demo_preflight.sh
 
 # Python caches
 __pycache__/
