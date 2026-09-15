@@ -110,7 +110,11 @@ so the LLM never emits it — reach it only with a direct `ros2 service call`.
 ## Dashboard HTTP (robot_dashboard)
 
 Served by `dashboard_node` at `http://localhost:8080` (`http_host`/`http_port`
-parameters).
+parameters). The server binds loopback only: these endpoints publish goals to
+the robot and carry no authentication. Under WSL2 it stays reachable from a
+Windows browser anyway (the localhost relay forwards into the VM's loopback);
+set `http_host: "0.0.0.0"` in `agent_params.yaml` only to reach it from
+another machine, and put it behind something that authenticates if you do.
 
 ### `GET /`
 
@@ -166,7 +170,7 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 | rag_node | `collections` | Collections created on startup |
 | rag_node | `top_k_default` (5) | Results returned when a request sets `top_k <= 0` |
 | rag_node | `map_session_id` ('') | Pin the memory session to a saved map's id on reload ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)); empty continues the current session |
-| dashboard_node | `http_host` (`0.0.0.0`) / `http_port` (8080) | HTTP bind address and port |
+| dashboard_node | `http_host` (`127.0.0.1`) / `http_port` (8080) | HTTP bind address and port — loopback by default, the API is unauthenticated |
 
 `rag_enabled`, `zones_in_prompt` and `dry_run` are re-read on every goal, so the
 benchmark can flip conditions with `ros2 param set` without restarting the node

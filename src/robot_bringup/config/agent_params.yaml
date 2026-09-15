@@ -36,5 +36,10 @@ rag_node:
 
 dashboard_node:
   ros__parameters:
-    http_host: "0.0.0.0"
+    # Loopback only. The HTTP API can publish goals to the robot and has no
+    # authentication, so binding 0.0.0.0 would hand robot control to anyone
+    # on the network. Still reachable from a Windows browser under WSL2:
+    # its localhost relay forwards into the VM's loopback. Set "0.0.0.0"
+    # here only to reach the dashboard from another machine.
+    http_host: "127.0.0.1"
     http_port: 8080

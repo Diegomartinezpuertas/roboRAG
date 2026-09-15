@@ -163,6 +163,8 @@ ros2 launch robot_bringup full_system.launch.py
 ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno durante 60 segundos'"
 
 # Dashboard (open in the Windows browser): http://localhost:8080
+# Binds loopback only — the API is unauthenticated. WSL2's localhost relay
+# forwards into the VM, so the Windows browser reaches it regardless.
 ```
 
 ---

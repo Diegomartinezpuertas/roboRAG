@@ -334,9 +334,14 @@ the room with the chair" does not. Documented.
   `wait_for_service` inside the request handler). Now fire-and-forget:
   instantaneous readiness check, `call_async` not awaited. **Fixed** (§3.10),
   measured at 25 ms with RAG down, with a regression test.
-- **Still open:** the server binds `0.0.0.0` with no authentication. Fine on
-  WSL2 loopback, wrong on a shared network. Out of scope for this pass;
-  defaulting to `127.0.0.1` is the fix.
+- The server bound `0.0.0.0` with no authentication — fine on WSL2 loopback,
+  wrong on a shared network, given the API can publish goals to the robot.
+  **Fixed:** the default is now `127.0.0.1` in both the node and
+  `agent_params.yaml`, with `0.0.0.0` documented as the deliberate opt-in.
+  The concern that held this back — losing the Windows browser, which is how
+  the dashboard is actually used — was tested rather than assumed: a
+  loopback-bound server in the WSL2 VM answers `200` to `localhost` from
+  Windows, because the localhost relay forwards into the VM's loopback.
 
 ### 6.6 Minor
 - `_render_map_png` is a pure-Python per-pixel loop plus dilation, re-run on

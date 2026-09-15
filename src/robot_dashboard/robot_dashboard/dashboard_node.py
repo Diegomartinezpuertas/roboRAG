@@ -102,14 +102,16 @@ class DashboardNode(Node):
         /rag/update_map (UpdateMap): Indexes named zones into semantic memory.
 
     Parameters:
-        http_host (str): Bind address for the HTTP server. Default: 0.0.0.0
+        http_host (str): Bind address for the HTTP server. Default: 127.0.0.1
+            (loopback only — the API has no authentication; see
+            config/agent_params.yaml to expose it on the network).
         http_port (int): Port for the HTTP server. Default: 8080
         zones_db (str): SQLite file where named zones are persisted.
     """
 
     def __init__(self) -> None:
         super().__init__('dashboard_node')
-        self.declare_parameter('http_host', '0.0.0.0')
+        self.declare_parameter('http_host', '127.0.0.1')
         self.declare_parameter('http_port', 8080)
         self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 
