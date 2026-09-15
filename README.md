@@ -5,7 +5,8 @@ A cognitive agent for a mobile robot (TurtleBot3) running in simulation
 semantic memory (RAG over ChromaDB), plans with a local LLM (Qwen2.5-7B via
 Ollama), and executes the plan through ROS 2 skills (navigation, exploration,
 perception, reporting). A FastAPI dashboard gives live observability, an
-interactive SLAM map, and text/voice goal input.
+interactive SLAM map, text/voice goal input, a browser of everything the robot
+remembers, and WASD driving to map the house by hand first.
 
 [![CI](https://github.com/Diegomartinezpuertas/roboRAG/actions/workflows/ci.yml/badge.svg)](https://github.com/Diegomartinezpuertas/roboRAG/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -87,6 +88,8 @@ and how it retrieves.
 flowchart TD
     user["User (text / voice)"] -->|/robot/goal| planner
     dash["robot_dashboard<br/>(FastAPI @ :8080)"] -->|/robot/goal| planner
+    dash -->|/rag/inspect| rag
+    dash -->|/cmd_vel (WASD)| nav2
     planner["robot_brain<br/>llm_planner_node"] -->|/rag/query| rag
     planner -->|prompt| ollama["Qwen2.5-7B<br/>(Ollama)"]
     rag["robot_rag<br/>rag_node"] --> chroma[("ChromaDB<br/>semantic_map · knowledge_base · task_history")]
@@ -101,12 +104,12 @@ flowchart TD
 
 | Package | Role |
 |---------|------|
-| `robot_interfaces` | Custom messages/services (`QueryRAG`, `ExecuteSkill`, `UpdateMap`, `SemanticObject`) |
+| `robot_interfaces` | Custom messages/services (`QueryRAG`, `InspectMemory`, `ExecuteSkill`, `UpdateMap`, `SemanticObject`) |
 | `robot_rag` | ChromaDB-backed semantic memory + RAG query service |
 | `robot_skills` | Executable skills: navigate (Nav2), explore (frontier, self-building memory), perceive (scene descriptor), scan_360 (in-place panoramic sweep), report |
 | `robot_brain` | LLM planner: RAG retrieval → Qwen plan → skill dispatch → post-execution report |
-| `robot_zones` | Shared SQLite store of user-defined named zones |
-| `robot_dashboard` | Web dashboard: observability, interactive SLAM map, text/voice goals |
+| `robot_zones` | Shared SQLite store of user-defined named zones, and what each kind of room is *for* ([ADR-022](docs/decisions/ADR-022-room-semantics.md)) |
+| `robot_dashboard` | Web dashboard: observability, interactive SLAM map, text/voice goals, RAG memory viewer, WASD manual driving |
 | `robot_bringup` | Launch files and configuration for the whole system |
 
 ---
@@ -125,6 +128,16 @@ flowchart TD
 5. A **second** LLM call summarizes the *actual* results (grounded, in the
    user's language) and publishes it to `/robot/response`.
 
+Before any of that, a person can drive the robot around with **WASD** in the
+dashboard, name each room as they pass through it, and save the map. A zone
+named after a room is indexed with what that room is *for*, in Spanish and
+English — which is what makes **"ve donde se suele cocinar"** find the kitchen
+rather than the nearest landmark ([ADR-022](docs/decisions/ADR-022-room-semantics.md),
+measured: top-1 55% → 100% in [rag-analysis §2.7](docs/rag-analysis.md)). What
+the memory holds at any moment is visible in the dashboard's memory panel,
+including the coordinates each memory was learned at
+([ADR-024](docs/decisions/ADR-024-memory-inspection-service.md)).
+
 ---
 
 ## Quickstart
@@ -141,7 +154,7 @@ docker build -t robot-rag-agent .
 docker run --rm robot-rag-agent
 ```
 
-Expected: `ruff` clean, **124** + **21** tests, exit `0`. The image sources the
+Expected: `ruff` clean, **218** + **25** tests, exit `0`. The image sources the
 project's own `setup_env.sh` and runs at `/robot_ws`, which also exercises the
 path-portability fix ([ADR-015](docs/decisions/ADR-015-workspace-relative-paths.md)).
 
@@ -170,6 +183,11 @@ cd "$ROBOT_WS" && colcon build --symlink-install
 # Launch everything: Gazebo + Nav2 + SLAM + agent + dashboard + RViz
 ros2 launch robot_bringup full_system.launch.py
 
+# ...or map the house by hand first (SLAM + dashboard, no autonomous
+# navigation competing for /cmd_vel): drive with WASD, name each room with
+# "Marcar zona aquí", then "Guardar mapa" — ADR-023
+ros2 launch robot_bringup full_system.launch.py use_nav2:=false
+
 # Send a goal
 ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno durante 60 segundos'"
 
@@ -187,8 +205,8 @@ Three layers, split by what each needs to run
 
 | Layer | Covers | Needs | Tests | Run |
 |---|---|---|---|---|
-| Pure logic | chunking, plan parsing, prompts, frontier selection, scene descriptor, zone store, HTTP layer, benchmark scorer | nothing | 124 | `pytest tests/` |
-| Node level | real services on real executors, the HTTP↔ROS bridge, the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 21 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
+| Pure logic | chunking, plan parsing, prompts, frontier selection, scene descriptor, zone store, room semantics, teleop deadman, HTTP layer, benchmark scorer | nothing | 218 | `pytest tests/` |
+| Node level | real services on real executors, the HTTP↔ROS bridge (goals, driving, memory), the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 25 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
 | Manual | navigation, exploration, perception, the LLM calls | Gazebo + Ollama | — | see [Limitations](#limitations) |
 
 The env var is required: Jazzy's `launch_testing` pytest plugin breaks
@@ -240,6 +258,15 @@ silently dropping frames over DDS),
   (colours, clutter) but cannot name objects. The VLM was removed as
   unreliable on software-rendered frames
   ([ADR-014](docs/decisions/ADR-014-classical-scene-descriptor.md)).
+- **Rooms are understood by name, not by sight.** Naming a zone "cocina"
+  attaches what a kitchen is for, so functional goals resolve; the robot cannot
+  *recognise* a kitchen it was never told about, and a zone named
+  `laboratorio` gets no functional retrieval (the vocabulary is a documented
+  table of eleven room types, [ADR-022](docs/decisions/ADR-022-room-semantics.md)).
+- **Manual driving is not arbitrated against Nav2.** Both publish to
+  `/cmd_vel`; teleop is meant for mapping runs (`use_nav2:=false`), and a
+  `twist_mux` is the fix if they ever need to coexist
+  ([ADR-023](docs/decisions/ADR-023-browser-teleop.md)).
 - **Cross-lingual retrieval depends on the embedder.** nomic-embed-text: 43%
   top-1 for Spanish queries over English memories; bge-m3: 86%, and it is the
   default ([rag-analysis §2.4](docs/rag-analysis.md)).
@@ -254,8 +281,9 @@ silently dropping frames over DDS),
 3. **Object-level detection** (YOLOv8n; VLM revisit on real-camera hardware)
    — the classical descriptor covers place attributes, naming objects needs
    a detector.
-4. **SLAM map save/load** (`map_saver_cli`) for reproducible scenarios and a
-   physical SR/SPL benchmark run.
+4. **Physical SR/SPL benchmark run** on hardware that can navigate reliably —
+   the planning-level metric isolates the mechanism, a physical run would
+   measure the outcome.
 5. ~~**Docker/devcontainer** for full reproducibility.~~ **Done** —
    [ADR-021](docs/decisions/ADR-021-container-reproducibility.md). The
    remaining "works on my WSL2" caveat is now the simulator alone.

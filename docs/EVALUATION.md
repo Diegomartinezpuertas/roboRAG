@@ -160,13 +160,28 @@ python3 embedding_bench.py        # nomic-embed-text vs bge-m3, ES vs EN
 Writes `results/embeddings.json` and prints the accuracy/margin table. Run it
 *after* the LLM suites so the embedding calls don't pollute latency numbers.
 
+## 4b. Zone descriptions: name vs function (no ROS needed)
+
+```bash
+python3 room_semantics_bench.py   # "ve donde se suele cocinar" vs a named zone
+```
+
+Embeds five named zones described both ways — the old name-plus-bounds text and
+the current one carrying what the room is for — and queries them with 11
+functional goals. Writes `results/room_semantics.json` and prints top-1, how
+many queries clear the planner's 0.40 threshold, and every query the old
+descriptions sent to the wrong room. Expected: 55% → 100% top-1
+([ADR-022](decisions/ADR-022-room-semantics.md), analysed in
+[rag-analysis §2.7](rag-analysis.md)). Needs only bge-m3 in Ollama.
+
 ## 5. Tables and charts
 
 ```bash
 python3 report.py full            # markdown table -> results/full/report.md
 python3 report.py phrasing
 python3 plot_results.py           # results/{benchmark,phrasing,embeddings}.png
-                                  # + hard{,_decisions}.png when results/hard/ exists
+                                  # + room_semantics.png, and hard{,_decisions}.png
+                                  #   when results/hard/ exists
 ```
 
 The PNGs are the ones embedded in the README and docs/rag-analysis.md.
@@ -178,7 +193,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 124 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 218 tests
 ruff check .
 ```
 
@@ -186,7 +201,7 @@ Node level — needs a sourced workspace:
 
 ```bash
 source ~/robot_ws/setup_env.sh
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 21 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 25 tests
 ```
 
 (`PYTEST_DISABLE_PLUGIN_AUTOLOAD` avoids the ROS-installed `launch_testing`

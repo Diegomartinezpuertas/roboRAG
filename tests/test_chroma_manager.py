@@ -41,3 +41,63 @@ def test_unknown_collection_raises(tmp_path):
     mgr = ChromaManager(str(tmp_path / 'chroma'), ['memory'])
     with pytest.raises(ValueError):
         mgr.query('does_not_exist', [1.0, 0.0], 1)
+
+
+# --- inspection (what the dashboard's memory viewer reads) -----------------
+
+def _populated(tmp_path):
+    mgr = ChromaManager(str(tmp_path / 'chroma'), ['memory', 'empty'])
+    mgr.add(
+        'memory',
+        documents=['kitchen at (x=1.0, y=2.0)', 'corridor at (x=0.0, y=0.0)'],
+        embeddings=[[1.0, 0.0], [0.0, 1.0]],
+        metadatas=[{'map_id': 'live', 'label': 'kitchen'}, {'map_id': 'dead', 'label': 'area'}],
+        ids=['kitchen', 'corridor'],
+    )
+    return mgr
+
+
+def test_list_documents_returns_entries_with_ids_and_metadata(tmp_path):
+    """Browsing must work with no query — and therefore with no embedder."""
+    entries = _populated(tmp_path).list_documents('memory', limit=10)
+    assert {e['id'] for e in entries} == {'kitchen', 'corridor'}
+    kitchen = next(e for e in entries if e['id'] == 'kitchen')
+    assert kitchen['document'].startswith('kitchen at')
+    assert kitchen['metadata']['label'] == 'kitchen'
+
+
+def test_list_documents_honours_the_limit_and_the_metadata_filter(tmp_path):
+    mgr = _populated(tmp_path)
+    assert len(mgr.list_documents('memory', limit=1)) == 1
+    scoped = mgr.list_documents('memory', limit=10, where={'map_id': 'live'})
+    assert [e['id'] for e in scoped] == ['kitchen']
+
+
+def test_list_documents_of_an_empty_collection_is_empty(tmp_path):
+    assert _populated(tmp_path).list_documents('empty', limit=10) == []
+
+
+def test_query_documents_carries_the_score_alongside_id_and_metadata(tmp_path):
+    hits = _populated(tmp_path).query_documents('memory', [1.0, 0.0], top_k=2)
+    assert hits[0]['id'] == 'kitchen'
+    assert hits[0]['score'] >= hits[1]['score']
+    assert hits[0]['metadata']['map_id'] == 'live'
+
+
+def test_query_and_query_documents_agree(tmp_path):
+    """query() is the planner's thin view of the same retrieval."""
+    mgr = _populated(tmp_path)
+    docs, scores = mgr.query('memory', [1.0, 0.0], top_k=2)
+    hits = mgr.query_documents('memory', [1.0, 0.0], top_k=2)
+    assert docs == [h['document'] for h in hits]
+    assert scores == [h['score'] for h in hits]
+
+
+def test_stats_counts_every_collection_including_the_empty_ones(tmp_path):
+    assert _populated(tmp_path).stats() == {'memory': 2, 'empty': 0}
+
+
+def test_unknown_collection_raises_when_inspected(tmp_path):
+    mgr = _populated(tmp_path)
+    with pytest.raises(ValueError):
+        mgr.list_documents('does_not_exist', limit=5)

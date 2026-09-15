@@ -50,6 +50,23 @@ Two sources, the same format:
 2. **User zones.** Naming an area in the dashboard upserts it here too, so a
    zone is reachable both by SQLite lookup and by semantic query.
 
+A zone or a scene whose name denotes a **kind of room** carries what that room
+is for, in Spanish and English:
+
+```
+kitchen at (x=1.75, y=-0.75) in cocina: User-defined zone "cocina" — a kitchen
+(la cocina) — covering x[1.00, 2.50] y[-1.50, 0.00] in the map frame. This is
+the kitchen: where meals are cooked and food is prepared, where the dishes are
+washed... Es la cocina: donde se cocina y se prepara la comida, donde se suele
+cocinar... The robot can navigate to it or explore inside it by name ("cocina").
+```
+
+That is what makes **"ve donde se suele cocinar"** resolve, when `cocina` plus a
+bounding box did not: the name is the user's claim about the kind of room, and
+the claim is expanded into the text that gets embedded. Names that match no
+known room type (`estacion_a`) stay plain — measured effect and the reasoning in
+[ADR-022](decisions/ADR-022-room-semantics.md).
+
 The document ID is derived from the pose rounded to a 0.5 m grid
 (`scene-{x}-{y}`), so **revisiting a place updates its description** rather
 than accumulating near-duplicates. IDs are stable and `upsert` is used
@@ -175,6 +192,27 @@ RAG) and the goal.
 ---
 
 ## 5. Inspecting it yourself
+
+The dashboard's **memory panel** is the direct route: pick a collection, see how
+many entries it holds, read each one as a card with its coordinates, zone and
+provenance, watch the coordinate memories appear as markers on the SLAM map, and
+type a question to see what the robot would retrieve for it and with what score.
+Memories from a dead map session are greyed out rather than hidden (see §6).
+
+Underneath it is `/rag/inspect`, which is also usable directly — and unlike
+`/rag/query`, it returns ids and metadata, and it can list without a query:
+
+```bash
+# Browse what is stored, as stored (no embedding call)
+ros2 service call /rag/inspect robot_interfaces/srv/InspectMemory \
+  "{collection_name: 'semantic_map', query_text: '', limit: 5, active_map_only: true}"
+
+# Search it, with the metadata the planner never sees
+ros2 service call /rag/inspect robot_interfaces/srv/InspectMemory \
+  "{collection_name: 'semantic_map', query_text: 'donde se suele cocinar', limit: 3}"
+```
+
+To see exactly what the *planner* gets, including the score threshold's effect:
 
 ```bash
 # Query a collection directly

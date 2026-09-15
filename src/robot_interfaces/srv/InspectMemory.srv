@@ -1,0 +1,11 @@
+# InspectMemory.srv
+string collection_name   # Collection to inspect: semantic_map | knowledge_base | task_history
+string query_text        # Natural language query; empty browses the stored entries as-is
+int32  limit             # Max entries to return (default: 50, capped at 200)
+bool   active_map_only   # True scopes coordinate collections to the active map session (ADR-019)
+---
+string items_json        # JSON array of {id, document, metadata, score}; score is -1.0 when browsing
+string stats_json        # JSON object {collection_name: document_count} for every served collection
+string map_id            # Active map-session id, so a client can flag entries from other maps
+bool   success           # False if the collection is unknown or the query failed
+string error_msg         # Empty string if success=True

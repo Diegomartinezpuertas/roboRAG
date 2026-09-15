@@ -9,12 +9,22 @@ failure path, is covered. See docs/decisions/ADR-018-test-strategy.md.
 import pytest
 from fastapi.testclient import TestClient
 
+from robot_dashboard.teleop import twist_from_keys
 from robot_dashboard.web_api import (
+    MAX_MEMORY_ENTRIES,
+    box_around,
     build_app,
+    format_memory_entry,
+    memory_entry_title,
     normalize_area,
     normalize_zone_name,
     render_map_png,
 )
+
+# Speeds the fake node hands to twist_from_keys, standing in for the real
+# node's parameters.
+FAKE_LINEAR = 0.18
+FAKE_ANGULAR = 1.0
 
 
 class FakeLogger:
@@ -57,7 +67,7 @@ class FakeZones:
 class FakeNode:
     """Stub implementing the node interface build_app depends on."""
 
-    def __init__(self, zones=None, events=None, map_snapshot=None, pose=None):
+    def __init__(self, zones=None, events=None, map_snapshot=None, pose=None, memory=None):
         self.events = FakeEvents(events)
         self.zones = FakeZones(zones)
         self.published_goals = []
@@ -65,6 +75,17 @@ class FakeNode:
         self._map_snapshot = map_snapshot
         self._pose = pose
         self._logger = FakeLogger()
+        # Memory, driving and map-saving state, recorded for assertions.
+        self.memory_calls = []
+        self.memory_result = memory or {
+            'ok': True, 'items': [], 'stats': {}, 'map_id': '', 'error': '',
+        }
+        self.drive_calls = []
+        self.stop_calls = 0
+        self.saved_maps = []
+        self.save_map_result = {
+            'ok': True, 'result': {'map_id': 'casa', 'path': '/tmp/casa.posegraph'}, 'error': '',
+        }
 
     def get_logger(self):
         return self._logger
@@ -80,6 +101,25 @@ class FakeNode:
 
     def get_robot_pose(self):
         return self._pose
+
+    def inspect_memory(self, collection, query, limit, active_map_only):
+        self.memory_calls.append((collection, query, limit, active_map_only))
+        return self.memory_result
+
+    def save_map(self, name):
+        self.saved_maps.append(name)
+        return self.save_map_result
+
+    def drive(self, keys, boost=False):
+        # The real node turns keys into a velocity with exactly this function;
+        # the stub keeps that part real so the endpoint is tested end to end.
+        self.drive_calls.append((list(keys), boost))
+        linear, angular = twist_from_keys(keys, FAKE_LINEAR, FAKE_ANGULAR, boost=boost)
+        return {'linear': linear, 'angular': angular, 'driving': bool(linear or angular)}
+
+    def stop_driving(self):
+        self.stop_calls += 1
+        return {'linear': 0.0, 'angular': 0.0, 'driving': False}
 
 
 @pytest.fixture
@@ -148,7 +188,9 @@ def test_saving_a_zone_stores_it_and_indexes_it_in_memory(client, node):
         'name': 'cocina', 'x_min': 0.0, 'y_min': 0.0, 'x_max': 1.0, 'y_max': 2.0,
     })
     assert response.status_code == 200
-    assert response.json() == {'ok': True, 'name': 'cocina'}
+    # room_type is what the name was recognized as (ADR-022); the room-type
+    # tests below cover the cases that matter.
+    assert response.json() == {'ok': True, 'name': 'cocina', 'room_type': 'kitchen'}
     assert node.zones.load_all()['cocina'] == {
         'x_min': 0.0, 'y_min': 0.0, 'x_max': 1.0, 'y_max': 2.0,
     }
@@ -257,6 +299,207 @@ def test_map_png_endpoint_is_404_before_slam_publishes(client):
     assert client.get('/api/map/png').status_code == 404
 
 
+# --- /api/memory -----------------------------------------------------------
+
+MEMORY_ITEMS = [
+    {
+        'id': 'zone-cocina',
+        'document': 'kitchen at (x=1.25, y=-0.25) in cocina: User-defined zone "cocina" ...',
+        'metadata': {
+            'label': 'kitchen', 'room_zone': 'cocina',
+            'pose_x': 1.25, 'pose_y': -0.25, 'map_id': 'abc123',
+        },
+        'score': 0.61,
+    },
+    {
+        'id': 'environment_rules-0',
+        'document': '## Safety rules\n\nThe robot must stop and report ...',
+        'metadata': {'source': 'environment_rules.md', 'chunk_index': 0},
+        'score': 0.42,
+    },
+    {
+        'id': 'scene-2.0-1.0',
+        'document': 'area at (x=2.00, y=1.00) in unknown area: predominantly white ...',
+        'metadata': {'label': 'area', 'pose_x': 2.0, 'pose_y': 1.0, 'map_id': 'dead-map'},
+        'score': 0.31,
+    },
+]
+
+
+def _memory_node(**overrides):
+    memory = {
+        'ok': True, 'items': MEMORY_ITEMS, 'map_id': 'abc123',
+        'stats': {'semantic_map': 12, 'knowledge_base': 30, 'task_history': 4}, 'error': '',
+    }
+    memory.update(overrides)
+    return FakeNode(memory=memory)
+
+
+def test_memory_flattens_entries_into_the_fields_the_viewer_renders():
+    body = TestClient(build_app(_memory_node())).get('/api/memory').json()
+    assert body['ok'] is True
+    assert body['collection'] == 'semantic_map'
+    assert body['map_id'] == 'abc123'
+    assert body['stats']['knowledge_base'] == 30
+
+    zone, knowledge, scene = body['entries']
+    assert zone['title'] == 'kitchen · cocina'
+    assert (zone['x'], zone['y']) == (1.25, -0.25)
+    assert zone['score'] == 0.61
+    assert zone['stale'] is False
+    # A knowledge chunk has no pose at all; the UI must not try to map it.
+    assert (knowledge['x'], knowledge['y']) == (None, None)
+    assert knowledge['source'] == 'environment_rules.md'
+    # And a memory written against another map is flagged, not hidden.
+    assert scene['stale'] is True
+
+
+def test_memory_defaults_to_the_active_map_and_a_bounded_page(client, node):
+    client.get('/api/memory')
+    assert node.memory_calls == [('semantic_map', '', 50, True)]
+
+
+def test_memory_forwards_the_collection_query_and_scope(client, node):
+    client.get('/api/memory', params={
+        'collection': 'task_history', 'q': '  donde se cocina  ',
+        'limit': 7, 'active_only': 'false',
+    })
+    assert node.memory_calls == [('task_history', 'donde se cocina', 7, False)]
+
+
+@pytest.mark.parametrize(('requested', 'expected'), [(99999, MAX_MEMORY_ENTRIES), (0, 1), (-5, 1)])
+def test_memory_clamps_the_requested_limit(client, node, requested, expected):
+    """One browser panel must not be able to ask for the whole database."""
+    client.get('/api/memory', params={'limit': requested})
+    assert node.memory_calls[0][2] == expected
+
+
+def test_memory_reports_a_down_service_without_failing_the_request():
+    """rag_node starts after the dashboard; the panel says so instead of erroring."""
+    node = _memory_node(ok=False, items=[], error='/rag/inspect unavailable')
+    response = TestClient(build_app(node)).get('/api/memory')
+    assert response.status_code == 200
+    body = response.json()
+    assert body['ok'] is False
+    assert body['error'] == '/rag/inspect unavailable'
+    assert body['entries'] == []
+
+
+# --- /api/teleop -----------------------------------------------------------
+
+def test_teleop_turns_held_keys_into_a_velocity(client, node):
+    body = client.post('/api/teleop', json={'keys': ['w', 'a']}).json()
+    assert body['ok'] is True and body['driving'] is True
+    assert body['linear'] == pytest.approx(FAKE_LINEAR)
+    assert body['angular'] == pytest.approx(FAKE_ANGULAR)
+    assert node.drive_calls == [(['w', 'a'], False)]
+
+
+def test_teleop_without_keys_is_a_stop_and_not_an_error(client, node):
+    """The browser sends the empty set on key release; that is a valid command."""
+    body = client.post('/api/teleop', json={}).json()
+    assert (body['linear'], body['angular'], body['driving']) == (0.0, 0.0, False)
+    assert node.drive_calls == [([], False)]
+
+
+def test_teleop_forwards_the_boost_flag(client, node):
+    client.post('/api/teleop', json={'keys': ['w'], 'boost': True})
+    assert node.drive_calls == [(['w'], True)]
+
+
+def test_teleop_stop_releases_the_robot(client, node):
+    body = client.post('/api/teleop/stop').json()
+    assert body == {'ok': True, 'linear': 0.0, 'angular': 0.0, 'driving': False}
+    assert node.stop_calls == 1
+
+
+# --- /api/map/save ---------------------------------------------------------
+
+def test_saving_the_map_normalizes_the_name_and_returns_the_skill_result(client, node):
+    response = client.post('/api/map/save', json={'name': '  Casa De Diego '})
+    assert response.status_code == 200
+    assert response.json() == {
+        'ok': True, 'result': {'map_id': 'casa', 'path': '/tmp/casa.posegraph'},
+    }
+    # The name doubles as a directory and as a map-session id (ADR-019).
+    assert node.saved_maps == ['casa_de_diego']
+
+
+def test_saving_the_map_without_a_name_uses_the_active_session(client, node):
+    client.post('/api/map/save', json={})
+    assert node.saved_maps == ['']
+
+
+def test_a_failed_map_save_is_a_503_carrying_the_reason(client, node):
+    node.save_map_result = {'ok': False, 'result': {}, 'error': 'slam_toolbox not running'}
+    response = client.post('/api/map/save', json={'name': 'casa'})
+    assert response.status_code == 503
+    assert response.json() == {'ok': False, 'error': 'slam_toolbox not running'}
+
+
+# --- /api/zones/here -------------------------------------------------------
+
+def test_naming_the_room_the_robot_is_in_stores_a_box_around_it():
+    """The manual-mapping flow: drive in, name it, carry on."""
+    node = FakeNode(pose={'x': 1.0, 'y': -2.0})
+    response = TestClient(build_app(node)).post(
+        '/api/zones/here', json={'name': ' Cocina ', 'size': 2.0},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body['name'] == 'cocina'
+    assert body['room_type'] == 'kitchen'     # recognized, so it is findable by function
+    assert node.zones.load_all()['cocina'] == {
+        'x_min': 0.0, 'y_min': -3.0, 'x_max': 2.0, 'y_max': -1.0,
+    }
+    assert node.indexed_zones == [('cocina', body['area'])]
+
+
+def test_a_zone_here_is_never_smaller_than_the_robot():
+    node = FakeNode(pose={'x': 0.0, 'y': 0.0})
+    body = TestClient(build_app(node)).post(
+        '/api/zones/here', json={'name': 'cocina', 'size': 0.01},
+    ).json()
+    assert body['area'] == {'x_min': -0.2, 'y_min': -0.2, 'x_max': 0.2, 'y_max': 0.2}
+
+
+def test_naming_a_zone_here_is_rejected_when_the_robot_pose_is_unknown(client, node):
+    """Before SLAM publishes map->base_link there is no "here" to name."""
+    response = client.post('/api/zones/here', json={'name': 'cocina'})
+    assert response.status_code == 409
+    assert node.zones.load_all() == {}
+    assert node.indexed_zones == []
+
+
+@pytest.mark.parametrize('name', ['', '   '])
+def test_naming_a_zone_here_without_a_name_is_rejected(name):
+    node = FakeNode(pose={'x': 0.0, 'y': 0.0})
+    response = TestClient(build_app(node)).post('/api/zones/here', json={'name': name})
+    assert response.status_code == 400
+    assert node.zones.load_all() == {}
+
+
+# --- room types ------------------------------------------------------------
+
+def test_saving_a_zone_reports_the_room_type_it_recognized(client):
+    body = client.post('/api/zones', json={
+        'name': 'cocina', 'x_min': 0, 'y_min': 0, 'x_max': 1, 'y_max': 1,
+    }).json()
+    assert body['room_type'] == 'kitchen'
+
+
+def test_a_zone_name_with_no_room_meaning_reports_none(client):
+    body = client.post('/api/zones', json={
+        'name': 'estacion_a', 'x_min': 0, 'y_min': 0, 'x_max': 1, 'y_max': 1,
+    }).json()
+    assert body['room_type'] == ''
+
+
+def test_room_names_are_offered_for_autocomplete(client):
+    names = client.get('/api/room-types').json()['names']
+    assert 'cocina' in names and 'dormitorio' in names
+
+
 # --- helpers ---------------------------------------------------------------
 
 @pytest.mark.parametrize(('raw', 'expected'), [
@@ -274,6 +517,48 @@ def test_normalize_area_orders_corners():
     assert normalize_area(3.0, 4.0, -1.0, -2.0) == {
         'x_min': -1.0, 'y_min': -2.0, 'x_max': 3.0, 'y_max': 4.0,
     }
+
+
+@pytest.mark.parametrize(('size', 'expected_half'), [(2.0, 1.0), (0.5, 0.25), (0.0, 0.2)])
+def test_box_around_centers_on_the_point_and_has_a_floor(size, expected_half):
+    box = box_around(1.0, -1.0, size)
+    assert box == {
+        'x_min': 1.0 - expected_half, 'y_min': -1.0 - expected_half,
+        'x_max': 1.0 + expected_half, 'y_max': -1.0 + expected_half,
+    }
+
+
+@pytest.mark.parametrize(('metadata', 'expected'), [
+    ({'label': 'kitchen', 'room_zone': 'cocina'}, 'kitchen · cocina'),
+    ({'label': 'area'}, 'area'),
+    ({'room_zone': 'cocina'}, 'cocina'),
+    ({'source': 'environment_rules.md'}, 'environment_rules.md'),
+    ({'task_id': '1721'}, '1721'),
+    ({}, 'raw-id'),
+])
+def test_memory_entry_title_uses_whatever_the_entry_knows_about_itself(metadata, expected):
+    assert memory_entry_title(metadata, 'raw-id') == expected
+
+
+def test_format_memory_entry_marks_a_memory_from_another_map_as_stale():
+    entry = format_memory_entry(
+        {'id': 'x', 'document': 'd', 'score': 0.5, 'metadata': {'map_id': 'old'}}, 'current',
+    )
+    assert entry['stale'] is True
+
+
+def test_format_memory_entry_does_not_call_an_untagged_memory_stale():
+    """knowledge_base carries no map_id at all; it is valid on every map."""
+    entry = format_memory_entry(
+        {'id': 'x', 'document': 'd', 'score': 0.5, 'metadata': {'source': 'a.md'}}, 'current',
+    )
+    assert entry['stale'] is False
+
+
+@pytest.mark.parametrize('pose', [{}, {'pose_x': 'nope', 'pose_y': None}])
+def test_format_memory_entry_reports_no_coordinates_rather_than_fake_ones(pose):
+    entry = format_memory_entry({'id': 'x', 'document': 'd', 'metadata': pose}, '')
+    assert (entry['x'], entry['y']) == (None, None)
 
 
 # --- map rendering ---------------------------------------------------------

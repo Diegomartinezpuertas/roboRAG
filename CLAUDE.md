@@ -48,10 +48,11 @@ Gazebo without prior confirmation.
 | Embeddings | bge-m3 | Ollama | Multilingual, for ChromaDB (ADR-014 / rag-analysis §2.4) |
 | Vector DB | ChromaDB | pip | Persistent at ~/robot_ws/data/chroma_db |
 | Zones store | SQLite (stdlib) | — | ~/robot_ws/data/zones.db (ADR-011) |
+| Room meaning | Static table | robot_zones | Room name → what it is for, ES+EN (ADR-022) |
 | Navigation | Nav2 | ros-jazzy | SimpleCommander API |
 | SLAM | SLAM Toolbox | ros-jazzy | Live mapping (no AMCL, ADR-004) |
 | Middleware | CycloneDDS | ros-jazzy | Pinned to loopback via cyclonedds.xml (ADR-006) |
-| Dashboard | FastAPI + uvicorn | pip | http://localhost:8080 — observability + goals (ADR-005) |
+| Dashboard | FastAPI + uvicorn | pip | http://localhost:8080 — observability, goals, memory viewer (ADR-024), WASD driving (ADR-023) |
 
 No agent framework: skills are dispatched directly (`robot_brain/toolkit.py`).
 LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
@@ -64,11 +65,11 @@ LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
 ~/robot_ws/
 ├── src/
 │   ├── robot_interfaces/   # Custom ROS 2 msgs/srvs (build first)
-│   ├── robot_zones/        # Shared SQLite store of named zones
+│   ├── robot_zones/        # Shared SQLite store of named zones + room meanings
 │   ├── robot_rag/          # ChromaDB + embeddings + semantic memory
 │   ├── robot_skills/       # Executable nodes: nav, explore, perceive, report
 │   ├── robot_brain/        # LLM planner (cognitive core)
-│   ├── robot_dashboard/    # Web dashboard: observability + goals (text/voice)
+│   ├── robot_dashboard/    # Web dashboard: observability, goals, RAG viewer, teleop
 │   └── robot_bringup/      # Launch files for the whole system
 ├── eval/                   # RAG ablation benchmark (seed, run, score, report)
 │                           #   scoring.py is pure logic — no ROS, unit-tested
@@ -233,11 +234,20 @@ ros2 topic echo /robot/response
 ros2 service call /rag/query robot_interfaces/srv/QueryRAG \
   "{query_text: 'where is the kitchen', collection_name: 'knowledge_base', top_k: 3}"
 
-# Layer 1 — pure logic, no ROS needed (124 tests) + lint
+# Look inside the memory as a human (ids + metadata + scores; empty query_text
+# browses without embedding anything). The dashboard's memory panel reads this.
+ros2 service call /rag/inspect robot_interfaces/srv/InspectMemory \
+  "{collection_name: 'semantic_map', query_text: '', limit: 5, active_map_only: true}"
+
+# Map the house by hand first: drive with WASD in the dashboard, name each room
+# with "Marcar zona aquí", then save the map. Nav2 is optional for that run.
+ros2 launch robot_bringup full_system.launch.py use_nav2:=false
+
+# Layer 1 — pure logic, no ROS needed (218 tests) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
 
-# Layer 2 — node level, needs a sourced workspace (21 tests). The env var is
+# Layer 2 — node level, needs a sourced workspace (25 tests). The env var is
 # required: Jazzy's launch_testing pytest plugin breaks collection (ADR-018).
 source ~/robot_ws/setup_env.sh
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all
@@ -248,7 +258,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 124 + 21, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 218 + 25, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 

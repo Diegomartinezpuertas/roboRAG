@@ -1,5 +1,6 @@
-"""ROS 2 node exposing the RAG query and semantic map update services."""
+"""ROS 2 node exposing the RAG query, inspection and semantic map update services."""
 
+import json
 import os
 from pathlib import Path
 
@@ -7,7 +8,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 
-from robot_interfaces.srv import QueryRAG, UpdateMap
+from robot_interfaces.srv import InspectMemory, QueryRAG, UpdateMap
 
 from robot_rag.chroma_manager import ChromaManager
 from robot_rag.embedder import OllamaEmbedder
@@ -21,12 +22,23 @@ from robot_rag.task_history import TaskHistoryStore
 # every path is still overridable as a ROS 2 parameter.
 WS_ROOT = Path(os.environ.get('ROBOT_WS', Path.home() / 'robot_ws'))
 
+# /rag/inspect serves a human browsing the memory, not the planner: the limits
+# bound how much JSON one request can put on the wire.
+INSPECT_DEFAULT_LIMIT = 50
+INSPECT_MAX_LIMIT = 200
+# Score reported for a browsed (unqueried) entry — there is nothing to be
+# similar to, and 0.0 would read as "completely irrelevant" in the UI.
+BROWSE_SCORE = -1.0
+
 
 class RagNode(Node):
     """ROS 2 node that exposes ChromaDB-backed semantic memory over services.
 
     Services (server):
         /rag/query (QueryRAG): Retrieve relevant context from a collection.
+        /rag/inspect (InspectMemory): Browse or search a collection with ids,
+            metadata and scores — what the dashboard's memory viewer reads
+            (ADR-024).
         /rag/update_map (UpdateMap): Insert or update a semantic object.
 
     Parameters:
@@ -100,6 +112,9 @@ class RagNode(Node):
         self._update_map_srv = self.create_service(
             UpdateMap, '/rag/update_map', self._handle_update_map,
         )
+        self._inspect_srv = self.create_service(
+            InspectMemory, '/rag/inspect', self._handle_inspect,
+        )
 
         self.get_logger().info('rag_node ready')
 
@@ -125,6 +140,59 @@ class RagNode(Node):
 
         response.contexts = contexts
         response.scores = scores
+        response.success = True
+        response.error_msg = ''
+        return response
+
+    def _handle_inspect(self, request: InspectMemory.Request, response: InspectMemory.Response):
+        # Read-only view of the memory for humans: browse a collection as it is
+        # stored, or search it semantically, always with ids and metadata so
+        # the caller can render coordinates, map session and provenance rather
+        # than a wall of text. Unlike /rag/query this never filters silently —
+        # active_map_only is the caller's explicit choice, so the viewer can
+        # show exactly what the planner would see, or everything there is
+        # (ADR-024).
+        limit = request.limit if request.limit > 0 else INSPECT_DEFAULT_LIMIT
+        limit = min(limit, INSPECT_MAX_LIMIT)
+        scoped = (
+            request.active_map_only
+            and request.collection_name in self._coordinate_collections
+        )
+        where = {'map_id': self._map_id} if scoped else None
+
+        response.map_id = self._map_id
+        response.stats_json = json.dumps(self._chroma.stats())
+        query_text = request.query_text.strip()
+        try:
+            if query_text:
+                embedding = self._embedder.embed_text(query_text)
+                items = self._chroma.query_documents(
+                    request.collection_name, embedding, limit, where=where,
+                )
+            else:
+                items = [
+                    dict(item, score=BROWSE_SCORE)
+                    for item in self._chroma.list_documents(
+                        request.collection_name, limit, where=where,
+                    )
+                ]
+        except ValueError as exc:
+            # Unknown collection — a caller mistake, reported as such.
+            response.items_json = '[]'
+            response.success = False
+            response.error_msg = str(exc)
+            return response
+        except Exception as exc:
+            # Anything else is infrastructure (the embedding backend is down,
+            # the store is locked). The viewer stays usable: it still gets the
+            # collection counts above, plus the reason the list is empty.
+            self.get_logger().warning(f'Memory inspection failed: {exc}')
+            response.items_json = '[]'
+            response.success = False
+            response.error_msg = str(exc)
+            return response
+
+        response.items_json = json.dumps(items, ensure_ascii=False)
         response.success = True
         response.error_msg = ''
         return response

@@ -7,11 +7,11 @@ way to physical robot actions in simulation:
 
 ```
 robot_interfaces  → shared msgs/srvs (build first)
-robot_zones       → shared SQLite store of named zones
+robot_zones       → shared SQLite store of named zones + what each room is for
 robot_rag         → semantic memory (ChromaDB) + RAG
 robot_skills      → physical/perception skill execution
 robot_brain       → LLM planning + orchestration
-robot_dashboard   → web dashboard: observability + goals (text/voice)
+robot_dashboard   → web dashboard: observability, goals, memory viewer, manual driving
 robot_bringup     → launch files and system integration
 ```
 
@@ -19,7 +19,7 @@ robot_bringup     → launch files and system integration
 
 ### `rag_node` (robot_rag)
 
-Exposes `/rag/query` and `/rag/update_map`. Maintains three ChromaDB
+Exposes `/rag/query`, `/rag/inspect` and `/rag/update_map`. Maintains three ChromaDB
 collections (`semantic_map`, `knowledge_base`, `task_history`), each with
 `hnsw:space: cosine`. On startup it ingests `data/knowledge/*.md` into
 `knowledge_base` (Markdown-section chunking — headers grouped with their
@@ -30,6 +30,12 @@ document text** ("`refrigerator at (x=3.42, y=-1.15) in kitchen: ...`") —
 `QueryRAG` returns only document text, so this is the channel through which
 the planner learns *where* a remembered thing is
 ([ADR-012](decisions/ADR-012-navigable-rag-post-execution-report.md)).
+
+`/rag/inspect` is the read-only counterpart of `/rag/query`, for humans rather
+than the planner: it browses a collection as stored (no embedding call) or
+searches it, and returns ids, metadata and scores so the dashboard can render
+memories as structured cards instead of prose
+([ADR-024](decisions/ADR-024-memory-inspection-service.md)).
 
 Embeddings via `bge-m3` (Ollama, 1024 dims; multilingual — chosen over
 nomic-embed-text on measured retrieval data, see docs/rag-analysis.md §2.4). See
@@ -45,6 +51,14 @@ created on the dashboard. Written by `dashboard_node`; read by
 `llm_planner_node` (known-zones list in the prompt). See
 [ADR-011](decisions/ADR-011-rag-quality-zones-sqlite.md) (supersedes
 [ADR-008](decisions/ADR-008-user-zones.md), which used a flat JSON file).
+
+`room_semantics.py` — the other half of what a zone name means. A table of room
+types (Spanish and English aliases, plus one sentence per language on what
+happens in that room) turns "cocina" into text a functional query can match, so
+"ve donde se suele cocinar" retrieves the kitchen. Used by `dashboard_node` when
+indexing a zone and by `skills_executor_node` when storing a scene observed
+inside one; a name it does not recognize is left plain
+([ADR-022](decisions/ADR-022-room-semantics.md)).
 
 ### `skills_executor_node` (robot_skills)
 
@@ -107,11 +121,31 @@ drag-to-select area creation (saved to SQLite and indexed into semantic
 memory). Goals can be typed or spoken (browser Web Speech API). See
 [ADR-005](decisions/ADR-005-dashboard-fastapi.md).
 
+Two further panels make the system legible and drivable from the same window:
+
+- **Memory viewer.** Cards per memory — title, similarity bar, coordinates,
+  zone, provenance — over `/rag/inspect`, with each coordinate memory drawn on
+  the map at the pose it was learned at, and memories from a dead map session
+  greyed out and labelled (ADR-019 made visible). Browsing costs no embedding
+  call; searching costs one ([ADR-024](decisions/ADR-024-memory-inspection-service.md)).
+- **Manual driving.** WASD publishes to `/cmd_vel` so a person can map the house
+  by hand before the agent is involved, name the room the robot is standing in,
+  and save the resulting map. The browser sends *keys*, the node owns the
+  speeds, and a deadman stops the robot if the refreshes stop arriving; while
+  nobody drives, nothing is published and the topic stays Nav2's
+  ([ADR-023](decisions/ADR-023-browser-teleop.md)).
+
+The HTTP layer (`web_api.py`) holds no `rclpy` import and is built against a
+node *interface*, so every endpoint is exercised in the pure-logic suite; the
+velocity and deadman logic lives in `teleop.py` for the same reason
+([ADR-018](decisions/ADR-018-test-strategy.md)).
+
 ## Data flow
 
 ```
-/robot/goal (String)
-    │
+/robot/goal (String)                      dashboard_node ──/rag/inspect──► rag_node
+    │                                         │  (memory viewer, read-only)
+    │                                         └──/cmd_vel──► robot (manual driving)
     ▼
 llm_planner_node ──/rag/query──► rag_node ──► ChromaDB
     │
