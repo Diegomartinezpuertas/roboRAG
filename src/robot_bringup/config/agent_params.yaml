@@ -29,6 +29,11 @@ rag_node:
       - "knowledge_base"
       - "task_history"
     top_k_default: 5
+    # A re-observed place with the same look (colour set + clutter class), zone
+    # and map session within this many meters merges into its existing memory
+    # instead of being stored again (ADR-025). A TurtleBot3-house room is 3-4 m
+    # across; 0 disables merging.
+    scene_merge_radius: 2.0
 
 # skills_executor_node has no tuning parameters — logs_dir and zones_db both
 # come from ROBOT_WS (see the header). An empty `ros__parameters:` block is

@@ -22,6 +22,7 @@ from tf2_ros.transform_listener import TransformListener
 from robot_interfaces.msg import SemanticObject
 from robot_interfaces.srv import ExecuteSkill, UpdateMap
 from robot_rag.map_session import MapSession, read_active_map_id
+from robot_rag.scene_merge import scene_group_key
 from robot_zones.room_semantics import classify_room, scene_context
 from robot_zones.zone_store import ZoneStore
 
@@ -334,9 +335,13 @@ class SkillsExecutorNode(Node):
     def _store_scene_result(self, result: dict, zone: str = '') -> dict:
         """Upserts a scene-description result (perceive or scan_360) into memory.
 
-        The object_id is derived from the pose rounded to a 0.5 m grid, so
-        re-visiting a place UPDATES its description instead of accumulating
-        near-duplicates.
+        The observation carries a group key built from what the descriptor
+        measured (the set of dominant colors plus the clutter class), so
+        rag_node can fold a re-observation of the same look, in the same zone
+        and map session, into the memory already stored nearby instead of
+        storing the place again (ADR-025). The proposed object_id — the pose on
+        a 0.5 m grid — is only used when the observation is genuinely new;
+        `object_id` in the result is whichever id the memory ended up under.
 
         What the sensors measure is colors and clutter — nothing in that says
         "kitchen". So when the spot falls inside a zone whose name denotes a
@@ -353,14 +358,17 @@ class SkillsExecutorNode(Node):
         context = scene_context(zone)
         if context:
             description = f'{description} {context}'
-        result['object_id'] = object_id
         # Reported back to the planner (and from there to the user): "I saw
         # this, and it was in the kitchen" is a better answer than "I saw this".
         result['zone'] = zone
-        result['stored'] = self._update_map(
+        stored = self._update_map(
             object_id, room.key if room is not None else 'area',
             description, zone, pose_x, pose_y,
+            group_key=scene_group_key(result.get('colors', []), result.get('clutter', 'unknown')),
         )
+        result['stored'] = stored['success']
+        result['object_id'] = stored['object_id'] or object_id
+        result['merged'] = stored['merged']
         return result
 
     def _zone_at(self, x: float, y: float) -> str:
@@ -372,11 +380,18 @@ class SkillsExecutorNode(Node):
 
     def _update_map(
         self, object_id: str, label: str, description: str, zone: str,
-        pose_x: float, pose_y: float,
-    ) -> bool:
+        pose_x: float, pose_y: float, group_key: str = '',
+    ) -> dict:
+        """Stores one observation through /rag/update_map.
+
+        Returns:
+            Dict with "success", the "object_id" it was stored under (empty on
+            failure) and whether it was "merged" into an existing memory.
+        """
+        failed = {'success': False, 'object_id': '', 'merged': False}
         if not self._update_map_client.wait_for_service(timeout_sec=2.0):
             self.get_logger().warning('/rag/update_map unavailable, skipping semantic map update')
-            return False
+            return failed
 
         semantic_object = SemanticObject()
         semantic_object.object_id = object_id
@@ -387,12 +402,15 @@ class SkillsExecutorNode(Node):
         semantic_object.description = description
         semantic_object.room_zone = zone
         semantic_object.timestamp = self.get_clock().now().to_msg()
+        semantic_object.group_key = group_key
 
         request = UpdateMap.Request(object_data=semantic_object)
         future = self._update_map_client.call_async(request)
         self._wait_for_future(future, timeout_sec=5.0)
         response = future.result()
-        return bool(response and response.success)
+        if not (response and response.success):
+            return failed
+        return {'success': True, 'object_id': response.object_id, 'merged': response.merged}
 
     def _run_report(self, params: dict) -> dict:
         task_context = {

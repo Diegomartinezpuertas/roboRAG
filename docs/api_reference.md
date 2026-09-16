@@ -13,6 +13,7 @@
 | description | string | Free-text description (scene descriptor output or user text) |
 | room_zone | string | Semantic zone, e.g. "kitchen", "corridor" |
 | timestamp | builtin_interfaces/Time | Last observed |
+| group_key | string | Observations sharing it within `scene_merge_radius` (same map session and zone) are one memory; empty = never merged ([ADR-025](decisions/ADR-025-scene-memory-merging.md)) |
 
 ## Services
 
@@ -80,9 +81,15 @@ Inserts or updates a detected object in the `semantic_map` collection.
 |-------|------|-------------|
 | success | bool | False if the update failed |
 | error_msg | string | Empty when success=True |
+| object_id | string | Id the object was stored under — an existing memory's id when merged |
+| merged | bool | True if folded into an existing memory instead of creating one |
 
 Served by `rag_node`. Called by `skills_executor_node` after each `perceive`
-and by `dashboard_node` when a zone is created.
+and by `dashboard_node` when a zone is created. An object with a `group_key`
+is merged into the nearest memory of the same key, map session and zone within
+`scene_merge_radius`: that memory keeps its id and anchor pose, its description
+is refreshed and its `observations` count raised
+([ADR-025](decisions/ADR-025-scene-memory-merging.md)).
 
 ### `/skills/execute` (ExecuteSkill.srv)
 
@@ -109,8 +116,8 @@ Served by `skills_executor_node`.
 |---|---|---|
 | navigate | `{"zone": "kitchen"}` or `{"x": 1.0, "y": 0.5, "theta": 0.0}` | `{"reached": bool, "message": str}` |
 | explore | `{"duration_sec": 30, "zone": "kitchen" (optional)}` | `{"visited_frontiers": int, "message": str}` |
-| perceive | `{"zone": "kitchen" (optional)}` | `{"colors": [...], "clutter": str, "obstacle_clusters": int, "description": str, "zone": str, "object_id": str, "stored": bool}` |
-| scan_360 | `{"steps": 8 (optional, 4-16), "zone": "kitchen" (optional)}` | `{"colors": [...], "clutter": str, "obstacle_clusters": int, "description": str, "zone": str, "object_id": str, "headings_completed": int, "stored": bool}` |
+| perceive | `{"zone": "kitchen" (optional)}` | `{"colors": [...], "clutter": str, "obstacle_clusters": int, "description": str, "zone": str, "object_id": str, "stored": bool, "merged": bool}` |
+| scan_360 | `{"steps": 8 (optional, 4-16), "zone": "kitchen" (optional)}` | `{"colors": [...], "clutter": str, "obstacle_clusters": int, "description": str, "zone": str, "object_id": str, "headings_completed": int, "stored": bool, "merged": bool}` |
 | report | `{"message": "...", "goal_text": "..."}` | `{"published": bool}` |
 | save_map † | `{"name": "home" (optional)}` | `{"map_id": str, "path": str, "message": str}` |
 
@@ -231,11 +238,16 @@ session.
 | query | string | The query, trimmed |
 | map_id | string | Active map-session id |
 | stats | object | `{collection_name: document_count}` for every collection |
-| entries | object[] | `{id, title, document, score, label, zone, source, x, y, map_id, stale}` |
+| entries | object[] | `{id, title, document, score, label, zone, source, x, y, map_id, observations, stale, count, ids, facts}` |
 | error | string | Empty when ok |
 
 `score` is `-1.0` while browsing, `x`/`y` are `null` for entries without a pose,
-and `stale` marks a coordinate memory written against a different map. **Always
+`stale` marks a coordinate memory written against a different map, and
+`observations` is how many observations a merged memory stands for. Entries are
+**grouped for display**: memories at the exact same spot, or with identical
+documents, come back as one entry with `count`, all member `ids`, and each
+member's `{title, document}` in `facts` — storage keeps them apart
+([ADR-025](decisions/ADR-025-scene-memory-merging.md)). **Always
 `200`**, including when `rag_node` is down: the dashboard starts before it, and
 the panel shows the reason rather than failing the request.
 
@@ -279,6 +291,7 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 | rag_node | `embedding_model` (`bge-m3`) | Ollama embedding model (see [rag-analysis](rag-analysis.md) §2.4) |
 | rag_node | `collections` | Collections created on startup |
 | rag_node | `top_k_default` (5) | Results returned when a request sets `top_k <= 0` |
+| rag_node | `scene_merge_radius` (2.0) | Meters within which a re-observed place of the same look, zone and map session merges into its existing memory; `<= 0` disables ([ADR-025](decisions/ADR-025-scene-memory-merging.md)) |
 | rag_node | `map_session_id` ('') | Pin the memory session to a saved map's id on reload ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)); empty continues the current session |
 | dashboard_node | `http_host` (`127.0.0.1`) / `http_port` (8080) | HTTP bind address and port — loopback by default, the API is unauthenticated |
 | dashboard_node | `cmd_vel_topic` (`/cmd_vel`) | Topic for manual driving commands |

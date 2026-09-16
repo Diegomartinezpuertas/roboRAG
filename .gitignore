@@ -9,6 +9,8 @@ agent_env/
 
 # Runtime data — regenerated, not committed
 data/chroma_db/
+# compact_memory --apply backups (ADR-025)
+data/chroma_db.bak-*/
 data/logs/
 data/zones.db
 data/zones.db-shm

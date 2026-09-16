@@ -747,6 +747,16 @@ function renderMemTabs() {
   }
 }
 
+// Un grupo con hechos distintos (p. ej. un landmark y su descripción en el mismo
+// punto) los lista todos; un grupo de documentos idénticos muestra uno solo.
+function docHtml(entry) {
+  const distinct = [...new Set((entry.facts || []).map(f => f.document))];
+  if (distinct.length <= 1) return esc(entry.document);
+  return entry.facts
+    .filter((f, i, all) => all.findIndex(g => g.document === f.document) === i)
+    .map(f => `<div>• <b>${esc(f.title)}</b>: ${esc(f.document)}</div>`).join('');
+}
+
 function renderMemList() {
   const el = document.getElementById('memList');
   el.innerHTML = '';
@@ -768,6 +778,12 @@ function renderMemList() {
     }
     if (entry.zone) tags.push(`<span class="chip">🏠 ${esc(entry.zone)}</span>`);
     if (entry.source) tags.push(`<span class="chip">📄 ${esc(entry.source)}</span>`);
+    if (entry.observations > 1) {
+      tags.push(`<span class="chip" title="Observaciones del mismo sitio fusionadas en este recuerdo">👁 visto ${entry.observations} veces</span>`);
+    }
+    if (entry.count > 1) {
+      tags.push(`<span class="chip" title="Recuerdos del mismo sitio o idénticos, agrupados solo en pantalla">×${entry.count} recuerdos</span>`);
+    }
     if (entry.stale) tags.push(`<span class="chip" title="Escrita en otro mapa: sus coordenadas ya no valen">🗺 otro mapa</span>`);
     const score = entry.score >= 0
       ? `<div class="mem-score" title="Similitud con la búsqueda: ${entry.score.toFixed(3)}">` +
@@ -777,7 +793,7 @@ function renderMemList() {
       `<div class="title">${esc(entry.title)}</div>` +
       score +
       `<div class="mem-tags">${tags.join('')}</div>` +
-      `<div class="doc">${esc(entry.document)}</div>`;
+      `<div class="doc">${docHtml(entry)}</div>`;
     if (entry.x !== null && entry.y !== null && !entry.stale) {
       const actions = document.createElement('div');
       actions.className = 'mem-actions';

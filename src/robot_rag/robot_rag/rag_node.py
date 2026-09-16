@@ -14,6 +14,7 @@ from robot_rag.chroma_manager import ChromaManager
 from robot_rag.embedder import OllamaEmbedder
 from robot_rag.knowledge_base import KnowledgeBase
 from robot_rag.map_session import MapSession
+from robot_rag.scene_merge import DEFAULT_MERGE_RADIUS_M
 from robot_rag.semantic_map import SemanticMap
 from robot_rag.task_history import TaskHistoryStore
 
@@ -39,7 +40,8 @@ class RagNode(Node):
         /rag/inspect (InspectMemory): Browse or search a collection with ids,
             metadata and scores — what the dashboard's memory viewer reads
             (ADR-024).
-        /rag/update_map (UpdateMap): Insert or update a semantic object.
+        /rag/update_map (UpdateMap): Insert or update a semantic object, folding a
+            re-observed place into its existing memory (ADR-025).
 
     Parameters:
         ollama_base_url (str): Ollama server URL. Default: http://localhost:11434
@@ -53,6 +55,10 @@ class RagNode(Node):
             when reloading a saved map). Empty continues the persisted session.
         collections (list[str]): Collections to create on startup.
         top_k_default (int): Default number of results for queries. Default: 5
+        scene_merge_radius (float): Meters within which a re-observed place with
+            the same look (group key), map session and zone is folded into the
+            existing memory instead of stored again; <= 0 disables it.
+            Default: 2.0 (ADR-025)
     """
 
     def __init__(self) -> None:
@@ -73,6 +79,7 @@ class RagNode(Node):
             'collections', ['semantic_map', 'knowledge_base', 'task_history'],
         )
         self.declare_parameter('top_k_default', 5)
+        self.declare_parameter('scene_merge_radius', DEFAULT_MERGE_RADIUS_M)
 
         base_url = self.get_parameter('ollama_base_url').value
         embedding_model = self.get_parameter('embedding_model').value
@@ -96,7 +103,10 @@ class RagNode(Node):
 
         self._embedder = OllamaEmbedder(base_url, embedding_model)
         self._chroma = ChromaManager(chroma_db_path, collections)
-        self._semantic_map = SemanticMap(self._chroma, self._embedder)
+        self._semantic_map = SemanticMap(
+            self._chroma, self._embedder,
+            merge_radius=float(self.get_parameter('scene_merge_radius').value),
+        )
         self._knowledge_base = KnowledgeBase(self._chroma, self._embedder, knowledge_dir)
         self._task_history = TaskHistoryStore(self._chroma, self._embedder, logs_dir)
 
@@ -199,7 +209,9 @@ class RagNode(Node):
 
     def _handle_update_map(self, request: UpdateMap.Request, response: UpdateMap.Response):
         try:
-            self._semantic_map.upsert_object(request.object_data, self._map_id)
+            object_id, merged = self._semantic_map.upsert_object(
+                request.object_data, self._map_id,
+            )
         except Exception as exc:
             response.success = False
             response.error_msg = str(exc)
@@ -207,6 +219,8 @@ class RagNode(Node):
 
         response.success = True
         response.error_msg = ''
+        response.object_id = object_id
+        response.merged = merged
         return response
 
 

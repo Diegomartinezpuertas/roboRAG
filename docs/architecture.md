@@ -37,6 +37,12 @@ searches it, and returns ids, metadata and scores so the dashboard can render
 memories as structured cards instead of prose
 ([ADR-024](decisions/ADR-024-memory-inspection-service.md)).
 
+Scene observations are **merged on write**: a re-observed place of the same
+look (colour set + clutter class), zone and map session within 2 m updates the
+existing memory instead of adding another, and `compact_memory` applies the same
+rule to data stored before it existed
+([ADR-025](decisions/ADR-025-scene-memory-merging.md)).
+
 Embeddings via `bge-m3` (Ollama, 1024 dims; multilingual — chosen over
 nomic-embed-text on measured retrieval data, see docs/rag-analysis.md §2.4). See
 [ADR-001](decisions/ADR-001-chromadb.md) and

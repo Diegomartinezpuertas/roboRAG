@@ -28,7 +28,8 @@ jobs:
       - name: Unit tests (pytest)
         # The pure-logic modules: RAG chunking, plan parsing, prompt building,
         # frontier selection, the scene descriptor, the SQLite zone store, the
-        # room-meaning table (ADR-022), the teleop deadman (ADR-023), the
+        # room-meaning table (ADR-022), the teleop deadman (ADR-023), scene
+        # merging and memory compaction (ADR-025), the
         # ChromaDB wrapper, and the dashboard's HTTP layer — which is kept free
         # of rclpy precisely so it can be covered here (ADR-018).
         run: pytest tests/

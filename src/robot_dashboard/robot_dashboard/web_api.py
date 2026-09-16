@@ -172,7 +172,7 @@ def format_memory_entry(item: dict, active_map_id: str) -> dict:
 
     Returns:
         Dict with id, title, document, score, label, zone, source, x, y,
-        map_id and stale. `x`/`y` are None for entries without a pose, and
+        map_id, observations and stale. `x`/`y` are None for entries without a pose, and
         `stale` marks a coordinate memory from a different map.
     """
     metadata = item.get('metadata') or {}
@@ -189,11 +189,63 @@ def format_memory_entry(item: dict, active_map_id: str) -> dict:
         'x': _as_float(metadata.get('pose_x')),
         'y': _as_float(metadata.get('pose_y')),
         'map_id': entry_map_id,
+        # How many times the robot observed this place (merge-on-write folds
+        # re-observations into one memory, ADR-025); 1 for everything else.
+        'observations': _as_count(metadata.get('observations')),
         # An entry written against another map points somewhere else entirely
         # today; the viewer greys it out instead of hiding it, because seeing
         # that it exists is half of understanding the memory.
         'stale': bool(entry_map_id and active_map_id and entry_map_id != active_map_id),
     }
+
+
+def group_memory_entries(entries: list[dict]) -> list[dict]:
+    """Folds formatted entries that are the same thing into one card each.
+
+    Merge-on-write keeps one memory per place and look (ADR-025), but two kinds
+    of repetition are legitimate in storage and still noise on screen: several
+    facts about one exact spot (a benchmark landmark and its seeded description
+    share coordinates on purpose), and identical documents (the same benchmark
+    task logged run after run). Storage keeps them apart — they are separate
+    facts and separate events — and the viewer shows each once.
+
+    Args:
+        entries: Records from format_memory_entry, in display order.
+
+    Returns:
+        One record per group, in order of first appearance. Each is its first
+        member's record plus "count" (members), "ids" (all member ids),
+        "facts" ({title, document} per member), the best "score" of the group,
+        the members' titles joined as "title", and "stale" only if every member
+        is stale.
+    """
+    groups: dict[tuple, dict] = {}
+    for entry in entries:
+        if entry['x'] is not None and entry['y'] is not None:
+            key = ('pose', entry['map_id'], round(entry['x'], 2), round(entry['y'], 2))
+        else:
+            key = ('doc', entry['document'])
+        group = groups.get(key)
+        if group is None:
+            groups[key] = {
+                **entry, 'count': 1, 'ids': [entry['id']],
+                'facts': [{'title': entry['title'], 'document': entry['document']}],
+            }
+            continue
+        group['count'] += 1
+        group['ids'].append(entry['id'])
+        group['facts'].append({'title': entry['title'], 'document': entry['document']})
+        group['score'] = max(group['score'], entry['score'])
+        group['stale'] = group['stale'] and entry['stale']
+        group['observations'] = max(group['observations'], entry['observations'])
+        if entry['title'] not in group['title'].split(' / '):
+            group['title'] = f"{group['title']} / {entry['title']}"
+    return list(groups.values())
+
+
+def _as_count(value) -> int:
+    """Returns a positive observation count, 1 when missing or malformed."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
 
 
 def _as_float(value) -> float | None:
@@ -367,9 +419,11 @@ def build_app(node) -> FastAPI:
             'query': q.strip(),
             'map_id': result['map_id'],
             'stats': result['stats'],
-            'entries': [
+            # Grouped for display only: the same spot or the same document once,
+            # with its members listed (storage keeps them apart, ADR-025).
+            'entries': group_memory_entries([
                 format_memory_entry(item, result['map_id']) for item in result['items']
-            ],
+            ]),
             'error': result['error'],
         }
 

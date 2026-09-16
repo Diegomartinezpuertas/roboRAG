@@ -239,11 +239,16 @@ ros2 service call /rag/query robot_interfaces/srv/QueryRAG \
 ros2 service call /rag/inspect robot_interfaces/srv/InspectMemory \
   "{collection_name: 'semantic_map', query_text: '', limit: 5, active_map_only: true}"
 
+# Fold duplicate scene memories stored before merge-on-write (ADR-025). Stack
+# stopped; dry run first, --apply backs data/chroma_db up before writing.
+ros2 run robot_rag compact_memory            # read what it would fold
+ros2 run robot_rag compact_memory --apply    # then do it
+
 # Map the house by hand first: drive with WASD in the dashboard, name each room
 # with "Marcar zona aquí", then save the map. Nav2 is optional for that run.
 ros2 launch robot_bringup full_system.launch.py use_nav2:=false
 
-# Layer 1 — pure logic, no ROS needed (218 tests) + lint
+# Layer 1 — pure logic, no ROS needed (266 tests) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
 
@@ -258,7 +263,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 218 + 25, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 266 + 25, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 

@@ -158,6 +158,41 @@ class ChromaManager:
             )
         ]
 
+    def update_metadata(
+        self, collection_name: str, ids: list[str], metadatas: list[dict],
+    ) -> None:
+        """Updates the metadata of existing entries, leaving text and vectors alone.
+
+        Used when duplicates are folded into one memory: the survivor's count
+        and group key change, its document and embedding do not — so no
+        re-embedding (and no Ollama) is needed.
+
+        Args:
+            collection_name: Target collection name.
+            ids: Ids of the entries to update.
+            metadatas: Metadata for each id. ChromaDB *merges* these keys into
+                the stored metadata rather than replacing it: keys not given
+                keep their value.
+
+        Raises:
+            ValueError: If the collection does not exist.
+        """
+        if ids:
+            self._get_collection(collection_name).update(ids=ids, metadatas=metadatas)
+
+    def delete(self, collection_name: str, ids: list[str]) -> None:
+        """Deletes entries by id; ids that do not exist are ignored.
+
+        Args:
+            collection_name: Target collection name.
+            ids: Ids of the entries to delete.
+
+        Raises:
+            ValueError: If the collection does not exist.
+        """
+        if ids:
+            self._get_collection(collection_name).delete(ids=ids)
+
     def count(self, collection_name: str) -> int:
         """Returns the number of documents stored in a collection."""
         return self._get_collection(collection_name).count()

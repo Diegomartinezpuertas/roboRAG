@@ -1,7 +1,8 @@
 # ADR-014: Classical scene descriptor replaces the VLM; self-building memory
 
 **Date:** 2026-07-17
-**Status:** Accepted
+**Status:** Accepted — extended by
+[ADR-025](ADR-025-scene-memory-merging.md) (re-observations of a place merge into one memory)
 
 ## Context
 

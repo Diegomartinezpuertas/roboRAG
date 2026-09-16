@@ -137,6 +137,7 @@ The retrieval is what carries it, and the planner acts on it.
   irrelevant to storage and to query latency.
 - Scene descriptions stored inside a named zone now inherit that zone's meaning.
   A zone renamed after the fact does not retroactively relabel scenes already
-  stored; re-exploring rewrites them (the object id is the pose grid, ADR-012).
+  stored; re-exploring refreshes them (a re-observation updates the stored
+  memory, ADR-025).
 - `perceive`/`scan_360` results gained a `zone` field, so the final report can
   say *where* something was seen.

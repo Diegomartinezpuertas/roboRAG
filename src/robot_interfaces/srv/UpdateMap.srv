@@ -2,3 +2,5 @@ robot_interfaces/SemanticObject object_data  # Semantic object to insert or upda
 ---
 bool   success                                 # False if the update failed
 string error_msg                              # Empty string if success=True
+string object_id                              # Id the object was stored under (an existing memory's id when merged)
+bool   merged                                 # True if folded into an existing memory instead of creating one

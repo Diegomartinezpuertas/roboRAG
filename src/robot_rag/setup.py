@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'rag_node = robot_rag.rag_node:main',
+            'compact_memory = robot_rag.compact_memory:main',
         ],
     },
 )

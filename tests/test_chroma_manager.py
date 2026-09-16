@@ -101,3 +101,18 @@ def test_unknown_collection_raises_when_inspected(tmp_path):
     mgr = _populated(tmp_path)
     with pytest.raises(ValueError):
         mgr.list_documents('does_not_exist', limit=5)
+
+
+def test_update_metadata_merges_keys_without_touching_the_text(tmp_path):
+    """ChromaDB merges metadata on update: keys not given keep their value."""
+    mgr = _populated(tmp_path)
+    mgr.update_metadata('memory', ['kitchen'], [{'map_id': 'live', 'observations': 3}])
+    kitchen = next(e for e in mgr.list_documents('memory', 10) if e['id'] == 'kitchen')
+    assert kitchen['metadata'] == {'map_id': 'live', 'observations': 3, 'label': 'kitchen'}
+    assert kitchen['document'].startswith('kitchen at')
+
+
+def test_delete_removes_entries_and_ignores_unknown_ids(tmp_path):
+    mgr = _populated(tmp_path)
+    mgr.delete('memory', ['corridor', 'does-not-exist'])
+    assert [e['id'] for e in mgr.list_documents('memory', 10)] == ['kitchen']

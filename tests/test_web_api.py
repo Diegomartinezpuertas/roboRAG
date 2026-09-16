@@ -15,6 +15,7 @@ from robot_dashboard.web_api import (
     box_around,
     build_app,
     format_memory_entry,
+    group_memory_entries,
     memory_entry_title,
     normalize_area,
     normalize_zone_name,
@@ -617,3 +618,58 @@ def test_render_map_png_dilates_occupied_cells():
     occupied = (226, 76, 61)
     # The single occupied centre cell paints all 9 pixels.
     assert all(image.getpixel((x, y)) == occupied for x in range(3) for y in range(3))
+
+
+# --- grouping in the memory viewer (ADR-025) -------------------------------
+
+def _entry(entry_id, document, x=None, y=None, map_id='live', score=-1.0, observations=1,
+           title=None, stale=False):
+    return {
+        'id': entry_id, 'title': title or entry_id, 'document': document, 'score': score,
+        'label': '', 'zone': '', 'source': '', 'x': x, 'y': y, 'map_id': map_id,
+        'observations': observations, 'stale': stale,
+    }
+
+
+def test_facts_about_the_same_spot_become_one_card():
+    """A landmark and its seeded description share coordinates on purpose."""
+    landmark = _entry('landmark-estacion_a', 'estacion_a at (x=-2.19, y=-1.61)',
+                      x=-2.19, y=-1.61, score=0.5, title='estacion_a')
+    seeded = _entry('scene-seed-estacion_a', 'area at (x=-2.19, y=-1.61): white, open',
+                    x=-2.19, y=-1.61, score=0.7, title='area')
+    (card,) = group_memory_entries([landmark, seeded])
+    assert card['count'] == 2
+    assert card['ids'] == ['landmark-estacion_a', 'scene-seed-estacion_a']
+    assert card['title'] == 'estacion_a / area'
+    assert card['score'] == 0.7                     # the group ranks by its best member
+    assert [f['title'] for f in card['facts']] == ['estacion_a', 'area']
+
+
+def test_the_same_task_logged_many_times_becomes_one_card():
+    runs = [_entry(f'task-{i}', 'Goal: Ve a estacion_a\nOutcome: llegué') for i in range(7)]
+    (card,) = group_memory_entries(runs)
+    assert card['count'] == 7
+
+
+def test_different_places_and_different_maps_stay_separate_cards():
+    cards = group_memory_entries([
+        _entry('scene-a', 'area', x=0.0, y=0.0),
+        _entry('scene-b', 'area', x=0.5, y=0.0),                    # another spot
+        _entry('scene-c', 'area', x=0.0, y=0.0, map_id='old-map'),  # same spot, dead map
+    ])
+    assert [c['id'] for c in cards] == ['scene-a', 'scene-b', 'scene-c']
+
+
+def test_a_group_is_stale_only_if_every_member_is():
+    cards = group_memory_entries([
+        _entry('task-1', 'Goal: x', stale=True), _entry('task-2', 'Goal: x', stale=False),
+    ])
+    assert cards[0]['stale'] is False
+
+
+def test_observation_counts_reach_the_viewer():
+    item = {'id': 'scene-a', 'document': 'd', 'score': -1.0,
+            'metadata': {'pose_x': 0.0, 'pose_y': 0.0, 'observations': 5}}
+    assert format_memory_entry(item, '')['observations'] == 5
+    bare = format_memory_entry({'id': 'k', 'document': 'd', 'metadata': {}}, '')
+    assert bare['observations'] == 1

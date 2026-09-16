@@ -67,10 +67,16 @@ the claim is expanded into the text that gets embedded. Names that match no
 known room type (`estacion_a`) stay plain — measured effect and the reasoning in
 [ADR-022](decisions/ADR-022-room-semantics.md).
 
-The document ID is derived from the pose rounded to a 0.5 m grid
-(`scene-{x}-{y}`), so **revisiting a place updates its description** rather
-than accumulating near-duplicates. IDs are stable and `upsert` is used
-throughout, which is what makes re-ingestion idempotent.
+**One memory per place and look.** A new scene observation carries a
+`group_key` — its set of dominant colours plus clutter class — and `rag_node`
+folds it into an existing memory of the same key, map session and zone within
+`scene_merge_radius` (2 m), keeping that memory's id and anchor pose and
+counting the observation. Only a genuinely new place gets a new id (the pose on
+a 0.5 m grid, `scene-{x}-{y}`). Before this, that grid id was the only dedupe,
+and a room was stored once per half-metre the robot reached: a real store held
+28 scene memories with 12 distinct descriptions, one of them eleven times
+([ADR-025](decisions/ADR-025-scene-memory-merging.md)). IDs are stable and
+`upsert` is used throughout, which is what makes re-ingestion idempotent.
 
 ---
 
@@ -227,6 +233,10 @@ ros2 service call /rag/query robot_interfaces/srv/QueryRAG \
 The response carries `contexts` and the `scores` the threshold is applied to,
 which is the quickest way to see whether a disappointing plan was a retrieval
 problem or a planning problem.
+
+To fold duplicates stored before merge-on-write existed, stop the stack and run
+`ros2 run robot_rag compact_memory` (dry run) and then with `--apply` (backs the
+store up first; `--prune-untagged` also drops memories with no map session).
 
 To reset the memory entirely: stop the stack, `rm -rf data/chroma_db`, restart.
 `knowledge_base` re-ingests automatically; `semantic_map` needs re-exploration
