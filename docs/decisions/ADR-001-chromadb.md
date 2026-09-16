@@ -1,7 +1,8 @@
 # ADR-001: ChromaDB instead of Qdrant
 
 **Date:** 2026-07-14
-**Status:** Accepted
+**Status:** Accepted — the embedding model it mentions (`nomic-embed-text`) was
+later replaced by `bge-m3` on measured data ([rag-analysis §2.4](../rag-analysis.md))
 
 ## Context
 

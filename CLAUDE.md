@@ -44,6 +44,7 @@ Gazebo without prior confirmation.
 | Simulator | Gazebo Harmonic | gz-sim 8 | Integrated with ros-jazzy |
 | Robot | TurtleBot3 Waffle | — | LIDAR + camera (own model copy at 640×480, ADR-009) |
 | Planner LLM | Qwen2.5-7B-Instruct | Ollama | Port 11434, temperature=0 |
+| Plan check | plan_validation.py | robot_brain | Every navigate checked before execution: known zone, known point, no borrowed place (ADR-032) |
 | Perception | Scene descriptor | robot_skills | Classical colors+clutter, no ML (ADR-014) |
 | Embeddings | bge-m3 | Ollama | Multilingual, for ChromaDB (ADR-014 / rag-analysis §2.4) |
 | Vector DB | ChromaDB | pip | Persistent at ~/robot_ws/data/chroma_db |
@@ -70,7 +71,7 @@ LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
 │   ├── robot_zones/        # Shared SQLite store of named zones + room meanings
 │   ├── robot_rag/          # ChromaDB + embeddings + semantic memory
 │   ├── robot_skills/       # Executable nodes: nav, explore, perceive, report; cmd_vel mux
-│   ├── robot_brain/        # LLM planner (cognitive core)
+│   ├── robot_brain/        # LLM planner (cognitive core) + pre-execution plan check
 │   ├── robot_dashboard/    # Web dashboard: observability, goals, RAG viewer, teleop
 │   └── robot_bringup/      # Launch files for the whole system
 ├── eval/                   # RAG ablation benchmark (seed, run, score, report)
@@ -230,6 +231,11 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Go to the kitchen and 
 # Watch the robot's response
 ros2 topic echo /robot/response
 
+# The plan as it will run — with raw_steps + plan_corrections when the check
+# replaced a step (ADR-032). Turn the check off to see the planner unchecked:
+ros2 topic echo /robot/plan
+ros2 param set /llm_planner_node plan_validation false
+
 # Web dashboard (auto-launched with agent.launch.py / full_system.launch.py)
 #   http://localhost:8080
 
@@ -265,7 +271,7 @@ ros2 launch robot_bringup full_system.launch.py saved_map:=house
 # Demo setup: Gazebo window + RViz + dashboard on map `house` (GUI costs RTF)
 ros2 launch robot_bringup demo.launch.py
 
-# Layer 1 — pure logic, no ROS needed (327 tests, 8 of them drive the dashboard
+# Layer 1 — pure logic, no ROS needed (346 tests, 8 of them drive the dashboard
 # page in headless Chromium — once: python3 -m playwright install chromium) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
@@ -281,7 +287,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 327 + 28, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 346 + 28, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 
@@ -337,7 +343,9 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 | RViz floods the terminal with "controller_server service not available … Retrying" | Nav2's RViz panels poll for servers that `use_nav2:=false` never starts | Fixed: without Nav2, RViz opens `robot_bringup/rviz/mapping.rviz` (no Nav2 panels). Harmless if seen on an old build |
 | Autonomous explore maps little of a big house | 3.5 m LIDAR leaves large rooms unknown; the old nearest-frontier rule hugged walls | Explore now targets frontier clusters (~40–55% more area measured, ADR-027); for a full map, drive with WASD and save it (ADR-023, ADR-026) |
 | End-to-end navigation unreliable | Narrow doorways + software physics | Benchmark measures the planning decision (ADR-013) |
-| "Ve a estacion_d" (plausible but nonexistent) drives to a *real* station | With RAG the 7B planner reuses retrieved coordinates for a name no memory holds — hard suite 0/6 with RAG, 3/6 without (measured 2026-09-16) | Open. Nothing validates a plan against memory yet; that and the agent loop are the fix (ADR-031, rag-analysis §2.6) |
+| "Ve a estacion_d" (plausible but nonexistent) drove to a *real* station | With RAG the 7B planner invents a zone or reuses retrieved coordinates for a name no memory holds (hard suite 0/6 with the check off) | Plan check before execution replaces such steps with explore: 6/6 (ADR-032). It is a model call: it wrongly rejected 2 correct spatial answers. Never "repair" a memory named as a zone into coordinates — measured, it let a borrowed place through |
+| Spatial goals ("the station nearest the base") | The planner compares coordinates unreliably, even with every coordinate and the zone's centre in the prompt | Open: right station 6/6 in one session, 0/6 in the next (rag-analysis §2.6). Candidate fixes: compute the relation in code, or the agent loop |
+| Benchmark totals move between sessions | `temperature=0` is repeatable, not exact | Claim effects only from conditions compared inside one session (the runner does rag / norag / rag_unchecked on one memory); ±2–3 runs between sessions is noise |
 | Python edits not taking effect | In this workspace `--symlink-install` installs *copies* of Python modules, not links | Rebuild after every Python edit (`colcon build --symlink-install --packages-select <pkg>`); if in doubt `rm -rf build/<pkg> install/<pkg>` first. Before a live measurement, check the installed module matches `src/` — a published run was once invalidated by this (ADR-027) |
 
 ---

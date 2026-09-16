@@ -50,3 +50,32 @@ def test_build_report_prompt_english_directive():
 def test_build_report_prompt_no_steps():
     prompt = build_report_prompt('Go home', [])
     assert '(no steps executed)' in prompt
+
+
+def test_build_user_prompt_gives_zone_centres_when_bounds_are_known():
+    # Without the centre, "the station nearest the base" has no reference point.
+    zones = {'base': {'x_min': 1.0, 'y_min': -1.0, 'x_max': 2.0, 'y_max': 0.0}}
+    prompt = build_user_prompt('go', [], zones)
+    assert 'base (centre x=1.50, y=-0.50)' in prompt
+
+
+def test_build_report_prompt_includes_plan_corrections():
+    prompt = build_report_prompt(
+        'Ve a estacion_d', [{'skill': 'explore', 'result': {}, 'error': None}],
+        ['No tengo "estacion_d" en la memoria'],
+    )
+    assert 'PLAN CORRECTIONS' in prompt and 'estacion_d' in prompt
+
+
+def test_build_report_prompt_without_corrections_has_no_block():
+    assert 'PLAN CORRECTIONS' not in build_report_prompt('Go home', [])
+
+
+def test_build_resolver_prompt_numbers_places_from_one():
+    from robot_brain.plan_validation import places_from_context
+    from robot_brain.prompts import build_resolver_prompt
+
+    places = places_from_context(['estacion_a at (x=1.00, y=2.00): a named location'])
+    prompt = build_resolver_prompt('Ve a estacion_d', places)
+    assert 'GOAL: Ve a estacion_d' in prompt
+    assert '1. estacion_a at (x=1.00, y=2.00)' in prompt

@@ -122,7 +122,7 @@ Dispatches a skill by name with JSON-encoded parameters.
 **Request:**
 | Field | Type | Description |
 |-------|------|-------------|
-| skill_name | string | "navigate" \| "explore" \| "perceive" \| "scan_360" \| "report" |
+| skill_name | string | "navigate" \| "explore" \| "perceive" \| "scan_360" \| "report" \| "save_map" † |
 | params_json | string | JSON-encoded parameters |
 
 **Response:**
@@ -152,10 +152,13 @@ that zone's name denotes a kind of room, what the room is for is appended to the
 stored description ([ADR-022](decisions/ADR-022-room-semantics.md)).
 
 † `save_map` is a **maintenance** skill: it serializes the live SLAM map (via
-SLAM Toolbox) under the active map-session id, for persistence and memory
-versioning ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)). It
-is deliberately absent from the planner's prompt and from `toolkit.VALID_SKILLS`,
-so the LLM never emits it — reach it only with a direct `ros2 service call`.
+SLAM Toolbox) under `name`, or under the active map-session id when no name is
+given, for persistence and memory versioning
+([ADR-019](decisions/ADR-019-map-session-memory-versioning.md),
+[ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)). It is deliberately
+absent from the planner's prompt and from `toolkit.VALID_SKILLS`, so the LLM
+never emits it — it is reached through the dashboard's "Guardar mapa"
+(`POST /api/map/save`) or a direct `ros2 service call`.
 
 ## Topics
 
@@ -163,7 +166,7 @@ so the LLM never emits it — reach it only with a direct `ros2 service call`.
 |---|---|---|---|
 | /robot/goal | std_msgs/String | user (CLI / dashboard) | llm_planner_node |
 | /robot/status | std_msgs/String | llm_planner_node | user / dashboard |
-| /robot/plan | std_msgs/String (plan JSON) | llm_planner_node | eval harness / dashboard |
+| /robot/plan | std_msgs/String (plan JSON, as it will run; `raw_steps` + `plan_corrections` when the plan check replaced a step, [ADR-032](decisions/ADR-032-plan-check-before-execution.md)) | llm_planner_node | eval harness |
 | /robot/response | std_msgs/String | skills_executor_node (report) | user / dashboard |
 | /camera/image_raw | sensor_msgs/Image | Gazebo bridge | skills_executor_node |
 | /scan | sensor_msgs/LaserScan | Gazebo bridge | skills_executor_node (clutter metrics) |
@@ -352,12 +355,14 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 |---|---|---|
 | llm_planner_node | `ollama_base_url` (`http://localhost:11434`) | Ollama server URL |
 | llm_planner_node | `llm_model` (`qwen2.5:7b`) | Planner model name |
-| llm_planner_node | `llm_temperature` (0.0) | Sampling temperature; 0 = deterministic plans |
+| llm_planner_node | `llm_temperature` (0.0) | Sampling temperature; 0 = repeatable plans (not identical across runs — rag-analysis, threats to validity) |
 | llm_planner_node | `max_plan_steps` (10) | Plan steps executed at most, after `report` steps are stripped |
 | llm_planner_node | `rag_score_threshold` (0.40) | Minimum cosine similarity for RAG context to enter the prompt (calibrated for bge-m3) |
 | llm_planner_node | `rag_enabled` (true) | Ablation switch: disables all RAG retrieval |
-| llm_planner_node | `zones_in_prompt` (true) | Ablation switch: withholds known-zone names |
+| llm_planner_node | `zones_in_prompt` (true) | Ablation switch: withholds the known zones (names and centres) from the prompt |
 | llm_planner_node | `dry_run` (false) | Produce/publish the plan but skip execution (benchmark mode) |
+| llm_planner_node | `plan_validation` (true) | Check every `navigate` step before execution: an unknown zone, a point that is no known place, or a remembered place borrowed for one the goal asks for but memory lacks becomes `explore` ([ADR-032](decisions/ADR-032-plan-check-before-execution.md)). Costs one extra Qwen call per goal whose plan navigates to coordinates (~0.4 s median) |
+| rag_node | `ollama_base_url` (`http://localhost:11434`) | Ollama server URL for embeddings |
 | rag_node | `embedding_model` (`bge-m3`) | Ollama embedding model (see [rag-analysis](rag-analysis.md) §2.4) |
 | rag_node | `collections` | Collections created on startup |
 | rag_node | `top_k_default` (5) | Results returned when a request sets `top_k <= 0` |
@@ -374,7 +379,7 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 | dashboard_node | `teleop_rate_hz` (20.0) | Rate at which a held command is republished |
 
 The teleop speeds are re-read on every command and `explore_strategy` on every
-exploration step, so `ros2 param set` changes them mid-session. `rag_enabled`, `zones_in_prompt` and `dry_run` are re-read on every goal, so the
+exploration step, so `ros2 param set` changes them mid-session. `rag_enabled`, `zones_in_prompt`, `dry_run` and `plan_validation` are re-read on every goal, so the
 benchmark can flip conditions with `ros2 param set` without restarting the node
 (a restart would reset the shared SLAM map and break cross-condition fairness).
 

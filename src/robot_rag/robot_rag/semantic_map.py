@@ -21,7 +21,11 @@ MERGE_CANDIDATE_LIMIT = 500
 
 
 class SemanticMap:
-    """Stores and retrieves detected objects indexed by description and pose.
+    """Stores and retrieves remembered places, indexed by description and pose.
+
+    What lands here: scene descriptions the robot records while exploring
+    (ADR-014), user-defined zones (ADR-022), and the benchmark's seeded
+    landmarks. No object detector feeds it.
 
     Args:
         chroma_manager: Shared ChromaDB manager instance.
@@ -40,12 +44,12 @@ class SemanticMap:
         self._merge_radius = merge_radius
 
     def upsert_object(self, obj: SemanticObject, map_id: str = '') -> tuple[str, bool]:
-        """Inserts or updates a detected object in the semantic map.
+        """Inserts or updates one place observation in the semantic map.
 
         The stored document embeds the map-frame coordinates in the text
         itself, because QueryRAG returns only document text (not metadata) —
         so this is the only channel through which the planner can learn where
-        a remembered object is and navigate to it. See ADR-012 / Fase 0.1.
+        a remembered place is and navigate to it (ADR-012).
 
         Args:
             obj: Semantic object observation to store.

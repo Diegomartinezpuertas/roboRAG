@@ -14,10 +14,20 @@ from robot_interfaces.srv import ExecuteSkill, QueryRAG
 from robot_zones.zone_store import ZoneStore
 
 from robot_brain.plan_parsing import parse_plan, summarize_results
+from robot_brain.plan_validation import (
+    Place,
+    Resolution,
+    parse_resolution,
+    places_from_context,
+    places_from_zones,
+    validate_plan,
+)
 from robot_brain.prompts import (
+    PLACE_RESOLVER_SYSTEM_PROMPT,
     REPORT_SYSTEM_PROMPT,
     ROBOT_SYSTEM_PROMPT,
     build_report_prompt,
+    build_resolver_prompt,
     build_user_prompt,
 )
 from robot_brain.qwen_client import QwenClient
@@ -37,8 +47,10 @@ class LLMPlannerNode(Node):
 
     Publishes:
         /robot/status (std_msgs/String): Current execution status.
-        /robot/plan (std_msgs/String): The raw plan JSON of every goal — what the
-            planning benchmark scores (ADR-013).
+        /robot/plan (std_msgs/String): The plan JSON of every goal, as it will be
+            executed — what the planning benchmark scores (ADR-013). When the
+            plan check replaced a step, it also carries "raw_steps" (the model's
+            original steps) and "plan_corrections" (why), ADR-032.
 
     Services (client):
         /rag/query (QueryRAG): Retrieve context from ChromaDB.
@@ -47,7 +59,8 @@ class LLMPlannerNode(Node):
     Parameters:
         ollama_base_url (str): Ollama server URL. Default: http://localhost:11434
         llm_model (str): Model name for task planning. Default: qwen2.5:7b
-        llm_temperature (float): Sampling temperature. Default: 0.0 (deterministic).
+        llm_temperature (float): Sampling temperature. Default: 0.0 (repeatable, not
+            identical across runs).
         max_plan_steps (int): Maximum steps in a single plan. Default: 10
         rag_score_threshold (float): Minimum cosine similarity for a retrieved
             RAG context to be injected into the planning prompt. Below this,
@@ -60,6 +73,11 @@ class LLMPlannerNode(Node):
             prompt (the "blind" control condition). Default: True
         dry_run (bool): When True, the plan is produced and published but not
             executed — the benchmark's mode (ADR-013). Default: False
+        plan_validation (bool): Check every navigate step against the known zones
+            and the retrieved memory before executing, and replace one that goes to
+            an unknown zone, an unknown point, or a remembered place borrowed for
+            one that is not in memory (plan_validation.py, ADR-032). Re-read per
+            goal, like rag_enabled, so the benchmark can ablate it. Default: True
         zones_db (str): SQLite file with user-defined navigation zones.
     """
 
@@ -74,6 +92,7 @@ class LLMPlannerNode(Node):
         self.declare_parameter('rag_enabled', True)
         self.declare_parameter('zones_in_prompt', True)
         self.declare_parameter('dry_run', False)
+        self.declare_parameter('plan_validation', True)
         self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 
         base_url = self.get_parameter('ollama_base_url').value
@@ -81,9 +100,9 @@ class LLMPlannerNode(Node):
         temperature = self.get_parameter('llm_temperature').value
         self._max_plan_steps = self.get_parameter('max_plan_steps').value
         self._rag_score_threshold = self.get_parameter('rag_score_threshold').value
-        # rag_enabled / zones_in_prompt / dry_run are intentionally NOT cached:
-        # _on_goal re-reads them per goal so the benchmark can flip conditions
-        # live with `ros2 param set`.
+        # rag_enabled / zones_in_prompt / dry_run / plan_validation are
+        # intentionally NOT cached: _on_goal re-reads them per goal so the
+        # benchmark can flip conditions live with `ros2 param set`.
         self._zones = ZoneStore(self.get_parameter('zones_db').value)
 
         self._qwen = QwenClient(base_url, llm_model, temperature=temperature)
@@ -129,8 +148,12 @@ class LLMPlannerNode(Node):
             rag_context += self._retrieve_context(goal_text, 'semantic_map', top_k=3)
             rag_context += self._retrieve_context(goal_text, 'task_history', top_k=2)
 
-        zones = self._known_zones() if zones_in_prompt else []
-        user_prompt = build_user_prompt(goal_text, rag_context, zones)
+        known_zones = self._known_zones()
+        # Zones reach the prompt with their centres, so a goal relative to a zone
+        # ("the station nearest the base") has the reference point it needs.
+        user_prompt = build_user_prompt(
+            goal_text, rag_context, known_zones if zones_in_prompt else {},
+        )
         self._publish_status('Generating plan with Qwen...')
         raw_response = self._qwen.generate_plan(ROBOT_SYSTEM_PROMPT, user_prompt)
 
@@ -147,14 +170,31 @@ class LLMPlannerNode(Node):
         steps = [s for s in plan.get('steps', []) if s.get('skill') != 'report']
         steps = steps[: self._max_plan_steps]
         self._publish_status(f'Qwen razona: {plan.get("reasoning", "(sin razonamiento)")}')
+
+        corrections: list[str] = []
+        if self.get_parameter('plan_validation').value:
+            raw_steps = steps
+            checked = validate_plan(
+                goal_text, steps,
+                places_from_context(rag_context) + places_from_zones(known_zones),
+                set(known_zones), self._resolve_places,
+            )
+            for disagreement in checked.disagreements:
+                self.get_logger().info(f'Plan check (kept): {disagreement}')
+            if checked.changed:
+                steps, corrections = checked.steps, checked.notes
+                for note in corrections:
+                    self._publish_status(f'Plan corregido: {note}')
+                plan = {**plan, 'steps': steps, 'raw_steps': raw_steps,
+                        'plan_corrections': corrections}
         for index, step in enumerate(steps):
             params_str = json.dumps(step.get('params', {}), ensure_ascii=False)
             self._publish_status(
                 f'Plan paso {index + 1}/{len(steps)}: {step.get("skill")}({params_str})',
             )
-        # Publish the raw plan for the planning benchmark / dashboard.
+        # Publish the plan as it will run, for the planning benchmark / dashboard.
         self._plan_pub.publish(String(data=json.dumps(plan, ensure_ascii=False)))
-        self.get_logger().info(f'Qwen raw plan: {json.dumps(plan, ensure_ascii=False)}')
+        self.get_logger().info(f'Plan published: {json.dumps(plan, ensure_ascii=False)}')
 
         if self.get_parameter('dry_run').value:
             # Benchmark/inspection mode: decide the plan but don't drive the robot.
@@ -166,15 +206,31 @@ class LLMPlannerNode(Node):
             status = 'ok' if result['error'] is None else f'error: {result["error"]}'
             self._publish_status(f'Step {index + 1}/{len(results)} ({result["skill"]}): {status}')
 
-        self._report_from_results(goal_text, results)
+        self._report_from_results(goal_text, results, corrections)
 
-    def _known_zones(self) -> list[str]:
-        """Returns the names of zones the robot currently knows.
+    def _known_zones(self) -> dict[str, dict]:
+        """Returns the zones the robot currently knows, {name: bounds}.
 
         Reads the zones database on every call so zones created in the
         dashboard are visible without restarting the planner.
         """
-        return list(self._zones.load_all())
+        return self._zones.load_all()
+
+    def _resolve_places(self, goal_text: str, places: list[Place]) -> Resolution:
+        """Asks Qwen which of the known places the goal asks for (plan_validation.py).
+
+        Args:
+            goal_text: The user's goal.
+            places: Candidate places — retrieved memories and known zones.
+
+        Returns:
+            The parsed Resolution. Raises on a model or parse failure, which the
+            validator treats as "keep the plan".
+        """
+        raw = self._qwen.chat(
+            PLACE_RESOLVER_SYSTEM_PROMPT, build_resolver_prompt(goal_text, places),
+        )
+        return parse_resolution(raw, len(places))
 
     def _retrieve_context(self, query_text: str, collection_name: str, top_k: int) -> list[str]:
         """Retrieves RAG context, dropping hits below rag_score_threshold.
@@ -200,15 +256,19 @@ class LLMPlannerNode(Node):
             )
         return [context for context, score in hits if score >= self._rag_score_threshold]
 
-    def _report_from_results(self, goal_text: str, results: list[dict]) -> None:
+    def _report_from_results(
+        self, goal_text: str, results: list[dict], corrections: list[str],
+    ) -> None:
         """Generates and publishes the final response from real execution results.
 
         A second LLM call summarizes what actually happened, rather than the
-        planner pre-writing the answer before execution (see Fase 0.3 / ADR-012).
+        planner pre-writing the answer before execution (ADR-012).
 
         Args:
             goal_text: The user's original goal.
             results: Per-step results from execute_plan.
+            corrections: Notes on steps the plan check replaced, so the answer
+                can say why the robot explored instead of going where asked.
         """
         if not results:
             self._safe_report(goal_text, 'No ejecuté ninguna acción para esa tarea.')
@@ -216,7 +276,7 @@ class LLMPlannerNode(Node):
         self._publish_status('Generando respuesta final...')
         try:
             message = self._qwen.chat(
-                REPORT_SYSTEM_PROMPT, build_report_prompt(goal_text, results),
+                REPORT_SYSTEM_PROMPT, build_report_prompt(goal_text, results, corrections),
             ).strip()
         except Exception as exc:
             self.get_logger().error(f'Report generation failed: {exc}')

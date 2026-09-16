@@ -2,7 +2,7 @@
 
 Everything needed to reproduce the numbers and charts in
 [rag-analysis.md](rag-analysis.md) and the README, from a cold start.
-Total time: **~25–35 min**, most of it waiting for exploration and LLM calls.
+Total time: **~25–40 min**, most of it waiting for exploration and LLM calls.
 
 ## 0. Prerequisites (once)
 
@@ -88,7 +88,7 @@ with the active map session ([ADR-019](decisions/ADR-019-map-session-memory-vers
 > only what seeding puts there. Two kinds of leftover on a development machine
 > silently confound the measurement — a fresh clone has neither:
 >
-> - **Stale zones.** Every known zone name goes into the planner prompt, so a
+> - **Stale zones.** Every known zone goes into the planner prompt, so a
 >   leftover zone can capture a control goal. `--reset-zones` deletes all zones
 >   but the control `base` before seeding; without the flag, `seed_memory.py`
 >   warns if others exist.
@@ -119,17 +119,26 @@ with the active map session ([ADR-019](decisions/ADR-019-map-session-memory-vers
 ## 3. Run the benchmark suites
 
 ```bash
-python3 run_benchmark.py tasks_full.yaml        # 42 runs (~4 min): ablation + attribute + controls
-python3 run_benchmark.py tasks_phrasing.yaml    # 36 runs (~4 min): phrasing/language robustness
+python3 run_benchmark.py tasks_full.yaml        # 63 runs (~6 min): ablation + attribute + controls
+python3 run_benchmark.py tasks_phrasing.yaml    # 54 runs (~5 min): phrasing/language robustness
 ```
 
-Each writes `results/<suite>/{rag,norag}.json` (per-run records with the
-decision, the raw plan, and goal→plan latency). The script flips
-`rag_enabled` live with `ros2 param set` — no restarts, same memory state in
-both conditions. It **reads the flag back and retries** before each condition;
-if you see `WARNING: could not confirm ... rag_enabled=...`, DDS discovery has
-not settled (common right after launch) — the run would be invalid, so wait a
-few seconds after `rag_node ready` before starting, and re-run.
+Each runs three conditions and writes `results/<suite>/{rag,norag,rag_unchecked}.json`
+(per-run records with the decision, the plan as it would run — with
+`raw_steps` and `plan_corrections` when the check replaced a step — and
+goal→plan latency):
+
+| Condition | `rag_enabled` | `plan_validation` | Measures |
+|---|---|---|---|
+| `rag` | true | true | the system as shipped |
+| `norag` | false | true | what RAG adds (the headline ablation) |
+| `rag_unchecked` | true | false | what the plan check adds ([ADR-032](decisions/ADR-032-plan-check-before-execution.md)) |
+
+The script flips the parameters live with `ros2 param set` — no restarts, same
+memory state in every condition. It **reads each value back and retries**; if
+you see `WARNING: could not confirm ...`, DDS discovery has not settled (common
+right after launch) — the run would be invalid, so wait a few seconds after
+`rag_node ready` before starting, and re-run.
 
 ### 3b. The hard suite (has headroom)
 
@@ -144,7 +153,7 @@ It needs extra landmarks, which are **opt-in**:
 
 ```bash
 python3 seed_memory.py --hard --reset-zones  # adds estacion_a_norte, estacion_c_sur
-python3 run_benchmark.py tasks_hard.yaml     # 60 runs (~6 min)
+python3 run_benchmark.py tasks_hard.yaml     # 90 runs (~9 min)
 python3 report.py hard
 ```
 
@@ -154,10 +163,11 @@ python3 report.py hard
 > against a three-landmark memory. Run plain `seed_memory.py` to reproduce the
 > published numbers; add `--hard` only for this suite.
 
-Measured result (2026-09-16): **20/30 with RAG vs 3/30 without**. By type:
-disambiguation 9/9, ordered 9/9, spatial relation 2/6, plausible nonexistent
-place 0/6 with RAG vs 3/6 without (see [rag-analysis.md §2.6](rag-analysis.md)).
-The July run scored 27/30; §2.8 there explains the difference. The per-run
+Measured result (2026-09-16): **23/30 with RAG and the plan check**, 19/30 with
+the check off, 6/30 without RAG. By type, with RAG and the check: disambiguation
+9/9, ordered 7/9, spatial relation 1/6, plausible nonexistent place 6/6 (0/6
+with the check off) — see [rag-analysis.md §2.6 and §2.9](rag-analysis.md). The
+July run scored 27/30 with a different knowledge base and no check (§2.8). The per-run
 `decision` label is richer than pass/fail — `visited_both`, `out_of_order`,
 `incomplete_2_of_3`, `wrong_landmark`, `hallucinated` — so a failure says *how*
 the planner was wrong. `plot_results.py` renders that breakdown as `results/hard_decisions.png`.
@@ -219,7 +229,7 @@ python3 report.py full            # markdown table -> results/full/report.md
 python3 report.py phrasing
 python3 plot_results.py           # results/{benchmark,phrasing,embeddings}.png
                                   # + room_semantics.png, and hard{,_decisions}.png
-                                  #   when results/hard/ exists
+                                  #   and plan_check.png when their results exist
 ```
 
 The PNGs are the ones embedded in the README and docs/rag-analysis.md.
@@ -235,14 +245,23 @@ three (full, phrasing, hard) before quoting a number again after any change to:
   ([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)).
   `rag_node` re-syncs the collection when the files change, so no wipe is
   needed.
-- the planner prompt or plan parsing (`robot_brain/prompts.py`,
-  `plan_parsing.py`), the retrieval parameters (`top_k`,
+- the planner prompt, the plan check or plan parsing (`robot_brain/prompts.py`,
+  `plan_validation.py`, `plan_parsing.py`), the retrieval parameters (`top_k`,
   `rag_score_threshold`), or the embedder.
 - how memories are written (`robot_rag`), or what `seed_memory.py` seeds.
 
-When a re-run replaces published results, keep the old ones:
-`eval/results/before-kb-fix-2026-09-16/` holds the run that found that
-regression, with its own `report.md` per suite. Do not iterate knowledge
+When a re-run replaces published results, keep the old ones, each with its own
+`report.md` per suite:
+
+- `eval/results/before-kb-fix-2026-09-16/` — the run that found the knowledge
+  base regression (ADR-031);
+- `eval/results/zone-repair-experiment-2026-09-17/` — a variant of the plan
+  check that was measured and reverted (ADR-032). Its `landmarks.json` is the
+  layout it was scored against.
+
+**Compare conditions inside one session, not totals across sessions.** Two
+sessions of identical code differed by two runs on the hard suite and by three
+on one task type (rag-analysis §2.9). Do not iterate knowledge
 wording against the suites until they pass. Diagnose with the failing goals,
 fix the cause, measure once, and publish what comes out.
 
@@ -253,7 +272,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 327 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 346 tests
 ruff check .
 ```
 
@@ -272,11 +291,12 @@ outright. The no-ROS CI job doesn't need it; the ROS job sets it. See ADR-018.)
 
 ```bash
 ros2 param set /llm_planner_node rag_enabled false     # ablate RAG
+ros2 param set /llm_planner_node plan_validation false # ablate the plan check
 ros2 param set /llm_planner_node dry_run true          # plan without driving
-ros2 param set /llm_planner_node zones_in_prompt false # hide zone names too
+ros2 param set /llm_planner_node zones_in_prompt false # hide the known zones too
 ```
 
-All three are re-read per goal — no restart needed.
+All four are re-read per goal — no restart needed.
 
 ## Troubleshooting
 

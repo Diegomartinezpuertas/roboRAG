@@ -1,7 +1,8 @@
 # ADR-031: The knowledge base is planner input — sync it, re-measure it, publish what it costs
 
 **Date:** 2026-09-16
-**Status:** Accepted
+**Status:** Accepted — its open hazard (borrowed coordinates for a nonexistent
+place) addressed by [ADR-032](ADR-032-plan-check-before-execution.md)
 
 ## Context
 

@@ -1,7 +1,11 @@
 # ADR-013: RAG benchmark at the planning level (not end-to-end)
 
 **Date:** 2026-07-16
-**Status:** Accepted
+**Status:** Accepted — qualified by
+[ADR-031](ADR-031-knowledge-base-is-planner-input.md) (`temperature=0` repeats
+plans closely, not exactly; results belong to the knowledge files measured) and
+[ADR-032](ADR-032-plan-check-before-execution.md) (the benchmark scores the plan
+after the pre-execution check)
 
 ## Context
 

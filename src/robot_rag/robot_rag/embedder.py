@@ -8,7 +8,7 @@ class OllamaEmbedder:
 
     Args:
         base_url: Base URL of the Ollama server.
-        model: Name of the embedding model, e.g. "nomic-embed-text".
+        model: Name of the embedding model, e.g. "bge-m3" (the project default).
     """
 
     def __init__(self, base_url: str, model: str) -> None:

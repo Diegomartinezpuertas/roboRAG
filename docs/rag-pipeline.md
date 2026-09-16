@@ -32,11 +32,10 @@ Three committed Markdown files:
 - **`environment_rules.md`** — the Gazebo world's layout and the robot's spawn
   pose, where coordinates come from (exploration, named zones, remembered
   places), the rule that a place with no known coordinates is explored for,
-  never guessed, and navigation and safety rules. One of those safety rules, a
-  30-minute operating limit, is not enforced anywhere in the code; changing
-  the file means re-running the planning suites
-  ([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)), so it is
-  recorded here rather than silently edited.
+  never guessed, and what Nav2 will and will not do. It used to list a
+  30-minute operating limit and a retry-by-exploring fallback that nothing in
+  the code implements; both were removed on 2026-09-16, and the planning suites
+  re-run, as ADR-031 requires.
 - **`perception_capabilities.md`** — what `perceive` and `scan_360` can and
   cannot report. This one matters: it is what stops the planner assuming an
   object detector exists (see §6).
@@ -118,7 +117,7 @@ task log is already one short, self-contained document.
 ### Embedding
 
 `OllamaEmbedder` is a thin wrapper over the Ollama client. One HTTP call embeds
-a whole batch, so ingesting the whole knowledge base (13 chunks today) is a
+a whole batch, so ingesting the whole knowledge base (12 chunks today) is a
 single request.
 
 The model is a ROS parameter (`rag_node/embedding_model`), default **`bge-m3`**.
@@ -200,7 +199,26 @@ benchmark measures: with this text in the prompt the planner emits
 
 The surviving fragments are formatted into the prompt as a bulleted
 `RETRIEVED CONTEXT:` block, alongside `KNOWN ZONES:` (read from SQLite, not
-RAG) and the goal.
+RAG, each with its centre) and the goal.
+
+### Retrieved coordinates are checked before the robot moves
+
+Putting coordinates in the prompt gives the planner something to copy, and it
+does not always copy the right one. Asked for "estacion_d" when only a, b and c
+are remembered, it navigated to estacion_a's coordinates in every run. So the
+plan is checked against the same context it was built from before anything
+executes (`plan_validation.py`,
+[ADR-032](decisions/ADR-032-plan-check-before-execution.md)):
+
+- a `navigate(zone=...)` must name a zone that exists;
+- a `navigate(x, y)` must land on a known place — a retrieved memory or a zone
+  centre, within 0.25 m;
+- a known place must not be borrowed: a second, narrow Qwen call lists the
+  places the goal asks for and the ones it asks for that are missing, and a
+  step that goes somewhere else while something is missing becomes `explore`.
+
+The retrieval side is unchanged by this; what changes is that a retrieved
+coordinate is no longer enough on its own to send the robot somewhere.
 
 ---
 
@@ -291,8 +309,8 @@ prompt change, not a docs change.
 `task_history` stores what happened, and past outcomes often contain absolute
 coordinates — "moved to the base at (x=-0.30, y=-1.06)". Those coordinates are
 only meaningful relative to the SLAM map that was live when the task ran. This
-sim builds its map fresh on every launch (no saved map — see the roadmap), so
-**a coordinate logged in one session points somewhere else in the next.**
+sim builds its map from scratch on every launch unless a saved map is loaded, so
+**a coordinate logged against one map can point somewhere else in the next.**
 
 Retrieval does not know that. A later goal like "go to the base" can match the
 old log, and the planner will copy a coordinate from a map that no longer

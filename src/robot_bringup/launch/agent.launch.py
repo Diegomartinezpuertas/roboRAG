@@ -1,4 +1,4 @@
-"""Launches the cognitive agent stack: rag_node, skills_executor_node, llm_planner_node."""
+"""Launches the cognitive agent stack: rag_node, skills_executor_node, llm_planner_node, dashboard_node."""
 
 import os
 

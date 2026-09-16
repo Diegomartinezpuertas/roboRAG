@@ -66,19 +66,38 @@ what was found. Rules:
 """
 
 
-def build_user_prompt(goal_text: str, rag_context: list[str], zones: list[str]) -> str:
+def _zone_line(name: str, area: dict | None) -> str:
+    """Formats one known zone, with its centre when its bounds are known."""
+    if not area:
+        return name
+    cx = (area['x_min'] + area['x_max']) / 2.0
+    cy = (area['y_min'] + area['y_max']) / 2.0
+    return f'{name} (centre x={cx:.2f}, y={cy:.2f})'
+
+
+def build_user_prompt(
+    goal_text: str, rag_context: list[str], zones: list[str] | dict[str, dict],
+) -> str:
     """Builds the planner user-turn prompt from the goal, context, and zones.
+
+    Zones given with their bounds are listed with their centre. Without it a
+    goal like "the station nearest the base zone" cannot be answered at all:
+    the planner sees the stations' coordinates and only the *name* of the base,
+    so it can only guess (found 2026-09-16, ADR-032).
 
     Args:
         goal_text: Natural language goal from the user.
         rag_context: Text fragments retrieved from ChromaDB.
-        zones: Names of zones the robot currently knows (user-defined).
+        zones: Zones the robot currently knows — {name: bounds} as
+            ZoneStore.load_all() returns, or just their names.
 
     Returns:
         Formatted prompt string ready to send to the planner LLM.
     """
     context_block = '\n'.join(f'- {fragment}' for fragment in rag_context) or '(no context found)'
-    zones_block = ', '.join(sorted(zones)) or '(none defined yet)'
+    areas = zones if isinstance(zones, dict) else dict.fromkeys(zones)
+    zones_block = ', '.join(_zone_line(name, areas[name]) for name in sorted(areas))
+    zones_block = zones_block or '(none defined yet)'
     return (
         f'GOAL: {goal_text}\n\n'
         f'KNOWN ZONES: {zones_block}\n\n'
@@ -103,12 +122,17 @@ def _detect_language(text: str) -> str:
     return 'Spanish' if any(cue in lowered for cue in _SPANISH_CUES) else 'English'
 
 
-def build_report_prompt(goal_text: str, results: list[dict]) -> str:
+def build_report_prompt(
+    goal_text: str, results: list[dict], corrections: list[str] | tuple[str, ...] = (),
+) -> str:
     """Builds the reporter user-turn prompt from the goal and real step results.
 
     Args:
         goal_text: The user's original goal.
         results: Per-step results from execute_plan (skill, result, error).
+        corrections: Notes on plan steps the validator replaced before execution
+            (plan_validation.py). The user is told, rather than left to wonder
+            why the robot explored instead of going where they asked.
 
     Returns:
         Formatted prompt string ready to send to the reporter LLM.
@@ -122,9 +146,54 @@ def build_report_prompt(goal_text: str, results: list[dict]) -> str:
             payload = json.dumps(result.get('result', {}), ensure_ascii=False)
             lines.append(f'{index}. {skill}: {payload}')
     results_block = '\n'.join(lines) or '(no steps executed)'
+    corrections_block = ''
+    if corrections:
+        corrections_block = (
+            'PLAN CORRECTIONS (made before executing; mention them):\n'
+            + '\n'.join(f'- {note}' for note in corrections) + '\n\n'
+        )
     language = _detect_language(goal_text)
     return (
         f'USER GOAL: {goal_text}\n\n'
+        f'{corrections_block}'
         f'EXECUTED STEPS AND RESULTS:\n{results_block}\n\n'
         f'Write the response to the user now. Reply in {language}.'
     )
+
+
+PLACE_RESOLVER_SYSTEM_PROMPT = """
+You decide which places a robot is being asked to go to.
+
+You receive the user's GOAL and a numbered list of PLACES the robot knows: places it
+remembers, with coordinates, and zones the user defined.
+
+Return two lists:
+- "places": the numbers of the listed places the goal asks the robot to go to. A listed
+  place counts when the goal names it (ignoring accents, case, spaces and underscores),
+  describes it (colours, how open or cluttered it is), refers to it by what is done
+  there, or selects it by its position relative to another listed place ("the nearest
+  to ...", "the farthest from ...", "the one furthest east").
+- "missing": each place the goal asks the robot to go to that is NOT in the list, written
+  as the goal names it. A name that only resembles a listed one is missing: "estacion_d"
+  is not "estacion_a", and "the north station" is not a place unless one is called that.
+
+A place the goal mentions only as a reference point ("nearest to the base") is not a
+destination. If the goal has no destination (explore, look around), both lists are empty.
+
+Answer with JSON only, no other text: {"places": [numbers], "missing": ["names"]}
+"""
+
+
+def build_resolver_prompt(goal_text: str, places: list) -> str:
+    """Builds the user-turn prompt for the place resolver (plan_validation.py).
+
+    Args:
+        goal_text: The user's goal, verbatim.
+        places: Candidate places (plan_validation.Place), numbered from 1 in the prompt.
+
+    Returns:
+        Formatted prompt string.
+    """
+    lines = '\n'.join(f'{number}. {place.text}' for number, place in enumerate(places, start=1))
+    return f'GOAL: {goal_text}\n\nPLACES:\n{lines or "(none)"}\n\nAnswer with the JSON now.'
+

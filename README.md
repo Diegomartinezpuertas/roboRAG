@@ -29,7 +29,7 @@ blindly) — this is the causal mechanism of the hypothesis, and it is
 repeatable (`temperature=0`; a re-run still moves a task type by a run or two),
 unlike end-to-end navigation on this software-rendered WSL2 sim (see [ADR-013](docs/decisions/ADR-013-planning-level-benchmark.md)).
 
-**Result** (`eval/tasks_full.yaml`, 42 runs, re-measured 2026-09-16):
+**Result** (`eval/tasks_full.yaml`, 42 runs, re-measured 2026-09-16, plan check on in both):
 
 | Task type | With RAG | Without RAG |
 |---|---|---|
@@ -45,21 +45,27 @@ More measured findings (full data and charts in
 
 - **Phrasing/language robustness** (36 runs): retrieval survives Spanish
   paraphrases and English goals — 18/18 direct-nav with RAG (with the bge-m3
-  embedder) vs 0/18 without.
+  embedder) vs 2/18 without, and those two are a fixture coincidence, not
+  recall ([rag-analysis §2.2](docs/rag-analysis.md)).
 - **The embedding model is a real multilingual bottleneck**: with Spanish
   queries over English memories, nomic-embed-text ranks the right document
   first only **43%** of the time (negative separation margin), while
   **bge-m3 reaches 86%** with a positive margin — both stay 100% in English.
   bge-m3 is the project default as a result.
-- **RAG's latency cost is measurable but small**: 2.0 s vs 1.6 s median
-  goal→plan, ~0.4 s for three collection retrievals with bge-m3, dwarfed by
-  LLM inference either way.
-- **Memory can also mislead the planner.** Asked for *plausible* places that
-  do not exist ("estacion_d" when a, b and c do; "la estación central"), the
-  planner with RAG reuses a real station's coordinates in 6 of 6 runs. Without
-  memory it gets 3 of 6 right (hard suite, below). And an example in the knowledge base once overrode the
-  prompt's "explore, don't guess" rule until a re-run caught it
-  ([ADR-031](docs/decisions/ADR-031-knowledge-base-is-planner-input.md)).
+- **RAG's latency cost is measurable but small**: median goal→plan 1.4 s
+  without RAG, 2.0 s with it, 2.4 s with the plan check — dwarfed by LLM
+  inference either way.
+- **Memory can also mislead the planner — so plans are checked before they
+  run.** Asked for *plausible* places that do not exist ("estacion_d" when a, b
+  and c do; "la estación central"), the planner with RAG invented a zone or
+  reused a real station's coordinates in 6 of 6 runs. A check between planning
+  and execution replaces a step that goes to an unknown zone, an unknown point
+  or a borrowed place with exploration: **6/6** with it, at the cost of 2 correct
+  spatial answers wrongly rejected and ~0.4 s
+  ([ADR-032](docs/decisions/ADR-032-plan-check-before-execution.md),
+  [rag-analysis §2.9](docs/rag-analysis.md)). An example in the knowledge base
+  had also overridden the prompt's "explore, don't guess" rule until a re-run
+  caught it ([ADR-031](docs/decisions/ADR-031-knowledge-base-is-planner-input.md)).
 
 ![Embedding comparison](eval/results/embeddings.png)
 
@@ -131,11 +137,16 @@ flowchart TD
    (dropping low-relevance hits below a similarity threshold) and the known zones.
 3. Qwen2.5-7B produces a JSON plan. If retrieved context contains coordinates,
    it navigates directly; otherwise it explores.
-4. Skills execute in sequence via `/skills/execute`. The memory is
+4. **The plan is checked before the robot moves.** Every `navigate` must go to a
+   zone that exists or a place the robot actually knows, and a remembered place
+   must not stand in for one the goal asks for that memory does not have — a
+   step that fails becomes `explore`, and the user is told why
+   ([ADR-032](docs/decisions/ADR-032-plan-check-before-execution.md)).
+5. Skills execute in sequence via `/skills/execute`. The memory is
    **self-building**: every place reached while exploring is described
    (dominant colors + LIDAR clutter) and stored with its coordinates, so
    goals like "go to the white, open room" resolve later without seeding.
-5. A **second** LLM call summarizes the *actual* results (grounded, in the
+6. A final LLM call summarizes the *actual* results (grounded, in the
    user's language) and publishes it to `/robot/response`.
 
 Before any of that, a person can drive the robot around with **WASD** in the
@@ -164,7 +175,7 @@ docker build -t robot-rag-agent .
 docker run --rm robot-rag-agent
 ```
 
-Expected: `ruff` clean, **327** + **28** tests, exit `0`. The image sources the
+Expected: `ruff` clean, **346** + **28** tests, exit `0`. The image sources the
 project's own `setup_env.sh` and runs at `/robot_ws`, which also exercises the
 path-portability fix ([ADR-015](docs/decisions/ADR-015-workspace-relative-paths.md)).
 
@@ -224,7 +235,7 @@ Three layers, split by what each needs to run
 
 | Layer | Covers | Needs | Tests | Run |
 |---|---|---|---|---|
-| Pure logic | chunking, plan parsing, prompts, frontier clusters, scene descriptor, scene merging, knowledge-base sync, zone store, room semantics, teleop deadman, cmd_vel mux, sim speed, saved maps and sessions, HTTP layer, the dashboard page in headless Chromium, benchmark scorer | nothing (Chromium for the page tests) | 327 | `pytest tests/` |
+| Pure logic | chunking, plan parsing, prompts, frontier clusters, scene descriptor, scene merging, knowledge-base sync, plan check, zone store, room semantics, teleop deadman, cmd_vel mux, sim speed, saved maps and sessions, HTTP layer, the dashboard page in headless Chromium, benchmark scorer | nothing (Chromium for the page tests) | 346 | `pytest tests/` |
 | Node level | real services on real executors, the HTTP↔ROS bridge (goals, driving, memory), the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 28 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
 | Manual | navigation, exploration, perception, the LLM calls | Gazebo + Ollama | — | see [Limitations](#limitations) |
 
@@ -248,7 +259,7 @@ a plain runner and layer 2 in `ros:jazzy-ros-base`, on every push.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [31 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [32 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
@@ -259,7 +270,9 @@ silently dropping frames over DDS),
 [ADR-022](docs/decisions/ADR-022-room-semantics.md) (rooms findable by what
 they are for, measured 55% → 100%),
 [ADR-031](docs/decisions/ADR-031-knowledge-base-is-planner-input.md) (a re-run
-that caught a knowledge-base regression, and the claim it withdrew).
+that caught a knowledge-base regression, and the claim it withdrew),
+[ADR-032](docs/decisions/ADR-032-plan-check-before-execution.md) (checking plans
+before the robot moves — and a variant that was measured and reverted).
 
 ---
 
@@ -270,13 +283,20 @@ that caught a knowledge-base regression, and the claim it withdrew).
   `navigate` sometimes reports false success). The planning metric isolates
   the RAG mechanism reproducibly; a physical run needs better hardware.
 - **The headline suite is saturated** (every cell 100% or 0%), so it cannot
-  show improvement. `eval/tasks_hard.yaml` (60 runs) can: **20/30 with RAG vs
-  3/30 without**. Disambiguation and ordered plans are solved (9/9 each). The
-  misses are spatial reasoning ("the station nearest the base", 2/6) and
-  plausible nonexistent places (**0/6** with RAG vs 3/6 without: the planner
-  reuses a remembered station's coordinates). Nothing checks a plan against
-  memory before it runs. Breakdown in
+  show improvement. `eval/tasks_hard.yaml` can: **23/30 with RAG and the plan
+  check**, 19/30 with the check off, 6/30 without RAG. Disambiguation is solved
+  (9/9) and plausible nonexistent places are held by the check (6/6, 0/6
+  without it). **Spatial reasoning is the open gap**: with every coordinate in
+  the prompt, the planner picked the right station in all 6 plans in one
+  session and the wrong one in all 6 in the next. Breakdown in
   [docs/rag-analysis.md §2.6](docs/rag-analysis.md).
+- **The plan check is itself a model call.** It narrows the unsafe case the
+  benchmark found; it does not certify a plan. It wrongly rejected 2 correct
+  answers and let one fixture coincidence through
+  ([ADR-032](docs/decisions/ADR-032-plan-check-before-execution.md)).
+- **Totals differ between sessions by two or three runs** even with identical
+  code (`temperature=0` is repeatable, not exact). Effects are claimed only
+  from conditions compared within one session.
 - **The numbers belong to the knowledge files they were measured with.** The
   worked examples in `data/knowledge/` are part of the prompt, and one of them
   cost a control 3/3 → 0/3. A July claim that RAG *suppresses* hallucination
@@ -311,10 +331,10 @@ that caught a knowledge-base regression, and the claim it withdrew).
 1. **Real agent loop** (replanning from execution feedback) — the jump from
    plan-then-execute to a true agent; expected benchmark improvement and a
    natural next README section.
-2. **Plan validation against memory** — reject a `navigate` to coordinates that
-   belong to a place the goal did not name, and a zone that does not exist. The
-   hard suite's 0/6 on plausible nonexistent places is the baseline it has to
-   move.
+2. **Spatial reasoning the planner can be trusted with** — compute "nearest" /
+   "farthest" over retrieved coordinates in code and hand the planner the
+   answer, or let the agent loop check its choice. Baseline: 1/6 (0/6 and 3/6
+   in other sessions) on the hard suite's spatial relations.
 3. **Native voice phase** (Whisper on the Windows NPU, publishing to
    `/robot/goal`) — the NPU is unreachable from WSL2, so this runs host-side.
 4. **Object-level detection** (YOLOv8n; VLM revisit on real-camera hardware)

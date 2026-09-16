@@ -1,7 +1,9 @@
 # ADR-009: Own camera model at 640×480 and explicit bridge (never touch /opt/ros)
 
 **Date:** 2026-07-14
-**Status:** Accepted
+**Status:** Accepted — the VLM it mentions was later removed
+([ADR-014](ADR-014-classical-scene-descriptor.md)); the frame-drop fix still
+matters for the classical scene descriptor that replaced it
 
 ## Context
 

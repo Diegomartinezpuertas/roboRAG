@@ -9,10 +9,11 @@ class QwenClient:
     Args:
         base_url: Ollama server URL.
         model: Model name, e.g. "qwen2.5:7b".
-        temperature: Sampling temperature. 0.0 (default) makes planning
-            deterministic, which is required for the reproducible A/B benchmark
-            (see eval/) — the only variance then comes from the simulator.
-        seed: RNG seed passed to Ollama for extra determinism at temperature 0.
+        temperature: Sampling temperature. 0.0 (default) makes planning as
+            repeatable as the server allows, which the A/B benchmark (eval/)
+            relies on. Not exactly: repeated runs of the same goal were measured
+            to differ now and then (rag-analysis.md, threats to validity).
+        seed: RNG seed passed to Ollama, for the same reason.
     """
 
     def __init__(

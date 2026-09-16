@@ -39,10 +39,11 @@ behavior. Found by listing the live topic graph; renamed into the project's
 
 ## Rationale
 
-**Why not `twist_mux`.** It is the standard answer and is not installed here,
-and installing system packages needs interactive sudo. The arbitration is a
-few lines with their own tests; the dependency can replace them later without
-changing any topic.
+**Why not `twist_mux`.** It is the standard answer, but it is not a dependency
+of this workspace: it was not installed in the development environment, and
+adding it means a system package on every machine, in the container image and
+in CI. The arbitration is a few lines with their own tests; the dependency can
+replace them later without changing any topic.
 
 **Why manual over Nav2.** A person pressing a key during an autonomous goal is
 correcting it. The opposite priority would make the manual controls ignore the

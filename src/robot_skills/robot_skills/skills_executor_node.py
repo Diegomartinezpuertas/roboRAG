@@ -47,7 +47,7 @@ class SkillsExecutorNode(Node):
 
     Subscribes:
         /camera/image_raw (sensor_msgs/Image): Latest camera frame, cached for perceive.
-        /scan (sensor_msgs/LaserScan): Latest LIDAR scan, cached for perceive.
+        /scan (sensor_msgs/LaserScan): Latest LIDAR scan, cached for perceive and scan_360.
         /map (nav_msgs/OccupancyGrid): Latest SLAM occupancy grid, cached for explore.
 
     Looks up the map -> base_link TF (published by SLAM Toolbox) to get the
@@ -227,8 +227,9 @@ class SkillsExecutorNode(Node):
             return self._run_report(params)
         if skill_name == 'save_map':
             # Maintenance skill, deliberately absent from the planner's prompt
-            # and from toolkit.VALID_SKILLS, so the LLM never emits it. Reached
-            # only by a direct `ros2 service call /skills/execute` (ADR-019).
+            # and from toolkit.VALID_SKILLS, so the LLM never emits it. Reached by
+            # the dashboard's "Guardar mapa" and by a direct
+            # `ros2 service call /skills/execute` (ADR-019, ADR-026).
             return self._run_save_map(params)
         raise ValueError(f'Unknown skill: {skill_name}')
 

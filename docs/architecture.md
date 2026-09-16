@@ -129,13 +129,23 @@ Subscribes to `/robot/goal`. For each goal:
 1. Retrieves context from `/rag/query` over `knowledge_base`, `semantic_map`,
    and `task_history`, dropping hits below `rag_score_threshold` (an
    irrelevant hit is worse than none — it enters the prompt as ground truth).
-2. Builds the prompt (`prompts.py`) and requests a JSON plan from Qwen2.5-7B
+2. Builds the prompt (`prompts.py`) — goal, retrieved context, and the known
+   zones with their centres — and requests a JSON plan from Qwen2.5-7B
    (`qwen_client.py`, `temperature=0` for repeatability — not exact identity
    across runs; see the threats to validity in rag-analysis.md).
-3. Publishes the raw plan on `/robot/plan` and executes the steps
+3. **Checks the plan before running it** (`plan_validation.py`,
+   [ADR-032](decisions/ADR-032-plan-check-before-execution.md)). Every
+   `navigate` must go to a known zone or a known point — a retrieved memory
+   or a zone centre — and a remembered place must not be borrowed for a place
+   the goal asks for that memory does not hold. The first two checks are exact.
+   The third asks Qwen, in a separate, narrow call, which known places the goal
+   asks for and which it asks for that are missing. A step that fails any check becomes `explore`, which is what the
+   prompt rules demand for an unknown place, and the correction is published as
+   a status and told to the user.
+4. Publishes the plan as it will run on `/robot/plan` and executes the steps
    sequentially via `/skills/execute` (`toolkit.py` — plain dispatch, no
    agent framework; see ADR-012 for why LangChain was removed).
-4. After execution, a **second LLM call** receives the real step results and
+5. After execution, a **second LLM call** receives the real step results and
    writes the final user-facing response (in the user's language), published
    via the report skill. The planner never pre-writes outcomes.
 
@@ -200,7 +210,10 @@ headless Chromium (`tests/test_dashboard_ui.py`): a held W reaches
 llm_planner_node ──/rag/query──► rag_node ──► ChromaDB
     │
     ▼ (prompt + filtered context + known zones)
-Qwen2.5-7B (Ollama) → plan JSON {reasoning, steps[]}  ──► /robot/plan
+Qwen2.5-7B (Ollama) → plan JSON {reasoning, steps[]}
+    │
+    ▼ validate_plan() — known zone? known point? borrowed place? (2nd Qwen call)
+plan as it will run  ──► /robot/plan
     │
     ▼ execute_plan()
 /skills/execute ──► skills_executor_node
@@ -210,7 +223,7 @@ Qwen2.5-7B (Ollama) → plan JSON {reasoning, steps[]}  ──► /robot/plan
     └─ scan_360 ─► Nav2 spin (in place) ─► scene descriptor ─► /rag/update_map
     │
     ▼ (real step results)
-Qwen2.5-7B (2nd call) → grounded response ──► report ──► /robot/response
+Qwen2.5-7B (report call) → grounded response ──► report ──► /robot/response
                                                     └──► data/logs/*.json
 ```
 
@@ -299,11 +312,13 @@ careful to call unreliable.
   frontier cell with the most clearance
   ([ADR-027](decisions/ADR-027-exploration-frontier-clusters.md)).
 - **Plausible but nonexistent places:** asked for "estacion_d" when a, b and c
-  exist, the planner with RAG reuses a real station's coordinates (hard suite
-  0/6 with RAG, 3/6 without). The plan is well-formed, so nothing downstream
-  rejects it; validating plans against memory is the open follow-up
-  ([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md),
-  [rag-analysis §2.6](rag-analysis.md)).
+  exist, the planner with RAG invents a zone or reuses a real station's
+  coordinates (hard suite 0/6 with the plan check off). The plan check holds it
+  (6/6), but it is a model call: it wrongly rejected 2 correct spatial answers
+  in the same run ([ADR-032](decisions/ADR-032-plan-check-before-execution.md)).
+- **Spatial goals are unreliable:** "the station nearest the base" gets the
+  right station in one session and the wrong one in the next, with every
+  coordinate in the prompt ([rag-analysis §2.6](rag-analysis.md)).
 - **High-resolution camera = silently dropped messages.** The stock
   TurtleBot3 model publishes 1920×1080 (~55 MB/s); BEST_EFFORT subscribers in
   a busy process lost every frame at the DDS layer with no visible error. Our

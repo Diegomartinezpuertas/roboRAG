@@ -19,28 +19,36 @@ observe the result, decide the next step in light of it. That is the difference
 between "follow these directions" and "figure it out as you go".
 
 The [hard benchmark suite](rag-analysis.md#26-a-harder-suite-because-the-main-one-is-saturated)
-already localises where this would pay off. With RAG, the current system scores
-(re-measured 2026-09-16):
+already localises where this would pay off. With RAG and the plan check, the
+current system scores (re-measured 2026-09-16):
 
 | Capability | Score | Closed loop should help? |
 |---|---|---|
 | Disambiguation (confusable memories) | 9/9 | No — already solved at plan time |
-| Ordered multi-step plan | 9/9 | No — already solved |
-| **Spatial reasoning** ("nearest to base") | **2/6** | **Yes — the target** |
-| **Plausible nonexistent place** ("estacion_d") | **0/6** (3/6 without RAG) | **Yes, if the loop checks its target** — plan validation may be the cheaper fix |
+| Ordered multi-step plan | 7/9 | Little — the misses are remembered places written as zones |
+| **Spatial reasoning** ("nearest to base") | **1/6** (3/6 with the check off; 0/6 in the next session) | **Yes — the target** |
+| Plausible nonexistent place ("estacion_d") | 6/6 (0/6 with the check off) | Held by the plan check ([ADR-032](decisions/ADR-032-plan-check-before-execution.md)) |
 
-Those two rows are the numbers to move. In both, the planner retrieves the
-right memories and then chooses wrongly among them. It mis-computes which
-station is nearest, or it reuses a real station's coordinates for a name no
-memory holds. A loop that could *check* its choice against the retrieved
-coordinates — or navigate, observe, and correct — is exactly the mechanism
-that closes that gap. The second row can also be closed without a loop, by
-validating the plan against memory before it runs
-([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)). Build that
-first, measure it, and let the loop be judged on what remains. **Take the
-baseline before building either** (it exists: `results/hard/`), so the
-improvement is measured, not asserted. Re-run it if `data/knowledge/` changes
-in between. The July baseline (27/30) did not survive a knowledge-base edit.
+Spatial reasoning is the number to move. The planner now has every station's
+coordinates and the zone's centre, and it still chooses inconsistently: the
+right station in all 6 plans in one session, the wrong one in all 6 in the next.
+A loop that could *check* its choice against the retrieved coordinates — or
+navigate, observe, and correct — is the mechanism that closes that gap. It
+should be judged against a cheaper alternative: computing "nearest" and
+"farthest" in code and handing the planner the answer.
+
+Two lessons from the plan check apply here unchanged:
+
+- **Measure inside one session.** Totals moved by two or three runs between
+  sessions of identical code. Compare open loop and agent loop on the same
+  memory, in the same run, the way the benchmark now compares check on and off.
+- **Fail into exploration, not into a guess.** A "repair" that turned a wrong
+  reference into coordinates made the check miss a borrowed place. A loop that
+  corrects its own target needs the same discipline.
+
+**Take the baseline before building** (it exists: `results/hard/`), and re-run
+it if `data/knowledge/` changes in between — the July baseline (27/30) did not
+survive a knowledge-base edit.
 
 ---
 
@@ -95,7 +103,7 @@ Open-loop can't loop forever; closed-loop can. Guards:
 ### Where it lives
 
 `llm_planner_node._on_goal` is the seam. Today it is: retrieve → `generate_plan`
-→ `execute_plan` → report. It becomes: retrieve → **agent loop** → report, where
+→ `validate_plan` → `execute_plan` → report. It becomes: retrieve → **agent loop** → report, where
 the loop calls `generate_next_action` and `execute_plan` (one step) alternately.
 
 Keep it as a **pure-logic core** (ADR-018): an `agent_step(goal, history,
@@ -125,8 +133,7 @@ before choosing" instruction is worth testing.
    measured baseline and the loop is A/B-comparable live — the same discipline
    the RAG ablation already uses.
 3. **Re-run the hard suite** in both modes. The headline result is the
-   spatial-reasoning delta (2/6 → ?) and the nonexistent-place delta
-   (0/6 → ?). Add an `agent` condition to the scorer if the loop changes what a
+   spatial-reasoning delta (1/6 → ?), inside one session. Add an `agent` condition to the scorer if the loop changes what a
    "plan" looks like (it emits a trace, not a single plan — `scoring.py` may
    need to score the final navigate of a trace).
 4. **New chart**: open-loop vs agent-loop on the hard suite, same style as the
@@ -141,7 +148,7 @@ before choosing" instruction is worth testing.
 - Not learned planning. Same Qwen2.5-7B, `temperature=0`, so the comparison is
   clean: only the loop changes.
 - Not physical SR/SPL. Still planning-level (ADR-013); the point is the decision
-  quality, measured reproducibly.
+  quality, measured repeatably and compared within one session.
 
 ## Risks
 

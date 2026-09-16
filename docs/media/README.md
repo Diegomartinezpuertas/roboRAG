@@ -23,8 +23,9 @@ resolve) and save it with "Guardar mapa" as **`house`**. From then on every take
 starts from it: `ros2 launch robot_bringup demo.launch.py` opens Gazebo, RViz and
 the dashboard on that map, with the memory session pinned to it
 ([ADR-026](../decisions/ADR-026-shipped-map-and-demo-launch.md)). Autonomous
-exploration is not a substitute here: in five minutes it mapped under
-10 × 5 m of the house.
+exploration is not a substitute here: even with frontier clusters it maps about
+14 m² in four minutes, a room or two rather than the house
+([ADR-027](../decisions/ADR-027-exploration-frontier-clusters.md)).
 
 ## Paste-ready README section
 

@@ -217,10 +217,9 @@ class RagNode(Node):
         return response
 
     def _handle_delete(self, request: DeleteMemory.Request, response: DeleteMemory.Response):
-        # Only semantic_map is deletable. knowledge_base is re-ingested from its
-        # Markdown only when empty, so a deleted chunk would silently stay gone
-        # until the whole collection is reset; task_history is re-ingested from
-        # data/logs on every start, so a deletion would silently come back. A
+        # Only semantic_map is deletable. knowledge_base is re-synced from its
+        # Markdown on every start (ADR-031) and task_history re-ingested from
+        # data/logs, so a deletion from either would silently come back. A
         # delete that does not stick is worse than no delete (ADR-030).
         if request.collection_name not in DELETABLE_COLLECTIONS:
             response.deleted = 0

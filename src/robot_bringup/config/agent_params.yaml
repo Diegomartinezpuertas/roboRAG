@@ -35,9 +35,11 @@ rag_node:
     # across; 0 disables merging.
     scene_merge_radius: 2.0
 
-# skills_executor_node has no tuning parameters — logs_dir and zones_db both
-# come from ROBOT_WS (see the header). An empty `ros__parameters:` block is
-# invalid for the parameter loader, so the stanza is omitted entirely.
+# skills_executor_node and cmd_vel_mux_node are omitted: their tuning parameters
+# (explore_strategy; the mux topics and timeouts) keep their code defaults,
+# documented in docs/api_reference.md, and their paths come from ROBOT_WS. An
+# empty `ros__parameters:` block is invalid for the parameter loader, so no
+# stanza is better than an empty one.
 
 dashboard_node:
   ros__parameters:

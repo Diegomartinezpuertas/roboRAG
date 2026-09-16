@@ -23,14 +23,7 @@ position.
 
 ## Navigation rules
 
-The robot must never cross into an area without a clear LIDAR-confirmed path.
-If Nav2 reports a blocked or out-of-bounds goal, the robot should fall back to
-frontier exploration instead of retrying the same goal repeatedly. Nav2
-rejects goals outside the currently mapped boundaries, so unexplored regions
-must be mapped first.
-
-## Safety rules
-
-The robot must stop and report if continuous operation exceeds 30 minutes of
-simulation time. The robot must never attempt to navigate outside the mapped
-boundaries produced by SLAM Toolbox.
+Nav2 plans only through space the LIDAR has mapped as free, and rejects goals
+outside the currently mapped boundaries, so unexplored regions must be mapped
+first. A plan runs in order and stops at the first step that fails; nothing
+retries or replans on its own.

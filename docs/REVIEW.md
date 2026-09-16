@@ -22,7 +22,8 @@ is the only way a document like this stays useful.
 > plausible-nonexistent row is 0/6 with RAG vs 3/6 without, so the reading in
 > rag-analysis that RAG "suppresses hallucination" is withdrawn. The headline and
 > phrasing suites reproduce, but only after removing a knowledge-base example
-> that had broken the impossible-goal control. See [§11](#11-addendum-2026-09-16--re-measurement).
+> that had broken the impossible-goal control. A plan check added the same day
+> brings the hard suite to 23/30. See [§11](#11-addendum-2026-09-16--re-measurement).
 
 ---
 
@@ -57,7 +58,7 @@ Everything below was executed during this review, not inferred.
 | Path portability | ran with `ROBOT_WS` pointed at a scratch dir | **data written there** |
 | Full stack, end to end | `full_system.launch.py` + explore + seed + all 3 suites, live | **runs; numbers reproduce** |
 | Headline ablation | `tasks_full.yaml`, live | **9/9·6/6·3/3·3/3 with RAG; 0·0·3/3·3/3 without** |
-| Hard suite | `tasks_hard.yaml`, live | **27/30 with RAG vs 3/30 without** (re-run 2026-09-16: 20/30, §11) |
+| Hard suite | `tasks_hard.yaml`, live | **27/30 with RAG vs 3/30 without** (re-run 2026-09-16: 20/30; with the plan check 23/30, §11) |
 | Charts | regenerated from live result JSON | **reproduce** |
 | Committed artefacts | `git ls-files` vs `.gitignore` | **no build/venv/DB leakage** |
 | Fresh clone | `git clone` + build + `colcon test` in a `ros:jazzy-ros-base` container | **20/20, no reference to the original home dir** |
@@ -509,6 +510,15 @@ Without RAG every run matched July: 6/21, 0/18, 3/30.
   RAG *suppresses* hallucination is withdrawn. Spatial reasoning is 2/6 (was 3/6,
   within run-to-run variation). Plan validation against memory is the named
   follow-up.
+- **Then fixed, with a trade-off (ADR-032):** a check between planning and
+  execution replaces a `navigate` to an unknown zone, an unknown point or a
+  borrowed place with exploration. Measured the same day, with the check on
+  and off in one session: hard suite 23/30 vs 19/30, plausible nonexistent
+  places 6/6 vs 0/6, 2 correct spatial answers wrongly rejected, nothing lost
+  on the main or phrasing suites. A variant that "repaired" a memory named as a
+  zone was measured, let a borrowed place through, and was reverted. The zones'
+  centres now reach the prompt; before, the spatial tasks could only be
+  guessed.
 - **The lesson this review's §10 already drew, once more:** the numbers in the
   repository were right when measured and wrong two months later, and only
   running the system again showed it. The pre-fix results are kept in

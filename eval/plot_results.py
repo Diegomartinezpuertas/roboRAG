@@ -3,12 +3,14 @@
 Reads:
   results/full/{rag,norag}.json       — main ablation suite (with latency)
   results/phrasing/{rag,norag}.json   — phrasing/language robustness suite
+  results/hard/{rag,norag}.json       — the hard suite, when it has been run
+  results/*/rag_unchecked.json        — RAG with the plan check off (ADR-032)
   results/embeddings.json             — nomic-embed-text vs bge-m3 comparison
   results/room_semantics.json         — zone described by name vs by purpose
 
 Writes results/benchmark.png, results/phrasing.png, results/embeddings.png,
-results/room_semantics.png (plus hard{,_decisions}.png when the hard suite
-has been run).
+results/room_semantics.png, plus hard.png, hard_decisions.png and
+plan_check.png when their results exist.
 
 Chart conventions (see the project's data-viz method): fixed categorical
 color assignment (never re-mapped between charts), thin bars with a surface
@@ -34,6 +36,9 @@ SURFACE = '#fcfcfb'
 INK = '#0b0b0b'
 INK_2 = '#52514e'
 GRID = '#e6e5e0'
+# Slot 3 — "With RAG, plan check off" (ADR-032). A muted neutral, not a third
+# hue: it is the same system as slot 1 with one component switched off.
+MUTED = '#9a988f'
 # Status, not a category: marks a failure outcome. Never a series colour, so a
 # failure bar cannot be mistaken for the "Without RAG" / nomic series.
 FAIL = '#c8553d'
@@ -462,6 +467,55 @@ def fig_hard_decisions():
     print('Wrote', RESULTS / 'hard_decisions.png')
 
 
+# Two panels of four groups leave less width per label than the main chart.
+SHORT_TYPE_LABELS = {
+    'object_nav': 'Object-\nreferenced nav',
+    'attribute_nav': 'Description-\nreferenced nav',
+    'zone_nav': 'Known zone\n(control)',
+    'negative': 'Impossible\ngoal',
+}
+
+
+def fig_plan_check():
+    """Renders results/plan_check.png: with RAG, the plan check on vs off (ADR-032).
+
+    Two panels, one per suite the check can change. The rows where it cannot
+    help (it only ever replaces a navigate step with explore) are there on
+    purpose: they are where a false rejection would show up as a drop.
+    """
+    panels = []
+    for suite, title, labels, types in (
+        ('full', 'Main suite', SHORT_TYPE_LABELS,
+         ['object_nav', 'attribute_nav', 'zone_nav', 'negative']),
+        ('hard', 'Hard suite', HARD_LABELS,
+         ['distractor_nav', 'ordered_multi_step', 'relational_nav', 'negative_plausible']),
+    ):
+        on, off = load(suite, 'rag'), load(suite, 'rag_unchecked')
+        if on and off:
+            kept = [t for t in types if sample_size(on, t)]
+            panels.append((title, labels, kept, on, off))
+    if not panels:
+        return
+    fig, axes = plt.subplots(1, len(panels), figsize=(6.2 * len(panels), 4.6),
+                             facecolor=SURFACE, squeeze=False)
+    for ax, (title, labels, types, on, off) in zip(axes[0], panels, strict=True):
+        grouped_bars(
+            ax, [labels[t] for t in types],
+            [('With RAG, plan check on', BLUE, [success_rate(on, t) for t in types]),
+             ('With RAG, plan check off', MUTED, [success_rate(off, t) for t in types])],
+            ylabel='Success rate', counts=[sample_size(on, t) for t in types],
+        )
+        ax.set_title(title, fontsize=11, color=INK, pad=26)
+    axes[0][0].legend(frameon=False, fontsize=9, ncol=2, loc='lower left',
+                      bbox_to_anchor=(0.0, 1.0), labelcolor=INK)
+    fig.suptitle('Checking the plan before it runs (same session, same memory)',
+                 fontsize=12, color=INK, y=0.99)
+    fig.tight_layout()
+    fig.savefig(RESULTS / 'plan_check.png', dpi=200, facecolor=SURFACE,
+                bbox_inches='tight')
+    print('Wrote', RESULTS / 'plan_check.png')
+
+
 def main():
     fig_benchmark()
     fig_phrasing()
@@ -469,6 +523,7 @@ def main():
     fig_room_semantics()
     fig_hard()
     fig_hard_decisions()
+    fig_plan_check()
 
 
 if __name__ == '__main__':

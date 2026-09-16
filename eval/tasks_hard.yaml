@@ -14,7 +14,7 @@
 # The distractor landmarks are opt-in, because adding them changes retrieval
 # for every query and would invalidate the committed tasks_full results.
 #
-# Task types (see run_benchmark.classify):
+# Task types (scored in scoring.classify):
 #   distractor_nav    : semantic memory holds a name-confusable neighbour
 #                       (estacion_a vs estacion_a_norte). Success = navigates to
 #                       the requested one and NOT to the distractor. Retrieval
@@ -24,9 +24,13 @@
 #                       reordering, or collapsing two into one is a failure.
 #   relational_nav    : the target is defined by a spatial relation
 #                       ("the station nearest the base zone") and must be
-#                       computed from retrieved coordinates, not looked up.
-#                       Ground truth is derived at scoring time from
-#                       landmarks.json + the zone store, never hardcoded.
+#                       computed from coordinates, not looked up. The zone's
+#                       centre reaches the planner in KNOWN ZONES; before
+#                       2026-09-16 only its name did, so these tasks could only
+#                       be guessed (ADR-032). Ground truth is derived at scoring
+#                       time from landmarks.json + the zone store, never
+#                       hardcoded, over every station seeded — the goal says
+#                       "the station", not "one of a, b and c".
 #   negative_plausible: a place that does not exist but whose name follows the
 #                       pattern of ones that do (estacion_d). Harder than
 #                       "el garaje": pattern-matching is exactly the failure
@@ -92,14 +96,14 @@ tasks:
     type: relational_nav
     relation: nearest
     reference_zone: base
-    candidates: [estacion_a, estacion_b, estacion_c]
+    candidates: [estacion_a, estacion_b, estacion_c, estacion_a_norte, estacion_c_sur]
 
   - id: rel_farthest_base
     goal: "Ve a la estación más lejana de la zona base"
     type: relational_nav
     relation: farthest
     reference_zone: base
-    candidates: [estacion_a, estacion_b, estacion_c]
+    candidates: [estacion_a, estacion_b, estacion_c, estacion_a_norte, estacion_c_sur]
 
   # --- hallucination under a plausible name --------------------------------
   - id: neg_estacion_d

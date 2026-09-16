@@ -7,15 +7,15 @@
     "goal": "Ve a estacion_a",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 11.21,
+    "latency_sec": 2.6,
     "plan": {
-      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_a' is known by name and has coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -1.97,
+            "y": -1.11
           }
         },
         {
@@ -32,15 +32,15 @@
     "goal": "Ve a estacion_a",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 2.4,
     "plan": {
-      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_a' is known by name and has coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -1.97,
+            "y": -1.11
           }
         },
         {
@@ -57,15 +57,15 @@
     "goal": "Ve a estacion_a",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 2.4,
     "plan": {
-      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_a' is known by name and has coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -1.97,
+            "y": -1.11
           }
         },
         {
@@ -82,15 +82,15 @@
     "goal": "Ve a estacion_b",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 2.6,
     "plan": {
-      "reasoning": "The target 'estacion_b' is a known zone, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_b' is a known zone with coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.83,
+            "y": -0.86
           }
         },
         {
@@ -107,15 +107,15 @@
     "goal": "Ve a estacion_b",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 2.4,
     "plan": {
-      "reasoning": "The target 'estacion_b' is a known zone, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_b' is a known zone with coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.83,
+            "y": -0.86
           }
         },
         {
@@ -132,15 +132,15 @@
     "goal": "Ve a estacion_b",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 1.8,
+    "latency_sec": 2.4,
     "plan": {
-      "reasoning": "The target 'estacion_b' is a known zone, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_b' is a known zone with coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.83,
+            "y": -0.86
           }
         },
         {
@@ -157,39 +157,36 @@
     "goal": "Ve a estacion_c",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
-    "plan": {
-      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
-      "steps": [
-        {
-          "skill": "navigate",
-          "params": {
-            "x": 2.05,
-            "y": -0.01
-          }
-        },
-        {
-          "skill": "perceive"
-        }
-      ]
-    }
-  },
-  {
-    "task_id": "nav_estacion_c",
-    "type": "object_nav",
-    "rep": 1,
-    "condition": "rag",
-    "goal": "Ve a estacion_c",
-    "decision": "direct_nav",
-    "success": true,
-    "latency_sec": 1.8,
+    "latency_sec": 2.4,
     "plan": {
       "reasoning": "The target 'estacion_c' is a known zone with coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
+            "x": 3.23,
+            "y": -0.01
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "The target 'estacion_c' is a known zone with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.23,
             "y": -0.01
           }
         }
@@ -204,14 +201,14 @@
     "goal": "Ve a estacion_c",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 1.8,
+    "latency_sec": 2.2,
     "plan": {
       "reasoning": "The target 'estacion_c' is a known zone with coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
+            "x": 3.23,
             "y": -0.01
           }
         }
@@ -226,15 +223,15 @@
     "goal": "Ve a la habitación blanca y despejada",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 2.4,
     "plan": {
       "reasoning": "The target is described as a white, open room, which matches one of the stored descriptions.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -1.97,
+            "y": -1.11
           }
         }
       ]
@@ -248,15 +245,15 @@
     "goal": "Ve a la habitación blanca y despejada",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 1.8,
+    "latency_sec": 2.2,
     "plan": {
       "reasoning": "The target is described as a white, open room, which matches one of the stored descriptions.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -1.97,
+            "y": -1.11
           }
         }
       ]
@@ -270,15 +267,15 @@
     "goal": "Ve a la habitación blanca y despejada",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 1.8,
+    "latency_sec": 2.2,
     "plan": {
       "reasoning": "The target is described as a white, open room, which matches one of the stored descriptions.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -1.97,
+            "y": -1.11
           }
         }
       ]
@@ -288,43 +285,43 @@
     "task_id": "attr_cluttered",
     "type": "attribute_nav",
     "rep": 0,
+    "condition": "rag",
+    "goal": "Llévame a donde había muchos objetos",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "The goal is to go to where there were many objects. The context provides an unknown area with many objects, so we should navigate to it first.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.23,
+            "y": -0.01
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "attr_cluttered",
+    "type": "attribute_nav",
+    "rep": 1,
     "condition": "rag",
     "goal": "Llévame a donde había muchos objetos",
     "decision": "direct_nav",
     "success": true,
     "latency_sec": 2.4,
     "plan": {
-      "reasoning": "The goal is to go to where there were many objects. The context provides an unknown area with a description matching this criteria.",
+      "reasoning": "The goal is to go to where there were many objects. The context provides an unknown area with many objects, so we should navigate to it first.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
-            "y": -0.01
-          }
-        },
-        {
-          "skill": "perceive"
-        }
-      ]
-    }
-  },
-  {
-    "task_id": "attr_cluttered",
-    "type": "attribute_nav",
-    "rep": 1,
-    "condition": "rag",
-    "goal": "Llévame a donde había muchos objetos",
-    "decision": "direct_nav",
-    "success": true,
-    "latency_sec": 2.2,
-    "plan": {
-      "reasoning": "The goal is to go to where there were many objects. The context provides an unknown area with a description matching this criteria.",
-      "steps": [
-        {
-          "skill": "navigate",
-          "params": {
-            "x": 2.05,
+            "x": 3.23,
             "y": -0.01
           }
         },
@@ -342,14 +339,14 @@
     "goal": "Llévame a donde había muchos objetos",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 2.4,
     "plan": {
-      "reasoning": "The goal is to go to where there were many objects. The context provides an unknown area with a description matching this criteria.",
+      "reasoning": "The goal is to go to where there were many objects. The context provides an unknown area with many objects, so we should navigate to it first.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
+            "x": 3.23,
             "y": -0.01
           }
         },
@@ -369,7 +366,7 @@
     "success": true,
     "latency_sec": 1.8,
     "plan": {
-      "reasoning": "Navigate to the base zone since it is a known location and then describe it.",
+      "reasoning": "Navigate to the base zone since its coordinates are known and then describe it.",
       "steps": [
         {
           "skill": "navigate",
@@ -391,9 +388,9 @@
     "goal": "Ve a la zona base",
     "decision": "zone_nav",
     "success": true,
-    "latency_sec": 1.8,
+    "latency_sec": 1.6,
     "plan": {
-      "reasoning": "Navigate to the base zone since it is a known location and then describe it.",
+      "reasoning": "Navigate to the base zone since its coordinates are known and then describe it.",
       "steps": [
         {
           "skill": "navigate",
@@ -417,7 +414,7 @@
     "success": true,
     "latency_sec": 1.6,
     "plan": {
-      "reasoning": "Navigate to the base zone since it is a known location and then describe it.",
+      "reasoning": "Navigate to the base zone since its coordinates are known and then describe it.",
       "steps": [
         {
           "skill": "navigate",
@@ -439,14 +436,15 @@
     "goal": "Ve al garaje",
     "decision": "declined_or_explore",
     "success": true,
-    "latency_sec": 2.2,
+    "latency_sec": 2.0,
     "plan": {
-      "reasoning": "The goal is to go to the garage, but 'garaje' is not a known zone or matched by description. Therefore, we need to explore to find it.",
+      "reasoning": "The goal is to go to the garage, which is not a known zone or present with coordinates. Therefore, we need to explore first to find and describe the garage.",
       "steps": [
         {
           "skill": "explore",
           "params": {
-            "duration_sec": 10
+            "duration_sec": 60,
+            "zone": "garage"
           }
         }
       ]
@@ -462,12 +460,13 @@
     "success": true,
     "latency_sec": 2.0,
     "plan": {
-      "reasoning": "The goal is to go to the garage, but 'garaje' is not a known zone or present with coordinates. Therefore, we need to explore to find it.",
+      "reasoning": "The goal is to go to the garage, which is not a known zone or present with coordinates. Therefore, we need to explore first to find and describe the garage.",
       "steps": [
         {
           "skill": "explore",
           "params": {
-            "duration_sec": 10
+            "duration_sec": 60,
+            "zone": "garage"
           }
         }
       ]
@@ -483,12 +482,13 @@
     "success": true,
     "latency_sec": 2.0,
     "plan": {
-      "reasoning": "The goal is to go to the garage, but 'garaje' is not a known zone or present with coordinates. Therefore, we need to explore to find it.",
+      "reasoning": "The goal is to go to the garage, which is not a known zone or present with coordinates. Therefore, we need to explore first to find and describe the garage.",
       "steps": [
         {
           "skill": "explore",
           "params": {
-            "duration_sec": 10
+            "duration_sec": 60,
+            "zone": "garage"
           }
         }
       ]

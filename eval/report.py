@@ -8,7 +8,13 @@ import sys
 from pathlib import Path
 
 RESULTS_ROOT = Path(__file__).resolve().parent / 'results'
-CONDITION_ORDER = [('rag', 'With RAG'), ('norag', 'Without RAG')]
+# A column appears only when its results file exists: rag_unchecked was added
+# with the plan check (ADR-032), and older result sets do not have it.
+CONDITION_ORDER = [
+    ('rag', 'With RAG'),
+    ('norag', 'Without RAG'),
+    ('rag_unchecked', 'With RAG, plan check off'),
+]
 TYPE_LABELS = {
     'object_nav': 'Object-referenced nav (RAG-dependent)',
     'attribute_nav': 'Description-referenced nav (self-built memory)',
@@ -44,17 +50,18 @@ def main():
     """Writes results/<suite>/report.md and prints the table."""
     suite = sys.argv[1] if len(sys.argv) > 1 else 'full'
     data = {cond: load(suite, cond) for cond, _ in CONDITION_ORDER}
+    columns = [(cond, label) for cond, label in CONDITION_ORDER if data[cond]]
     types = [
         t for t in TYPE_LABELS
         if any(r.get('type', 'object_nav') == t for runs in data.values() for r in runs)
     ]
 
-    header = '| Task type | ' + ' | '.join(label for _, label in CONDITION_ORDER) + ' |'
-    sep = '|' + '---|' * (len(CONDITION_ORDER) + 1)
+    header = '| Task type | ' + ' | '.join(label for _, label in columns) + ' |'
+    sep = '|' + '---|' * (len(columns) + 1)
     lines = [header, sep]
     for ttype in types:
         cells = []
-        for cond, _ in CONDITION_ORDER:
+        for cond, _ in columns:
             r = rate(data[cond], ttype)
             cells.append(f'{r[0]}/{r[1]} ({r[0] / r[1] * 100:.0f}%)' if r else '—')
         lines.append(f'| {TYPE_LABELS[ttype]} | ' + ' | '.join(cells) + ' |')

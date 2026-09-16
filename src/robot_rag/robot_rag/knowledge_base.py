@@ -38,7 +38,7 @@ def chunk_markdown(text: str) -> list[str]:
 
 
 class KnowledgeBase:
-    """Ingests static knowledge documents (rules, catalogs, templates) for RAG lookup.
+    """Ingests static knowledge documents (rules, capabilities, templates) for RAG lookup.
 
     Args:
         chroma_manager: Shared ChromaDB manager instance.

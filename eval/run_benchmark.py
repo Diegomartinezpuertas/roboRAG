@@ -3,8 +3,9 @@
 Measures the hypothesis at the decision level (see ADR-013): does the
 RAG-equipped planner navigate DIRECTLY to a remembered landmark's coordinates,
 versus falling back to blind EXPLORE without RAG? Run in the planner's `dry_run`
-mode (plan, don't drive), so it is reliable and reproducible (temperature 0) and
-independent of the flaky low-level navigation.
+mode (plan, don't drive), so it is repeatable (temperature 0 — close, not exact:
+a task type can move by a run or two between runs) and independent of the flaky
+low-level navigation.
 
 Scoring lives in `scoring.py` (pure logic, unit-tested without ROS); the task
 types it recognises are documented there and in each suite's YAML header.
@@ -14,6 +15,11 @@ Suites:
   tasks_phrasing.yaml robustness to paraphrase and language
   tasks_hard.yaml     disambiguation, ordered multi-step, spatial relations —
                       the suite with headroom (needs `seed_memory.py --hard`)
+
+Conditions (planner parameters flipped live, same memory for all three):
+  rag           RAG on,  plan check on  — the system as shipped
+  norag         RAG off, plan check on  — the RAG ablation
+  rag_unchecked RAG on,  plan check off — the plan-check ablation (ADR-032)
 
 Results go to eval/results/<suite>/<condition>.json, where <suite> is the YAML
 stem without the "tasks_" prefix (e.g. tasks_full.yaml -> results/full/).
@@ -43,7 +49,11 @@ LANDMARKS_FILE = HERE / 'landmarks.json'
 WS_ROOT = Path(os.environ.get('ROBOT_WS', HERE.parent))
 ZONES_DB = str(WS_ROOT / 'data' / 'zones.db')
 PLANNER = '/llm_planner_node'
-CONDITIONS = [('rag', True), ('norag', False)]
+CONDITIONS = [
+    ('rag', {'rag_enabled': 'true', 'plan_validation': 'true'}),
+    ('norag', {'rag_enabled': 'false', 'plan_validation': 'true'}),
+    ('rag_unchecked', {'rag_enabled': 'true', 'plan_validation': 'false'}),
+]
 
 
 def set_param(name: str, value: str) -> None:
@@ -90,10 +100,11 @@ def main():
     set_param('dry_run', 'true')
     set_param('zones_in_prompt', 'true')
 
-    for cond_name, rag_on in CONDITIONS:
-        set_param('rag_enabled', 'true' if rag_on else 'false')
+    for cond_name, params in CONDITIONS:
+        for name, value in params.items():
+            set_param(name, value)
         time.sleep(1.0)
-        node.get_logger().info(f'=== Condition: {cond_name} (rag_enabled={rag_on}) ===')
+        node.get_logger().info(f'=== Condition: {cond_name} {params} ===')
         runs = []
         for task in suite['tasks']:
             for rep in range(reps):
@@ -122,6 +133,8 @@ def main():
         node.get_logger().info(f'Wrote {out}')
 
     set_param('dry_run', 'false')
+    set_param('rag_enabled', 'true')
+    set_param('plan_validation', 'true')
     spin.stop()
     rclpy.shutdown()
 

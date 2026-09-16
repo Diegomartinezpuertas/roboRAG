@@ -1,7 +1,9 @@
 # ADR-012: Navigable RAG, post-execution report, and ablation switches
 
 **Date:** 2026-07-16
-**Status:** Accepted
+**Status:** Accepted — extended by
+[ADR-032](ADR-032-plan-check-before-execution.md) (retrieved coordinates are
+checked before the robot is sent to them)
 
 ## Context
 

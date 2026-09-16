@@ -12,10 +12,10 @@ Manual driving outranks Nav2, so a person can take over mid-goal just by
 pressing a key, and hands control back simply by letting go: once manual
 commands stop for `timeout_sec`, Nav2's commands pass again.
 
-`twist_mux` does this in the ROS ecosystem; it is not installed on this
-machine and there is no unattended sudo to add it, and the arbitration is a
-few lines of logic that deserve their own tests anyway. See
-docs/decisions/ADR-029-cmd-vel-mux.md.
+`twist_mux` does this in the ROS ecosystem. It is not a dependency of this
+workspace — adding it means a system package on every machine, in the container
+image and in CI — and the arbitration is a few lines of logic that deserve their
+own tests anyway. See docs/decisions/ADR-029-cmd-vel-mux.md.
 """
 
 from __future__ import annotations

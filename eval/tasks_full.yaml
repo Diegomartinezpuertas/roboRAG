@@ -1,6 +1,6 @@
 # Full RAG navigation benchmark suite, with control conditions.
 #
-# Task types (scored differently, see run_benchmark.classify):
+# Task types (scored differently, see scoring.classify):
 #   object_nav    : target is a landmark stored in semantic_map (RAG-dependent).
 #                   Success = the plan navigates directly to its coordinates.
 #   attribute_nav : target is referenced by its stored DESCRIPTION (colors,
@@ -31,7 +31,7 @@ tasks:
     target: estacion_c
   # match_any: with a self-building memory several remembered areas can
   # legitimately match a description; any retrieved area containing one of
-  # these terms is an accepted answer (see run_benchmark.attribute_candidates).
+  # these terms is an accepted answer (see scoring.attribute_candidates).
   - id: attr_white_open
     goal: "Ve a la habitación blanca y despejada"
     type: attribute_nav
