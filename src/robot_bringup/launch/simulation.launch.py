@@ -4,9 +4,16 @@ The Gazebo GUI is disabled by default: under WSL2 it renders on llvmpipe and
 drags the real-time factor down to ~0.15. RViz (use_rviz, default true) is the
 intended visualization — map, lidar scan, costmaps — and keeps RTF at ~1.0.
 Pass use_gz_gui:=true to get the Gazebo window back.
+
+saved_map:=<id> starts SLAM from a saved pose graph instead of an empty map —
+one saved from the dashboard (data/maps/<id>) or shipped with the repository
+(robot_bringup/maps/<id>). See ADR-019 and ADR-026.
 """
 
 import os
+import tempfile
+
+import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -14,11 +21,55 @@ from launch.actions import (
     AppendEnvironmentVariable,
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+from robot_bringup.saved_maps import resolve_saved_map, slam_params_for_saved_map
+
+WS_ROOT = os.environ.get('ROBOT_WS', os.path.join(os.path.expanduser('~'), 'robot_ws'))
+
+
+def _slam(context, slam_params_file: str, use_sim_time) -> list:
+    """Includes SLAM Toolbox, starting from a saved map when saved_map is set.
+
+    SLAM Toolbox reads the map to load from its parameters file, and the
+    stock launch file takes only that file — so for a saved map the project's
+    parameters are rewritten into a temporary copy with map_file_name and a
+    dock start (robot_bringup.saved_maps). An unknown id fails the launch with
+    the paths searched, rather than silently mapping from scratch.
+    """
+    map_id = LaunchConfiguration('saved_map').perform(context).strip()
+    params_file = slam_params_file
+    actions = []
+    if map_id:
+        map_base = resolve_saved_map(
+            map_id, WS_ROOT, get_package_share_directory('robot_bringup'),
+        )
+        with open(slam_params_file, encoding='utf-8') as source:
+            params = slam_params_for_saved_map(yaml.safe_load(source), map_base)
+        with tempfile.NamedTemporaryFile(
+            'w', suffix='.yaml', prefix=f'slam_params_{map_id}_', delete=False,
+        ) as rewritten:
+            yaml.safe_dump(params, rewritten)
+            params_file = rewritten.name
+        actions.append(LogInfo(msg=f'SLAM starts from saved map "{map_id}": {map_base}'))
+    actions.append(IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory('slam_toolbox'), 'launch', 'online_async_launch.py',
+            ),
+        ),
+        launch_arguments={
+            'slam_params_file': params_file,
+            'use_sim_time': use_sim_time,
+        }.items(),
+    ))
+    return actions
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -99,18 +150,8 @@ def generate_launch_description() -> LaunchDescription:
         'GZ_SIM_RESOURCE_PATH', os.path.join(tb3_gazebo_dir, 'models'),
     )
 
-    slam_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory('slam_toolbox'),
-                'launch',
-                'online_async_launch.py',
-            ),
-        ),
-        launch_arguments={
-            'slam_params_file': slam_params_file,
-            'use_sim_time': use_sim_time,
-        }.items(),
+    slam_launch = OpaqueFunction(
+        function=_slam, args=[slam_params_file, use_sim_time],
     )
 
     nav2_launch = IncludeLaunchDescription(
@@ -153,6 +194,11 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             'use_gz_gui', default_value='false',
             description='Open the Gazebo GUI (drops sim real-time factor to ~0.15 on WSL2)',
+        ),
+        DeclareLaunchArgument(
+            'saved_map', default_value='',
+            description='Start SLAM from a saved map id (data/maps/<id> or robot_bringup/maps/<id>); '
+                        'empty maps from scratch',
         ),
         gz_resources,
         gz_server,

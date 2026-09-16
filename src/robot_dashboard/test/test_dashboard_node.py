@@ -25,6 +25,8 @@ from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import String
 
+from robot_interfaces.srv import UpdateMap
+
 from robot_dashboard.dashboard_node import DashboardNode
 
 
@@ -269,3 +271,35 @@ def test_saving_the_map_reports_the_missing_skill_instead_of_hanging(client):
     assert response.status_code == 503
     assert '/skills/execute' in response.json()['error']
     assert elapsed < 2.0, f'the map save blocked for {elapsed:.2f}s with the skills node down'
+
+
+def test_zones_are_reindexed_into_memory_once_rag_node_appears(node):
+    """Zones live in SQLite with no map session, but their memory documents are
+    session-tagged. Start on another session — loading a saved map pins its id —
+    and every zone would silently drop out of retrieval. So the dashboard indexes
+    every stored zone again as soon as /rag/update_map exists (ADR-026).
+
+    Runs last in this module: until here no rag service exists, which is what the
+    "saving a zone does not block when rag is down" test relies on.
+    """
+    node.zones.save('cocina_reindex', {'x_min': 0.0, 'y_min': 0.0, 'x_max': 1.0, 'y_max': 1.0})
+    received: list[str] = []
+
+    def handle(request, response):
+        received.append(request.object_data.object_id)
+        response.success = True
+        return response
+
+    stub = Node('fake_rag_node')
+    stub.create_service(UpdateMap, '/rag/update_map', handle)
+    executor = SingleThreadedExecutor()
+    executor.add_node(stub)
+    threading.Thread(target=executor.spin, daemon=True).start()
+    try:
+        assert _wait_for(lambda: 'zone-cocina_reindex' in received, timeout=20.0), (
+            f'zone was never re-indexed; update_map received: {received}'
+        )
+    finally:
+        executor.shutdown()
+        stub.destroy_node()
+        node.zones.delete('cocina_reindex')

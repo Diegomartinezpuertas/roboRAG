@@ -248,11 +248,18 @@ ros2 run robot_rag compact_memory --apply    # then do it
 # with "Marcar zona aquí", then save the map. Nav2 is optional for that run.
 ros2 launch robot_bringup full_system.launch.py use_nav2:=false
 
-# Layer 1 — pure logic, no ROS needed (266 tests) + lint
+# Start from a saved map (data/maps/<id>, or shipped in robot_bringup/maps/<id>):
+# SLAM loads it and the memory session is pinned to the same id (ADR-026)
+ros2 launch robot_bringup full_system.launch.py saved_map:=house
+
+# Demo setup: Gazebo window + RViz + dashboard on map `house` (GUI costs RTF)
+ros2 launch robot_bringup demo.launch.py
+
+# Layer 1 — pure logic, no ROS needed (279 tests) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
 
-# Layer 2 — node level, needs a sourced workspace (25 tests). The env var is
+# Layer 2 — node level, needs a sourced workspace (26 tests). The env var is
 # required: Jazzy's launch_testing pytest plugin breaks collection (ADR-018).
 source ~/robot_ws/setup_env.sh
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all
@@ -263,7 +270,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 266 + 25, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 279 + 26, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 
@@ -312,10 +319,11 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 | Gazebo renders on llvmpipe | Incomplete WSL2 GPU passthrough | Gazebo GUI disabled by default (RTF 0.15→~1.0); view via RViz (use_rviz:=true) or dashboard. use_gz_gui:=true if needed |
 | Closing the Gazebo GUI killed everything | on_exit_shutdown:true on the stock gzclient include | Own simulation.launch.py launches server/GUI separately, GUI without shutdown |
 | NPU unreachable in WSL2 | WSL2 doesn't expose the NPU device | Reserved for native Windows (voice phase: Whisper) |
-| SLAM drift on long runs | Software-rendered sim | Save the map periodically with map_saver_cli |
+| SLAM drift on long runs | Software-rendered sim | Save the map (dashboard "Guardar mapa" / `save_map` skill) and relaunch with `saved_map:=<id>` (ADR-026) |
 | Intermittent DDS discovery | WSL2 multi-NIC (eth0/docker0) | CycloneDDS pinned to lo — cyclonedds.xml + CYCLONEDDS_URI (ADR-006) |
 | Gazebo window doesn't appear | Dead msrdc.exe (WSLg bridge) | `wsl --shutdown` from PowerShell and relaunch |
-| Goals outside the SLAM map | Map grows with exploration | Explore first; Nav2 rejects "outside bounds" goals |
+| Goals outside the SLAM map | Map grows with exploration | Explore first, or start from a saved map (`saved_map:=house`); Nav2 rejects "outside bounds" goals |
+| Autonomous explore maps little of the house | Nearest-frontier hugs walls; 3.5 m LIDAR; doors blocked by 0.5 m inflation | Map by hand with WASD (`use_nav2:=false`) and save it (ADR-023, ADR-026) |
 | End-to-end navigation unreliable | Narrow doorways + software physics | Benchmark measures the planning decision (ADR-013) |
 | Stale installs after edits | colcon symlink-install quirk | `rm -rf build/<pkg> install/<pkg>` then rebuild |
 

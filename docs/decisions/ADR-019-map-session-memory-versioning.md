@@ -1,7 +1,8 @@
 # ADR-019: Map-session versioning for coordinate memories, and SLAM map persistence
 
 **Date:** 2026-07-21
-**Status:** Accepted
+**Status:** Accepted — extended by
+[ADR-026](ADR-026-shipped-map-and-demo-launch.md) (the `saved_map:=<id>` launch argument this ADR left as follow-up)
 
 ## Context
 
@@ -109,4 +110,5 @@ index". One store with a metadata filter is cheaper and keeps knowledge shared.
   both SLAM and rag_node) is left as a documented two-parameter procedure rather
   than a bespoke conditional in the launch files. The pieces — serialize skill,
   `map_file_name`, `map_session_id` — are all in place and unit- and
-  live-tested; the convenience wrapper is a small follow-up.
+  live-tested; the convenience wrapper is a small follow-up. *(Done in
+  [ADR-026](ADR-026-shipped-map-and-demo-launch.md).)*

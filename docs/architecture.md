@@ -240,7 +240,14 @@ careful to call unreliable.
   NICs (`eth0`, `docker0`).
 - **Goals outside the SLAM map:** Nav2 rejects goals beyond the currently
   mapped bounds ("outside bounds"); unexplored areas must be mapped first.
-  The planner's rules instruct it to explore when a location is unknown.
+  The planner's rules instruct it to explore when a location is unknown. A
+  house mapped once — by hand with WASD, saved from the dashboard — can be
+  loaded with `saved_map:=<id>` so a run starts with the whole map
+  ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)).
+- **Doorways and inflation:** with `inflation_radius: 0.5` around a 0.15 m
+  robot, a 0.8 m door leaves the global planner no cost-free path — observed
+  live while mapping. Likely part of the end-to-end navigation unreliability;
+  left unchanged so the published results keep their conditions.
 - **High-resolution camera = silently dropped messages.** The stock
   TurtleBot3 model publishes 1920×1080 (~55 MB/s); BEST_EFFORT subscribers in
   a busy process lost every frame at the DDS layer with no visible error. Our

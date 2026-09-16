@@ -288,8 +288,10 @@ written against), and retrieval of `semantic_map` and `task_history` is filtered
 to the active session — so a pose from a dead map is simply not returned. A
 scene written under one map is invisible once a fresh map is started, even
 though ChromaDB still physically holds it. Saving the SLAM map (the `save_map`
-skill) and reloading it (`map_session_id`) preserves the pairing, so a map's
-memories come back on purpose.
+skill, or "Guardar mapa" in the dashboard) and relaunching with `saved_map:=<id>`
+preserves the pairing — SLAM loads the map and the memory session is pinned to
+the same id — so a map's memories come back on purpose
+([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)).
 
 This means the benchmark's clean-state requirement (empty `data/logs/` and
 `data/chroma_db`) is now a convenience, not a correctness crutch — a leftover

@@ -154,7 +154,7 @@ docker build -t robot-rag-agent .
 docker run --rm robot-rag-agent
 ```
 
-Expected: `ruff` clean, **266** + **25** tests, exit `0`. The image sources the
+Expected: `ruff` clean, **279** + **26** tests, exit `0`. The image sources the
 project's own `setup_env.sh` and runs at `/robot_ws`, which also exercises the
 path-portability fix ([ADR-015](docs/decisions/ADR-015-workspace-relative-paths.md)).
 
@@ -185,8 +185,15 @@ ros2 launch robot_bringup full_system.launch.py
 
 # ...or map the house by hand first (SLAM + dashboard, no autonomous
 # navigation competing for /cmd_vel): drive with WASD, name each room with
-# "Marcar zona aquí", then "Guardar mapa" — ADR-023
+# "Marcar zona aquí", then "Guardar mapa" as `house` — ADR-023
 ros2 launch robot_bringup full_system.launch.py use_nav2:=false
+
+# ...then start from that map instead of an empty one — ADR-026
+ros2 launch robot_bringup full_system.launch.py saved_map:=house
+
+# The demo setup: Gazebo window + RViz + dashboard, starting from map `house`
+# (the Gazebo window costs real-time factor on WSL2: ~1.0 -> ~0.15)
+ros2 launch robot_bringup demo.launch.py
 
 # Send a goal
 ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno durante 60 segundos'"
@@ -205,8 +212,8 @@ Three layers, split by what each needs to run
 
 | Layer | Covers | Needs | Tests | Run |
 |---|---|---|---|---|
-| Pure logic | chunking, plan parsing, prompts, frontier selection, scene descriptor, scene merging, zone store, room semantics, teleop deadman, HTTP layer, benchmark scorer | nothing | 266 | `pytest tests/` |
-| Node level | real services on real executors, the HTTP↔ROS bridge (goals, driving, memory), the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 25 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
+| Pure logic | chunking, plan parsing, prompts, frontier selection, scene descriptor, scene merging, zone store, room semantics, teleop deadman, HTTP layer, benchmark scorer | nothing | 279 | `pytest tests/` |
+| Node level | real services on real executors, the HTTP↔ROS bridge (goals, driving, memory), the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 26 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
 | Manual | navigation, exploration, perception, the LLM calls | Gazebo + Ollama | — | see [Limitations](#limitations) |
 
 The env var is required: Jazzy's `launch_testing` pytest plugin breaks
@@ -229,7 +236,7 @@ a plain runner and layer 2 in `ros:jazzy-ros-base`, on every push.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [25 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [26 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera

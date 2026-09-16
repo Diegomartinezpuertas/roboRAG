@@ -33,6 +33,8 @@ The **planning benchmark does not need Gazebo** (the planner runs in
 ```bash
 source ~/robot_ws/setup_env.sh
 ros2 launch robot_bringup full_system.launch.py     # Gazebo headless + Nav2 + SLAM + agent
+# No saved_map here: the published numbers were produced on a map built during
+# the run, and a preloaded map would change what the robot has 'seen' (ADR-026).
 ```
 
 Wait for `Managed nodes are active` and `rag_node ready` in the log. Then
@@ -193,7 +195,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 266 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 279 tests
 ruff check .
 ```
 
@@ -201,7 +203,7 @@ Node level — needs a sourced workspace:
 
 ```bash
 source ~/robot_ws/setup_env.sh
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 25 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 26 tests
 ```
 
 (`PYTEST_DISABLE_PLUGIN_AUTOLOAD` avoids the ROS-installed `launch_testing`

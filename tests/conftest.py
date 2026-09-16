@@ -11,7 +11,10 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
 _SRC = _ROOT / 'src'
-for _pkg in ('robot_rag', 'robot_brain', 'robot_zones', 'robot_skills', 'robot_dashboard'):
+for _pkg in (
+    'robot_rag', 'robot_brain', 'robot_zones', 'robot_skills', 'robot_dashboard',
+    'robot_bringup',
+):
     sys.path.insert(0, str(_SRC / _pkg))
 
 # eval/scoring.py is pure logic too (the benchmark plan scorer), and is

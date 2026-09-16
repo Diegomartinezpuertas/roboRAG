@@ -18,6 +18,11 @@ setup(
             'share/' + package_name + '/models/turtlebot3_waffle',
             glob.glob('models/turtlebot3_waffle/*'),
         ),
+        # Maps shipped with the repository, loadable with saved_map:=<id> (ADR-026).
+        *[
+            ('share/' + package_name + '/' + map_dir, glob.glob(map_dir + '/*'))
+            for map_dir in sorted(glob.glob('maps/*'))
+        ],
     ],
     install_requires=['setuptools'],
     zip_safe=True,

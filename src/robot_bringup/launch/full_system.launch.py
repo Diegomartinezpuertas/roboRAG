@@ -20,6 +20,9 @@ def generate_launch_description() -> LaunchDescription:
     use_nav2 = LaunchConfiguration('use_nav2', default='true')
     use_rviz = LaunchConfiguration('use_rviz', default='true')
     use_gz_gui = LaunchConfiguration('use_gz_gui', default='false')
+    # One id, two consumers: SLAM loads the map, rag_node pins its memory
+    # session to it — so the map and the memories written on it stay paired.
+    saved_map = LaunchConfiguration('saved_map', default='')
 
     simulation_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -29,6 +32,7 @@ def generate_launch_description() -> LaunchDescription:
             'use_nav2': use_nav2,
             'use_rviz': use_rviz,
             'use_gz_gui': use_gz_gui,
+            'saved_map': saved_map,
         }.items(),
     )
 
@@ -36,6 +40,7 @@ def generate_launch_description() -> LaunchDescription:
         PythonLaunchDescriptionSource(
             os.path.join(bringup_dir, 'launch', 'agent.launch.py'),
         ),
+        launch_arguments={'saved_map': saved_map}.items(),
     )
 
     return LaunchDescription([
@@ -50,6 +55,10 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             'use_gz_gui', default_value='false',
             description='Open the Gazebo GUI (drops sim real-time factor to ~0.15 on WSL2)',
+        ),
+        DeclareLaunchArgument(
+            'saved_map', default_value='',
+            description='Start from a saved map id (SLAM + memory session); empty maps from scratch',
         ),
         simulation_launch,
         agent_launch,

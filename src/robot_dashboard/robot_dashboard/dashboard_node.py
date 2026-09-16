@@ -113,7 +113,8 @@ class DashboardNode(Node):
             only while someone is actually driving (see teleop.py).
 
     Services (client):
-        /rag/update_map (UpdateMap): Indexes named zones into semantic memory.
+        /rag/update_map (UpdateMap): Indexes named zones into semantic memory — each
+            one on save, and all of them once per start, into the active session.
         /rag/inspect (InspectMemory): Browses/searches memory for the UI's viewer.
         /skills/execute (ExecuteSkill): Saves the SLAM map after a manual mapping run.
 
@@ -208,6 +209,17 @@ class DashboardNode(Node):
         )
         self._skills_client = self.create_client(
             ExecuteSkill, '/skills/execute', callback_group=self._request_group,
+        )
+        # Zones live in SQLite with no session, but their memory documents are
+        # tagged with the map session they were indexed under (ADR-019). Start
+        # on another session — loading a saved map pins its id — and every zone
+        # would silently drop out of retrieval, "ve donde se suele cocinar"
+        # included. So once rag_node answers, every zone is indexed again into
+        # the active session: an idempotent upsert by zone id (ADR-026).
+        self._zones_reindexed = False
+        self._reindex_timer = self.create_timer(
+            3.0, self._reindex_zones, callback_group=self._client_group,
+            clock=Clock(clock_type=ClockType.SYSTEM_TIME),
         )
         self.create_subscription(String, '/robot/goal', self._on_goal, 10)
         self.create_subscription(String, '/robot/status', self._on_status, 10)
@@ -406,6 +418,21 @@ class DashboardNode(Node):
             self.get_logger().info('Manual driving released')
         self._teleop_driving = False
         return {'linear': 0.0, 'angular': 0.0, 'driving': False}
+
+    def _reindex_zones(self) -> None:
+        # One-shot: waits (every 3 s, without blocking anything) for
+        # /rag/update_map, indexes every stored zone once, then stops.
+        if self._zones_reindexed or not self._update_map_client.service_is_ready():
+            return
+        zones = self.zones.load_all()
+        for name, area in zones.items():
+            self.index_zone_in_memory(name, area)
+        self._zones_reindexed = True
+        self._reindex_timer.cancel()
+        if zones:
+            self.get_logger().info(
+                f'Re-indexed {len(zones)} zone(s) into the active memory session',
+            )
 
     def _publish_teleop(self) -> None:
         # Timer at teleop_rate_hz. While nobody drives, TeleopState.tick returns

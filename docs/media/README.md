@@ -15,14 +15,16 @@ Expected files, and what each one has to prove:
 
 Keep `demo.gif` under ~10 MB or GitHub will be slow to render it.
 
-**Getting a map to film on, fast:** launch with `use_nav2:=false`, turn on
-manual driving in the dashboard and drive the house with WASD
-([ADR-023](../decisions/ADR-023-browser-teleop.md)) — a couple of minutes
-instead of waiting out an autonomous explore, and you can name each room with
-"Marcar zona aquí" as you pass through it, which is what makes the functional
-goal in `demo.gif` resolve. Save the map before you stop
-([ADR-019](../decisions/ADR-019-map-session-memory-versioning.md)) and the
-memories stay valid for the next take.
+**Getting a map to film on:** map the house once by hand — launch with
+`use_nav2:=false`, turn on manual driving in the dashboard, drive with WASD
+([ADR-023](../decisions/ADR-023-browser-teleop.md)), name each room with
+"Marcar zona aquí" (that is what makes the functional goal in `demo.gif`
+resolve) and save it with "Guardar mapa" as **`house`**. From then on every take
+starts from it: `ros2 launch robot_bringup demo.launch.py` opens Gazebo, RViz and
+the dashboard on that map, with the memory session pinned to it
+([ADR-026](../decisions/ADR-026-shipped-map-and-demo-launch.md)). Autonomous
+exploration is not a substitute here: in five minutes it mapped under
+10 × 5 m of the house.
 
 ## Paste-ready README section
 

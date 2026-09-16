@@ -84,8 +84,10 @@ Inserts or updates a detected object in the `semantic_map` collection.
 | object_id | string | Id the object was stored under — an existing memory's id when merged |
 | merged | bool | True if folded into an existing memory instead of creating one |
 
-Served by `rag_node`. Called by `skills_executor_node` after each `perceive`
-and by `dashboard_node` when a zone is created. An object with a `group_key`
+Served by `rag_node`. Called by `skills_executor_node` after each `perceive`,
+and by `dashboard_node` when a zone is created and — once per start, as soon
+as the service answers — for every stored zone, so zones are always in the
+active memory session ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)). An object with a `group_key`
 is merged into the nearest memory of the same key, map session and zone within
 `scene_merge_radius`: that memory keeps its id and anchor pose, its description
 is refreshed and its `observations` count raised
@@ -272,7 +274,26 @@ manual mapping run worth doing.
 
 **Body:** `{"name": "casa"}` (normalized like a zone name; empty saves under the
 active session id) → `{"ok": true, "result": {"map_id": ..., "path": ...}}`, or
-`503` with the reason when the agent stack is not running.
+`503` with the reason when the agent stack is not running. The map lands in
+`$ROBOT_WS/data/maps/<map_id>/`; relaunch with `saved_map:=<map_id>` to start
+from it ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)).
+
+## Launch arguments (robot_bringup)
+
+| Launch file | Argument (default) | Meaning |
+|---|---|---|
+| `full_system` | `use_nav2` (true) | Nav2 alongside SLAM; `false` for a manual mapping run |
+| `full_system` | `use_rviz` (true) | RViz with map, LIDAR and costmaps |
+| `full_system` | `use_gz_gui` (false) | Gazebo window — on WSL2 drops the real-time factor ~1.0 → ~0.15 |
+| `full_system` | `saved_map` ('') | Start from a saved map id: SLAM loads `map.{posegraph,data}` from `$ROBOT_WS/data/maps/<id>/`, else `robot_bringup/maps/<id>/`, starting at the dock; rag_node pins its memory session to the id. An unknown id fails the launch |
+| `demo` | `use_gz_gui` (true), `use_rviz` (true), `use_nav2` (true), `saved_map` (`house`) | `full_system` as the demo is recorded |
+| `simulation` | `use_nav2`, `use_rviz`, `use_gz_gui`, `saved_map` | The simulation half; `saved_map` affects SLAM only |
+| `agent` | `use_sim_time` (true), `saved_map` ('') | The agent half; `saved_map` pins rag_node's memory session only |
+
+`full_system` forwards `use_nav2`, `use_rviz`, `use_gz_gui` and `saved_map` to
+its includes. A saved map must be loaded with the robot spawning where it was
+mapped — the spawn defaults `x_pose:=-2.0 y_pose:=-0.5` in `simulation.launch.py` —
+since SLAM starts at the graph's first node.
 
 ## ROS 2 parameters
 
@@ -292,7 +313,7 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 | rag_node | `collections` | Collections created on startup |
 | rag_node | `top_k_default` (5) | Results returned when a request sets `top_k <= 0` |
 | rag_node | `scene_merge_radius` (2.0) | Meters within which a re-observed place of the same look, zone and map session merges into its existing memory; `<= 0` disables ([ADR-025](decisions/ADR-025-scene-memory-merging.md)) |
-| rag_node | `map_session_id` ('') | Pin the memory session to a saved map's id on reload ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)); empty continues the current session |
+| rag_node | `map_session_id` ('') | Pin the memory session to a saved map's id on reload ([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)); set by the `saved_map` launch argument ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)); empty continues the current session |
 | dashboard_node | `http_host` (`127.0.0.1`) / `http_port` (8080) | HTTP bind address and port — loopback by default, the API is unauthenticated |
 | dashboard_node | `cmd_vel_topic` (`/cmd_vel`) | Topic for manual driving commands |
 | dashboard_node | `cmd_vel_stamped` (true) | Publish `geometry_msgs/TwistStamped` (this stack's Gazebo bridge and Nav2 both expect it); false for a plain-`Twist` base |
