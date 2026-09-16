@@ -3,8 +3,8 @@
 Note: an earlier version wrapped each skill in a LangChain @tool. That added a
 heavy dependency purely for a name→callable registry the LLM never tool-called
 (the planner emits plan JSON we parse ourselves). Skills are dispatched
-directly here instead. A true LangChain agent loop is listed as future work in
-the README.
+directly here instead. A real agent loop (replanning from execution feedback)
+is future work, designed without a framework: docs/agent-loop-roadmap.md.
 """
 
 from __future__ import annotations

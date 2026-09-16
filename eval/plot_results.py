@@ -34,6 +34,13 @@ SURFACE = '#fcfcfb'
 INK = '#0b0b0b'
 INK_2 = '#52514e'
 GRID = '#e6e5e0'
+# Status, not a category: marks a failure outcome. Never a series colour, so a
+# failure bar cannot be mistaken for the "Without RAG" / nomic series.
+FAIL = '#c8553d'
+# Latency axis cap. A run above it (in practice the first goal after launch,
+# a cold start of 11-13 s) is drawn as a marker on the cap and labelled with
+# its real value, instead of stretching the axis until the bars are unreadable.
+LATENCY_CAP_S = 5.0
 
 TYPE_LABELS = {
     'object_nav': 'Object-referenced\nnav (RAG-dependent)',
@@ -128,9 +135,11 @@ def fig_benchmark():
     ax1.legend(frameon=False, fontsize=9, ncol=2, loc='lower left',
                bbox_to_anchor=(0.0, 1.0), labelcolor=INK)
 
-    # Latency: mean bar + individual run dots per condition. Runs that never
-    # produced a plan (Ollama stall -> 60 s timeout) are excluded: they
-    # measure the timeout constant, not planning latency.
+    # Latency: median bar + individual run dots per condition. The median, not
+    # the mean: one cold-start run moves the mean by ~0.4 s, which is as large
+    # as the retrieval cost the panel exists to show. Runs that never produced
+    # a plan (Ollama stall -> 60 s timeout) are excluded: they measure the
+    # timeout constant, not planning latency.
     for i, (_label, color, runs) in enumerate(
             [('With RAG', BLUE, rag), ('Without RAG', GREEN, norag)]):
         lat = [
@@ -139,24 +148,35 @@ def fig_benchmark():
         ]
         if not lat:
             continue
-        mean = sum(lat) / len(lat)
-        ax2.bar([i], [mean], width=0.42, color=color, edgecolor=SURFACE,
+        ordered = sorted(lat)
+        mid = len(ordered) // 2
+        median = (ordered[mid] if len(ordered) % 2
+                  else (ordered[mid - 1] + ordered[mid]) / 2)
+        ax2.bar([i], [median], width=0.42, color=color, edgecolor=SURFACE,
                 linewidth=2, zorder=3)
         # Dots sit just off the bar's right edge (half-width 0.21) so they read
         # as that bar's runs without the fill swallowing them.
-        ax2.plot([i + 0.28] * len(lat), lat, 'o', color=color, markersize=4,
+        inside = [v for v in lat if v <= LATENCY_CAP_S]
+        ax2.plot([i + 0.28] * len(inside), inside, 'o', color=color, markersize=4,
                  alpha=0.55, zorder=4)
-        ax2.annotate(f'{mean:.1f}s', (i, mean), textcoords='offset points',
+        for v in (v for v in lat if v > LATENCY_CAP_S):
+            ax2.plot([i + 0.28], [LATENCY_CAP_S * 0.97], '^', color=color,
+                     markersize=6, zorder=4)
+            ax2.annotate(f'{v:.1f}s', (i + 0.28, LATENCY_CAP_S * 0.97),
+                         textcoords='offset points', xytext=(7, -3), ha='left',
+                         fontsize=8, color=INK_2)
+        ax2.annotate(f'{median:.1f}s', (i, median), textcoords='offset points',
                      xytext=(0, 4), ha='center', fontsize=9, color=INK)
     # Explicit limits: with autoscaling the rightmost dot column lands on the
     # axis edge and reads as clipped.
     ax2.set_xlim(-0.55, 1.55)
+    ax2.set_ylim(0, LATENCY_CAP_S)
     ax2.set_xticks([0, 1])
     ax2.set_xticklabels(
         [f'With RAG\nn={len(rag)}', f'Without RAG\nn={len(norag)}'], fontsize=9, color=INK,
     )
     ax2.set_ylabel('Planning latency (s)', fontsize=10, color=INK_2)
-    ax2.set_title('Goal → plan latency\n(bar = mean, dots = runs)',
+    ax2.set_title('Goal → plan latency\n(bar = median, dots = runs, ▲ = off scale)',
                   fontsize=11, color=INK, pad=8)
     style_axes(ax2)
 
@@ -246,6 +266,11 @@ def fig_embeddings():
     # Zero line above the bars (zorder 5): drawn underneath it shows only in the
     # gaps between bars and reads as a row of stray dashes rather than a datum.
     ax2.axhline(0, color=INK_2, linewidth=0.8, zorder=5)
+    # Room below the lowest bar for its value label, which otherwise lands on
+    # the category labels under the axis.
+    lowest = min(min(v) for v in margins.values())
+    if lowest < 0:
+        ax2.set_ylim(bottom=lowest - 0.035)
     ax2.set_xticks(range(len(langs)))
     ax2.set_xticklabels(
         [f'{label}\nn={len(data["models"][series_defs[0][0]][lang]["runs"])}'
@@ -392,7 +417,7 @@ def fig_hard_decisions():
 
     A success rate alone says the planner missed; the decision labels say how —
     the wrong landmark, hedging across both candidates, right steps in the wrong
-    order. Successes (blue) and failures (green) are coloured distinctly so the
+    order. Successes (blue) and failures (red) are coloured distinctly so the
     chart is a breakdown of outcomes, not just of failures. That "how" is what
     makes the suite useful for guiding the next iteration.
     """
@@ -411,7 +436,7 @@ def fig_hard_decisions():
     )
     labels = [k.replace('_', ' ') for k, _ in ordered]
     values = [v for _, v in ordered]
-    colors = [BLUE if k in _HARD_SUCCESS_DECISIONS else GREEN for k, _ in ordered]
+    colors = [BLUE if k in _HARD_SUCCESS_DECISIONS else FAIL for k, _ in ordered]
 
     fig, ax = plt.subplots(figsize=(8.0, 0.42 * len(labels) + 2.1), facecolor=SURFACE)
     positions = range(len(labels))
@@ -426,7 +451,7 @@ def fig_hard_decisions():
     ax.set_xlabel('Runs (with RAG, 30 total)', fontsize=10, color=INK_2)
     ax.set_xlim(0, max(values) * 1.15)
     ax.set_title('Hard suite — outcome breakdown with RAG\n'
-                 '(green = failure modes, blue = solved)',
+                 '(red = failure modes, blue = solved)',
                  fontsize=11, color=INK, pad=10)
     style_axes(ax)
     ax.xaxis.grid(True, color=GRID, linewidth=0.8)

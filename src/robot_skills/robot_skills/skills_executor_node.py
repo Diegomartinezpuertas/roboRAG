@@ -59,10 +59,14 @@ class SkillsExecutorNode(Node):
 
     Services (server):
         /skills/execute (ExecuteSkill): Dispatches to
-            navigate/explore/perceive/scan_360/report.
+            navigate/explore/perceive/scan_360/report, and the save_map
+            maintenance skill.
 
     Services (client):
         /rag/update_map (UpdateMap): Stores scene descriptions in semantic memory.
+        /slam_toolbox/serialize_map (SerializePoseGraph): Saves the live SLAM map
+            for save_map (ADR-026); created on first use, so the node starts
+            without slam_toolbox.
 
     Parameters:
         logs_dir (str): Directory for task history logs.

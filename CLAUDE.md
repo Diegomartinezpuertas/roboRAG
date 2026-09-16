@@ -380,19 +380,18 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 
 ---
 
-## Qwen Robot Suite — integration status
+## Qwen robotics models — integration status
 
-> See `docs/decisions/ADR-002-qwen-robot-suite.md` for the full analysis.
+> See `docs/decisions/ADR-002-qwen-robot-suite.md` (corrected 2026-09-16).
 
-| Model | Public weights | Integrable now | Current alternative |
+| Model | Public weights | Integrable now | What this project uses instead |
 |--------|---------------|------------------|--------------------|
-| Qwen-RobotNav-4B | ❌ Not released | ❌ No | Qwen2.5-VL-7B + Nav2 |
-| Qwen-RobotManip | ❌ Not released | ❌ No | N/A (no manipulation) |
-| Qwen-RobotWorld | ❌ Not released | ❌ No | N/A |
-| Qwen2.5-VL-7B | ✅ Available | ✅ Yes | — |
-| Qwen2.5-7B | ✅ Available | ✅ Yes | — |
+| Qwen-RobotNav (4B / 8B, on Qwen3-VL) | ❌ No release planned (per its repo) | ❌ No | Nav2 + classical scene descriptor (ADR-014) |
+| Qwen-RobotManip | ❌ No release planned (per its repo) | ❌ No | N/A (no manipulation) |
+| Qwen2.5-7B | ✅ Available | ✅ Yes | The planner |
+| Qwen2.5-VL-7B | ✅ Available | Removed | Unreliable on software-rendered frames (ADR-014) |
 
-**When weights are released** (watch https://github.com/QwenLM/Qwen-RobotNav):
-replace `perceive_skill.py` + `nav_skill.py` with Qwen-RobotNav-4B calls
-(camera images + instruction → waypoints, ~200ms per inference on Jetson-class
-hardware per the published deployment numbers).
+There is no "Qwen-RobotWorld" (Qwen-AgentWorld is a language world model for
+software agents). Do not plan work around robotics weights that Qwen says it
+will not release; re-check https://github.com/QwenLM/Qwen-RobotNav only if that
+statement changes.

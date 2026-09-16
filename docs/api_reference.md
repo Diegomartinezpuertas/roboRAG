@@ -173,6 +173,7 @@ so the LLM never emits it — reach it only with a direct `ros2 service call`.
 | /cmd_vel_nav_out | geometry_msgs/TwistStamped | Nav2 collision_monitor | cmd_vel_mux_node (priority 1) |
 | /robot/cmd_vel_source | std_msgs/String (transient local) | cmd_vel_mux_node: `teleop` \| `nav2` \| `idle` | dashboard_node (drive panel) |
 | /clock | rosgraph_msgs/Clock | Gazebo bridge | every node (sim time); dashboard_node also estimates the real-time factor |
+| /rosout | rcl_interfaces/Log | every node (ROS 2 logging) | dashboard_node (log viewer) |
 
 † Nav2's `docking_server` also publishes `/cmd_vel` directly (nav2_bringup does
 not remap it), but only during a docking action, which this project never

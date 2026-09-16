@@ -201,8 +201,10 @@ ros2 launch robot_bringup full_system.launch.py use_nav2:=false
 # ...then start from that map instead of an empty one — ADR-026
 ros2 launch robot_bringup full_system.launch.py saved_map:=house
 
-# The demo setup: Gazebo window + RViz + dashboard, starting from map `house`
-# (the Gazebo window costs some real-time factor on WSL2: measured ~0.68 -> ~0.59)
+# The demo setup: Gazebo window + RViz + dashboard, starting from map `house`.
+# The repository does not ship that map yet: save yours as `house` first (above),
+# or the launch stops with "No saved map". The Gazebo window costs some
+# real-time factor on WSL2 (measured ~0.68 -> ~0.59)
 ros2 launch robot_bringup demo.launch.py
 
 # Send a goal

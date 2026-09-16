@@ -107,9 +107,9 @@ exactness) is what catches it.
 ### 2.3 What does RAG cost? Planning latency
 
 Median goal→plan latency is **2.0 s with RAG vs 1.6 s without** (21 runs per
-condition). The right panel of the benchmark figure plots means, 2.4 s vs
-1.5 s. The RAG mean carries one 11.2 s outlier, the very first goal after
-launch. It is a cold start: both re-runs showed it, 11.2 s and 12.6 s, and
+condition), the bars in the right panel of the benchmark figure. The means
+are 2.4 s vs 1.5 s. The RAG mean carries one 11.2 s outlier (the ▲ above the
+axis), the very first goal after launch. It is a cold start: both re-runs showed it, 11.2 s and 12.6 s, and
 every later goal took about 2 s. Retrieval — three collection queries through
 `/rag/query`, each a bge-m3 embedding call plus a vector search — costs
 **~0.4 s**, small next to the 7B model's inference either way. The phrasing

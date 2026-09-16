@@ -130,7 +130,8 @@ Subscribes to `/robot/goal`. For each goal:
    and `task_history`, dropping hits below `rag_score_threshold` (an
    irrelevant hit is worse than none — it enters the prompt as ground truth).
 2. Builds the prompt (`prompts.py`) and requests a JSON plan from Qwen2.5-7B
-   (`qwen_client.py`, `temperature=0` for reproducibility).
+   (`qwen_client.py`, `temperature=0` for repeatability — not exact identity
+   across runs; see the threats to validity in rag-analysis.md).
 3. Publishes the raw plan on `/robot/plan` and executes the steps
    sequentially via `/skills/execute` (`toolkit.py` — plain dispatch, no
    agent framework; see ADR-012 for why LangChain was removed).
@@ -235,7 +236,11 @@ planning level ([ADR-013](decisions/ADR-013-planning-level-benchmark.md)):
 `seed_memory.py` registers landmarks in semantic memory, `run_benchmark.py`
 runs task suites across ablation conditions in the planner's `dry_run` mode
 scoring each plan from `/robot/plan`, and `report.py` aggregates results into
-Markdown tables. Results live in `eval/results/`.
+Markdown tables. Results live in `eval/results/`; the measured findings are in
+[rag-analysis.md](rag-analysis.md). The numbers belong to the code *and* the
+knowledge files they were measured with: an edit to `data/knowledge/` changes
+the planner's prompt and requires a re-run
+([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)).
 
 ## Execution environment (WSL2 + venv)
 
@@ -293,6 +298,12 @@ careful to call unreliable.
   explorer used to place frontier goals exactly there; it now picks the
   frontier cell with the most clearance
   ([ADR-027](decisions/ADR-027-exploration-frontier-clusters.md)).
+- **Plausible but nonexistent places:** asked for "estacion_d" when a, b and c
+  exist, the planner with RAG reuses a real station's coordinates (hard suite
+  0/6 with RAG, 3/6 without). The plan is well-formed, so nothing downstream
+  rejects it; validating plans against memory is the open follow-up
+  ([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md),
+  [rag-analysis §2.6](rag-analysis.md)).
 - **High-resolution camera = silently dropped messages.** The stock
   TurtleBot3 model publishes 1920×1080 (~55 MB/s); BEST_EFFORT subscribers in
   a busy process lost every frame at the DDS layer with no visible error. Our

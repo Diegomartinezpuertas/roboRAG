@@ -29,9 +29,14 @@ state); `data/knowledge/` **is**.
 
 Three committed Markdown files:
 
-- **`environment_rules.md`** — the Gazebo world's layout, the robot's spawn
-  pose, navigation constraints (doorway widths, the software-rendered physics
-  caveat), and the rule that the robot must never invent coordinates.
+- **`environment_rules.md`** — the Gazebo world's layout and the robot's spawn
+  pose, where coordinates come from (exploration, named zones, remembered
+  places), the rule that a place with no known coordinates is explored for,
+  never guessed, and navigation and safety rules. One of those safety rules, a
+  30-minute operating limit, is not enforced anywhere in the code; changing
+  the file means re-running the planning suites
+  ([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)), so it is
+  recorded here rather than silently edited.
 - **`perception_capabilities.md`** — what `perceive` and `scan_360` can and
   cannot report. This one matters: it is what stops the planner assuming an
   object detector exists (see §6).
