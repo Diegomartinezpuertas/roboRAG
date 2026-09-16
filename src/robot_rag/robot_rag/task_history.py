@@ -28,10 +28,10 @@ class TaskHistoryStore:
     def ingest(self) -> int:
         """Re-scans the logs directory and upserts every task log found.
 
-        Unlike KnowledgeBase.ingest(), this always re-scans (not skipped when
-        already populated): task logs accumulate over time, and IDs are
-        derived from filenames, so upserting is idempotent and picks up
-        tasks completed since the last rag_node start.
+        This always re-scans and upserts: task logs accumulate over time, and
+        IDs are derived from filenames, so upserting is idempotent and picks up
+        tasks completed since the last rag_node start. (KnowledgeBase.ingest()
+        instead compares and replaces — a knowledge file can also shrink.)
 
         Each memory is tagged with the map_id the log itself records — the one
         that was active when the task ran (report_skill writes it). A log with

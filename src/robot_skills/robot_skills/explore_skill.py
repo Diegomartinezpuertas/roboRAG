@@ -50,10 +50,15 @@ class FrontierCluster:
             map-frame meters. A member cell, because the centroid of a curved
             frontier can lie inside a wall; the clearest one, because a goal
             against a wall sits in inflated cost and fails to plan.
+        cells: Every member as (x, y, clearance in cells), in the same ranking
+            order as `target` (best first), so a caller that must skip some
+            members — too close to the robot, already attempted — can take the
+            best remaining one instead of discarding the whole cluster.
     """
 
     size: int
     target: tuple[float, float]
+    cells: tuple[tuple[float, float, int], ...] = ()
 
 
 def find_nearest_frontier(
@@ -194,11 +199,13 @@ def find_frontier_clusters(
         cx = sum(x for x, _ in points) / len(points)
         cy = sum(y for _, y in points) / len(points)
         reach = max(1, int(round(TARGET_CLEARANCE_M / resolution)))
-        best = min(members, key=lambda i: (
-            -_clearance_cells(data, width, height, i, reach),
-            (center(i)[0] - cx) ** 2 + (center(i)[1] - cy) ** 2,
+        ranked = sorted(
+            ((*center(i), _clearance_cells(data, width, height, i, reach)) for i in members),
+            key=lambda c: (-c[2], (c[0] - cx) ** 2 + (c[1] - cy) ** 2),
+        )
+        clusters.append(FrontierCluster(
+            size=len(members), target=(ranked[0][0], ranked[0][1]), cells=tuple(ranked),
         ))
-        clusters.append(FrontierCluster(size=len(members), target=center(best)))
     return sorted(clusters, key=lambda c: -c.size)
 
 
@@ -215,9 +222,12 @@ def find_best_frontier(
 
     Each cluster scores size / (1 + distance to its target): a long frontier a
     little further away beats a short one next to the robot, which is exactly
-    the choice the nearest-cell rule got wrong. Targets closer than
-    min_distance, or near a previously attempted target, are skipped for the
-    same reasons as in find_nearest_frontier.
+    the choice the nearest-cell rule got wrong. A cluster's target is its best
+    member that is at least min_distance from the robot and not near a
+    previously attempted target — not its single best member overall: at
+    startup the robot often stands inside one large frontier whose clearest
+    cell is right beside it, and skipping the whole cluster for that ended
+    exploration on its first step (found when re-running the benchmark).
 
     Args:
         grid: Latest occupancy grid from SLAM Toolbox.
@@ -234,15 +244,16 @@ def find_best_frontier(
     excluded = excluded or []
     best, best_score = None, -1.0
     for cluster in find_frontier_clusters(grid, bounds=bounds):
-        tx, ty = cluster.target
-        distance = math.hypot(tx - robot_x, ty - robot_y)
-        if distance < min_distance:
-            continue
-        if any(math.hypot(tx - ex, ty - ey) < exclusion_radius for ex, ey in excluded):
-            continue
-        score = cluster.size / (1.0 + distance)
-        if score > best_score:
-            best, best_score = cluster.target, score
+        for tx, ty, _clearance in cluster.cells:
+            distance = math.hypot(tx - robot_x, ty - robot_y)
+            if distance < min_distance:
+                continue
+            if any(math.hypot(tx - ex, ty - ey) < exclusion_radius for ex, ey in excluded):
+                continue
+            score = cluster.size / (1.0 + distance)
+            if score > best_score:
+                best, best_score = (tx, ty), score
+            break                                   # best eligible member of this cluster
     return best
 
 

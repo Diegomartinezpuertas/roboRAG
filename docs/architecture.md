@@ -21,9 +21,10 @@ robot_bringup     → launch files and system integration
 
 Exposes `/rag/query`, `/rag/inspect`, `/rag/delete` and `/rag/update_map`. Maintains three ChromaDB
 collections (`semantic_map`, `knowledge_base`, `task_history`), each with
-`hnsw:space: cosine`. On startup it ingests `data/knowledge/*.md` into
+`hnsw:space: cosine`. On startup it syncs `data/knowledge/*.md` into
 `knowledge_base` (Markdown-section chunking — headers grouped with their
-body, not split) and `data/logs/*.json` into `task_history`.
+body, not split; re-embedded only when the files changed, ADR-031) and ingests
+`data/logs/*.json` into `task_history`.
 
 Objects stored in `semantic_map` embed their **map-frame coordinates in the
 document text** ("`refrigerator at (x=3.42, y=-1.15) in kitchen: ...`") —
@@ -85,12 +86,11 @@ implementations:
 - **explore** (`explore_skill.py`): frontier exploration. Frontier cells (free
   cells touching unknown space in `/map`) are grouped into clusters; the robot
   heads for the cluster with the most unexplored edge per metre of travel,
-  aiming at the member cell with the most clearance from walls. Measured: ~40%
-  more area than the original nearest-cell rule in the same time, and no goals
-  left unplannable against a wall
-  ([ADR-027](decisions/ADR-027-exploration-frontier-clusters.md)). Frontiers
-  near the robot or already attempted are skipped; optional zone bounds
-  restrict the search.
+  aiming at the cluster's best eligible cell — most clearance from walls, and
+  not beside the robot or already attempted. Measured: ~40–55% more area than
+  the original nearest-cell rule in the same time
+  ([ADR-027](decisions/ADR-027-exploration-frontier-clusters.md)). Optional zone
+  bounds restrict the search.
 - **perceive** (`perceive_skill.py` + `scene_descriptor.py`): classical
   scene description — dominant camera colors + LIDAR clutter metrics, no ML
   ([ADR-014](decisions/ADR-014-classical-scene-descriptor.md)) — stored in

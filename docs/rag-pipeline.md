@@ -113,7 +113,8 @@ task log is already one short, self-contained document.
 ### Embedding
 
 `OllamaEmbedder` is a thin wrapper over the Ollama client. One HTTP call embeds
-a whole batch, so ingesting 30 knowledge chunks is a single request.
+a whole batch, so ingesting the whole knowledge base (13 chunks today) is a
+single request.
 
 The model is a ROS parameter (`rag_node/embedding_model`), default **`bge-m3`**.
 That default is a measured decision, not a preference: with Spanish queries over
@@ -141,12 +142,13 @@ what the planner sees.
 
 | Collection | Trigger | Behaviour |
 |---|---|---|
-| `knowledge_base` | `rag_node` startup | **Skipped if already populated.** Edit a knowledge file and you must wipe `data/chroma_db` (or the collection) for it to take effect. |
+| `knowledge_base` | `rag_node` startup | **Compared with the files on disk.** Unchanged → nothing is embedded. Any chunk added, edited or removed → the whole collection is replaced (it holds nothing but these files). Before 2026-09-16 it was skipped whenever populated, so an edit never reached an existing store ([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)). |
 | `task_history` | `rag_node` startup | **Always re-scans** `data/logs/`. Logs accumulate as tasks complete, and IDs come from filenames, so upsert picks up everything finished since the last start. |
 | `semantic_map` | Live, per observation | Written through the `/rag/update_map` service whenever the robot perceives a place or you save a zone. |
 
-The asymmetry is deliberate: the knowledge base is static and re-embedding it
-on every launch would waste time, while task history is append-only by nature.
+The asymmetry is deliberate: the knowledge base changes only when someone edits
+it, so re-embedding it on every launch would waste time, while task history is
+append-only by nature.
 
 ---
 
@@ -259,6 +261,25 @@ capability the robot no longer had. It has been replaced by
 
 The general rule: **when a capability changes, the knowledge base is part of
 the code that has to change with it.**
+
+### An example that overrides a rule
+
+It bit a second time, more quietly. A worked example added to
+`task_templates.md` — "if the context holds a place whose description matches,
+navigate straight to it. **Do not explore.**" — sat next to the rule in
+`environment_rules.md` that a place with no known coordinates must be explored
+for, never guessed. For "Ve al garaje", with no garage anywhere in memory, the
+7B planner followed the example rather than the rule: explore, then
+`navigate` to a *different* remembered station's coordinates. That cost the
+impossible-goal control 3/3 → 0/3 and went unnoticed for two months: the change
+landed ten minutes after the last benchmark run, and an existing store would not
+even have received it (ingestion was skipped once populated). A prompt replay
+changing only the knowledge files isolated it; removing the template
+restored 3/3. Two consequences, recorded in
+[ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md): the knowledge
+base now re-syncs when its files change, and **any edit to `data/knowledge/`
+is followed by a re-run of the planning suites** — for the planner it is a
+prompt change, not a docs change.
 
 ### The same trap in `task_history`: absolute coordinates outlive their map
 

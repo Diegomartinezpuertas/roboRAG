@@ -100,7 +100,18 @@ with the active map session ([ADR-019](decisions/ADR-019-map-session-memory-vers
 >   ```bash
 >   rm -f ~/robot_ws/data/logs/*.json
 >   rm -rf ~/robot_ws/data/chroma_db    # re-ingested on next rag_node start
+>   rm -f ~/robot_ws/data/zones.db*     # see "Stale zone memories" below
 >   ```
+>
+> - **Stale zone memories.** Since ADR-026 the dashboard indexes every zone in
+>   `zones.db` into semantic memory when it starts. A `base` zone left from a
+>   previous run would therefore be in memory from the first query — which the
+>   published runs never had. Removing `zones.db` before launching keeps the
+>   fixture identical; `seed_memory.py` recreates `base` in SQLite only.
+>
+> Or run in a scratch workspace, which is how the 2026-09-16 numbers were
+> produced: `export ROBOT_WS=/tmp/bench` (with `data/knowledge` copied in) for
+> both the launch and the eval scripts — your own memory stays untouched.
 >
 > Skipping this is what makes the `zone_nav` control appear to fail — a
 > session-state artefact, not a property of RAG.
@@ -143,11 +154,13 @@ python3 report.py hard
 > against a three-landmark memory. Run plain `seed_memory.py` to reproduce the
 > published numbers; add `--hard` only for this suite.
 
-Measured result: **27/30 with RAG vs 3/30 without** (see
-[rag-analysis.md §2.6](rag-analysis.md)). The per-run `decision` label is richer
-than pass/fail — `visited_both`, `out_of_order`, `incomplete_2_of_3`,
-`wrong_landmark`, `hallucinated` — so a failure says *how* the planner was
-wrong. `plot_results.py` renders that breakdown as `results/hard_decisions.png`.
+Measured result (2026-09-16): **20/30 with RAG vs 3/30 without**. By type:
+disambiguation 9/9, ordered 9/9, spatial relation 2/6, plausible nonexistent
+place 0/6 with RAG vs 3/6 without (see [rag-analysis.md §2.6](rag-analysis.md)).
+The July run scored 27/30; §2.8 there explains the difference. The per-run
+`decision` label is richer than pass/fail — `visited_both`, `out_of_order`,
+`incomplete_2_of_3`, `wrong_landmark`, `hallucinated` — so a failure says *how*
+the planner was wrong. `plot_results.py` renders that breakdown as `results/hard_decisions.png`.
 
 The scoring rules live in `eval/scoring.py` (pure logic, no ROS) and are
 covered by `tests/test_benchmark_scoring.py`, so the suite's definition of
@@ -179,7 +192,7 @@ descriptions sent to the wrong room. Expected: 55% → 100% top-1
 ## 4c. Exploration strategies (needs the simulator)
 
 The numbers in [ADR-027](decisions/ADR-027-exploration-frontier-clusters.md)
-(nearest 9.1 m² vs clusters 12.6–13.2 m² in 240 s) come from this procedure,
+(nearest 9.1 m² vs the adopted clusters 14.1 m² in 240 s) come from this procedure,
 **one fresh launch per strategy** — the SLAM map must start empty each time:
 
 ```bash
@@ -190,6 +203,10 @@ ros2 service call /skills/execute robot_interfaces/srv/ExecuteSkill \
   "{skill_name: 'explore', params_json: '{\"duration_sec\": 240}'}"
 python3 exploration_coverage.py                                     # after
 ```
+
+**Rebuild before measuring.** In this workspace `colcon build --symlink-install`
+installs copies of Python modules, so an edit is not live until rebuilt — one
+published run was invalidated exactly that way (ADR-027).
 
 `exploration_coverage.py` reads the map the dashboard renders and counts every
 cell that is not unexplored. Planning failures are counted from the launch log:
@@ -206,6 +223,28 @@ python3 plot_results.py           # results/{benchmark,phrasing,embeddings}.png
 ```
 
 The PNGs are the ones embedded in the README and docs/rag-analysis.md.
+`report.py hard` works the same way.
+
+## 5b. When the numbers must be re-measured
+
+The planning suites measure *this code with these knowledge files*. Re-run all
+three (full, phrasing, hard) before quoting a number again after any change to:
+
+- `data/knowledge/` — every chunk can land in the prompt. A single worked
+  example once cost the impossible-goal control 3/3 → 0/3
+  ([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)).
+  `rag_node` re-syncs the collection when the files change, so no wipe is
+  needed.
+- the planner prompt or plan parsing (`robot_brain/prompts.py`,
+  `plan_parsing.py`), the retrieval parameters (`top_k`,
+  `rag_score_threshold`), or the embedder.
+- how memories are written (`robot_rag`), or what `seed_memory.py` seeds.
+
+When a re-run replaces published results, keep the old ones:
+`eval/results/before-kb-fix-2026-09-16/` holds the run that found that
+regression, with its own `report.md` per suite. Do not iterate knowledge
+wording against the suites until they pass. Diagnose with the failing goals,
+fix the cause, measure once, and publish what comes out.
 
 ## 6. Tests and lint
 
@@ -214,7 +253,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 319 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 327 tests
 ruff check .
 ```
 

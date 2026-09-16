@@ -13,14 +13,6 @@ Plan: navigate(zone) → perceive.
 the space is — and stores the description with coordinates. It does not name
 individual objects.)
 
-## Template: go to a remembered place by description
-
-Goal pattern: "Ve a la habitación blanca y despejada" / "Go to the white, open
-room".
-Plan: if the retrieved context contains a place whose stored description
-matches ("area at (x=..., y=...): predominantly white, an open space"),
-navigate(x, y) straight to it. Do not explore.
-
 ## Template: explore an area
 
 Goal pattern: "Explora la cocina" / "Explore the kitchen".

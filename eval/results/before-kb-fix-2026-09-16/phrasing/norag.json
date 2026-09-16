@@ -7,7 +7,7 @@
     "goal": "Ve a estacion_a",
     "decision": "other",
     "success": false,
-    "latency_sec": 1.6,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The target 'estacion_a' is referenced with coordinates, so we can navigate directly to it.",
       "steps": [
@@ -176,7 +176,7 @@
     "goal": "Ve a estacion_b",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.8,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "Since 'estacion_b' is not in the known zones and no context is provided, we need to explore to find it.",
       "steps": [
@@ -203,7 +203,7 @@
     "goal": "Quiero que vayas a estacion_b, por favor",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.6,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since 'estacion_b' is not in the known zones and no coordinates are provided, we need to explore to find it.",
       "steps": [
@@ -424,7 +424,7 @@
     "goal": "Take me to estacion_c",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.8,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "Since 'estacion_c' is not in the known zones and no context is provided, we need to explore to find it.",
       "steps": [

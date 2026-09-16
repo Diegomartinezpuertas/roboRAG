@@ -54,15 +54,24 @@ class KnowledgeBase:
         self._knowledge_dir = Path(knowledge_dir)
 
     def ingest(self) -> int:
-        """Chunks and embeds every Markdown file in the knowledge directory.
+        """Brings the collection in line with the Markdown files on disk.
 
-        Ingestion is skipped if the collection is already populated.
+        The knowledge base is retrieved as fact, so a stale chunk is a live
+        input to the planner. Ingestion used to be skipped whenever the
+        collection was populated, which meant an edit to `data/knowledge/`
+        never reached an existing store: a template removed from the files kept
+        steering plans until someone wiped `data/chroma_db` — and wiping it also
+        throws away every place the robot has remembered (ADR-031).
+
+        Now the chunks are compared with what is stored, by id and text. If
+        they match, nothing is embedded. If anything differs, the whole
+        collection is replaced: it holds nothing but chunks of these files, so
+        there is no runtime state to preserve. A missing or empty knowledge
+        directory leaves the stored collection untouched.
 
         Returns:
-            Number of chunks ingested.
+            Number of chunks (re-)ingested; 0 when the store was already current.
         """
-        if self._chroma.count(COLLECTION_NAME) > 0:
-            return 0
         if not self._knowledge_dir.is_dir():
             return 0
 
@@ -79,6 +88,14 @@ class KnowledgeBase:
         if not documents:
             return 0
 
+        stored = self._chroma.list_documents(
+            COLLECTION_NAME, limit=max(self._chroma.count(COLLECTION_NAME), 1),
+        )
+        current = {entry['id']: entry['document'] for entry in stored}
+        if current == dict(zip(ids, documents, strict=True)):
+            return 0
+
         embeddings = self._embedder.embed_batch(documents)
+        self._chroma.delete(COLLECTION_NAME, [entry['id'] for entry in stored])
         self._chroma.add(COLLECTION_NAME, documents, embeddings, metadatas, ids)
         return len(documents)

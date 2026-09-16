@@ -1,5 +1,6 @@
 """Tests for frontier selection over a synthetic occupancy grid."""
 
+import math
 from types import SimpleNamespace
 
 from robot_skills.explore_skill import find_nearest_frontier
@@ -123,11 +124,17 @@ def test_a_long_frontier_a_bit_further_beats_a_short_one_next_to_the_robot():
     assert find_best_frontier(grid, *robot)[1] > 4.0           # new rule: the long edge
 
 
-def test_best_frontier_respects_exclusions_min_distance_and_bounds():
+def test_best_frontier_skips_excluded_and_too_close_cells_not_whole_clusters():
     grid = _room_grid()
     (cluster,) = find_frontier_clusters(grid)
-    assert find_best_frontier(grid, 0.0, 0.0, excluded=[cluster.target]) is None
-    assert find_best_frontier(grid, *cluster.target, min_distance=0.6) is None
+    # One attempted cell, or the robot standing on one, leaves the rest usable...
+    unusable = (None, cluster.target)
+    assert find_best_frontier(grid, 0.0, 0.0, excluded=[cluster.target]) not in unusable
+    assert find_best_frontier(grid, *cluster.target, min_distance=0.6) not in unusable
+    # ...but when every member is excluded or too close, there is nothing left.
+    everything = [(x, y) for x, y, _ in cluster.cells]
+    assert find_best_frontier(grid, 0.0, 0.0, excluded=everything) is None
+    assert find_best_frontier(grid, 5.5, 3.5, min_distance=20.0) is None
     assert find_best_frontier(grid, 0.0, 0.0, bounds=(100.0, 100.0, 101.0, 101.0)) is None
 
 
@@ -147,3 +154,31 @@ def test_a_cluster_target_keeps_clear_of_walls():
     (cluster,) = find_frontier_clusters(make_grid(width, height, data, resolution=res))
     target_col = int(cluster.target[0] / res)
     assert target_col >= 35 + 10, f'target at col {target_col} is inside the wall\'s 0.5 m band'
+
+
+def test_a_cluster_is_not_discarded_because_its_best_cell_is_beside_the_robot():
+    """Regression found re-running the benchmark: at startup the robot stands in
+    one large frontier whose clearest cell is next to it. Skipping the whole
+    cluster for that ended exploration on its first step."""
+    width, height, res = 60, 60, 0.05
+    data = [UNKNOWN] * (width * height)
+    for col in range(5, 55):                   # a 2.5 m frontier running past the robot
+        data[30 * width + col] = FREE
+    grid = make_grid(width, height, data, resolution=res)
+    (cluster,) = find_frontier_clusters(grid)
+    robot = cluster.target                     # the robot stands on the best cell
+    target = find_best_frontier(grid, *robot, min_distance=0.6)
+    assert target is not None, 'the whole frontier was discarded'
+    assert math.hypot(target[0] - robot[0], target[1] - robot[1]) >= 0.6
+
+
+def test_an_attempted_cell_does_not_exclude_the_rest_of_its_cluster():
+    width, height, res = 60, 60, 0.05
+    data = [UNKNOWN] * (width * height)
+    for col in range(5, 55):
+        data[30 * width + col] = FREE
+    grid = make_grid(width, height, data, resolution=res)
+    (cluster,) = find_frontier_clusters(grid)
+    target = find_best_frontier(grid, -5.0, -5.0, excluded=[cluster.target], exclusion_radius=0.5)
+    assert target is not None
+    assert math.hypot(target[0] - cluster.target[0], target[1] - cluster.target[1]) >= 0.5

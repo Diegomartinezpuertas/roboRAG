@@ -79,7 +79,7 @@ LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
 ├── src/*/test/             # Layer 2: node-level tests (need ROS, run by colcon test)
 ├── data/
 │   ├── chroma_db/          # Persistent vector DB (do NOT commit)
-│   ├── knowledge/          # Static RAG documents (DO commit)
+│   ├── knowledge/          # Static RAG documents (DO commit) — planner input (ADR-031)
 │   └── logs/               # Task history logs (do NOT commit)
 ├── agent_env/              # Python venv (do NOT commit)
 ├── docs/
@@ -216,8 +216,9 @@ source ~/robot_ws/setup_env.sh
 # Build the whole workspace
 cd ~/robot_ws && colcon build --symlink-install
 
-# Build a single package (if changes don't land, clean first:
-# rm -rf build/<pkg> install/<pkg> — symlink-install sometimes leaves stale copies)
+# Build a single package. REQUIRED after every Python edit: --symlink-install
+# installs copies of Python modules here, not links (if in doubt, clean first:
+# rm -rf build/<pkg> install/<pkg>)
 colcon build --symlink-install --packages-select robot_rag
 
 # Launch the full simulation (headless Gazebo + Nav2 + SLAM + agent + dashboard + RViz)
@@ -264,7 +265,7 @@ ros2 launch robot_bringup full_system.launch.py saved_map:=house
 # Demo setup: Gazebo window + RViz + dashboard on map `house` (GUI costs RTF)
 ros2 launch robot_bringup demo.launch.py
 
-# Layer 1 — pure logic, no ROS needed (319 tests, 8 of them drive the dashboard
+# Layer 1 — pure logic, no ROS needed (327 tests, 8 of them drive the dashboard
 # page in headless Chromium — once: python3 -m playwright install chromium) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
@@ -280,7 +281,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 319 + 28, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 327 + 28, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 
@@ -334,9 +335,10 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 | Gazebo window doesn't appear | Dead msrdc.exe (WSLg bridge) | `wsl --shutdown` from PowerShell and relaunch |
 | Goals outside the SLAM map | Map grows with exploration | Explore first, or start from a saved map (`saved_map:=house`); Nav2 rejects "outside bounds" goals |
 | RViz floods the terminal with "controller_server service not available … Retrying" | Nav2's RViz panels poll for servers that `use_nav2:=false` never starts | Fixed: without Nav2, RViz opens `robot_bringup/rviz/mapping.rviz` (no Nav2 panels). Harmless if seen on an old build |
-| Autonomous explore maps little of a big house | 3.5 m LIDAR leaves large rooms unknown; the old nearest-frontier rule hugged walls | Explore now targets frontier clusters with clearance (+40% area measured, ADR-027); for a full map, drive with WASD and save it (ADR-023, ADR-026) |
+| Autonomous explore maps little of a big house | 3.5 m LIDAR leaves large rooms unknown; the old nearest-frontier rule hugged walls | Explore now targets frontier clusters (~40–55% more area measured, ADR-027); for a full map, drive with WASD and save it (ADR-023, ADR-026) |
 | End-to-end navigation unreliable | Narrow doorways + software physics | Benchmark measures the planning decision (ADR-013) |
-| Stale installs after edits | colcon symlink-install quirk | `rm -rf build/<pkg> install/<pkg>` then rebuild |
+| "Ve a estacion_d" (plausible but nonexistent) drives to a *real* station | With RAG the 7B planner reuses retrieved coordinates for a name no memory holds — hard suite 0/6 with RAG, 3/6 without (measured 2026-09-16) | Open. Nothing validates a plan against memory yet; that and the agent loop are the fix (ADR-031, rag-analysis §2.6) |
+| Python edits not taking effect | In this workspace `--symlink-install` installs *copies* of Python modules, not links | Rebuild after every Python edit (`colcon build --symlink-install --packages-select <pkg>`); if in doubt `rm -rf build/<pkg> install/<pkg>` first. Before a live measurement, check the installed module matches `src/` — a published run was once invalidated by this (ADR-027) |
 
 ---
 
@@ -367,6 +369,11 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 - **Do not forget** `source ~/robot_ws/install/setup.bash` after `colcon build`
 - **No public functions without docstrings**
 - **No nested `rclpy.spin_*` or throwaway executors** (ADR-007)
+- **Do not edit `data/knowledge/` without re-running the planning suites** — its
+  chunks land in the planner prompt; one worked example once overrode the
+  "explore, don't guess" rule (3/3 → 0/3). `rag_node` re-syncs the collection on
+  start; the numbers do not update themselves (ADR-031, EVALUATION.md §5b).
+  Never write benchmark goals or landmark names into it
 - **No `main()` that catches only `KeyboardInterrupt`** — catch
   `ExternalShutdownException` too and guard `rclpy.shutdown()` with
   `rclpy.ok()`, or every `ros2 launch` stop prints a traceback (ADR-016)

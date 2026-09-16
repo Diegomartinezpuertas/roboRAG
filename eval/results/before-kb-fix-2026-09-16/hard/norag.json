@@ -61,7 +61,7 @@
     "goal": "Ve a estacion_a",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.8,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "Since 'estacion_a' is not in the known zones and no context is provided, we need to explore to find it.",
       "steps": [
@@ -110,7 +110,7 @@
     "goal": "Ve a estacion_a_norte",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.6,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The target 'estacion_a_norte' is not in the known zones or context, so we need to explore to find it.",
       "steps": [
@@ -132,7 +132,7 @@
     "goal": "Ve a estacion_a_norte",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.6,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The target 'estacion_a_norte' is not in the known zones or context, so we need to explore to find it.",
       "steps": [
@@ -701,7 +701,7 @@
     "goal": "Ve a la estación central",
     "decision": "declined_or_explore",
     "success": true,
-    "latency_sec": 1.6,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The target 'estación central' is not found in the known zones or context, so we need to explore to locate it.",
       "steps": [
@@ -745,7 +745,7 @@
     "goal": "Ve a la estación central",
     "decision": "declined_or_explore",
     "success": true,
-    "latency_sec": 1.6,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The target 'estación central' is not found in the known zones or context, so we need to explore to locate it.",
       "steps": [

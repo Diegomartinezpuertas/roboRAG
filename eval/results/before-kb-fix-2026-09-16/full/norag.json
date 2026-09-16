@@ -7,15 +7,15 @@
     "goal": "Ve a estacion_a",
     "decision": "other",
     "success": false,
-    "latency_sec": 1.8,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The target 'estacion_a' is referenced with coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.345,
-            "y": 1.234
+            "x": -2.576,
+            "y": 4.098
           }
         }
       ]
@@ -27,22 +27,17 @@
     "rep": 1,
     "condition": "norag",
     "goal": "Ve a estacion_a",
-    "decision": "explore",
+    "decision": "other",
     "success": false,
-    "latency_sec": 1.6,
+    "latency_sec": 1.4,
     "plan": {
-      "reasoning": "Since 'estacion_a' is not in the known zones and no context is provided, we need to explore to find it.",
+      "reasoning": "The target 'estacion_a' is referenced with coordinates, so we can navigate directly to it.",
       "steps": [
-        {
-          "skill": "explore",
-          "params": {
-            "duration_sec": 10
-          }
-        },
         {
           "skill": "navigate",
           "params": {
-            "zone": "estacion_a"
+            "x": -2.576,
+            "y": 4.098
           }
         }
       ]
@@ -54,22 +49,17 @@
     "rep": 2,
     "condition": "norag",
     "goal": "Ve a estacion_a",
-    "decision": "explore",
+    "decision": "other",
     "success": false,
     "latency_sec": 1.6,
     "plan": {
-      "reasoning": "Since 'estacion_a' is not in the known zones and no context is provided, we need to explore to find it.",
+      "reasoning": "The target 'estacion_a' is referenced with coordinates, so we can navigate directly to it.",
       "steps": [
-        {
-          "skill": "explore",
-          "params": {
-            "duration_sec": 10
-          }
-        },
         {
           "skill": "navigate",
           "params": {
-            "zone": "estacion_a"
+            "x": -2.576,
+            "y": 4.098
           }
         }
       ]
@@ -85,7 +75,7 @@
     "success": false,
     "latency_sec": 1.8,
     "plan": {
-      "reasoning": "Since 'estacion_b' is not in the known zones and no context is provided, we need to explore to find it.",
+      "reasoning": "Since 'estacion_b' is not in the known zones and no context was retrieved, we need to explore to find it.",
       "steps": [
         {
           "skill": "explore",
@@ -137,7 +127,7 @@
     "goal": "Ve a estacion_b",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.8,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "Since 'estacion_b' is not in the known zones and no context is provided, we need to explore to find it.",
       "steps": [
@@ -191,7 +181,7 @@
     "goal": "Ve a estacion_c",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.8,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "Since 'estacion_c' is not in the known zones and no context is provided, we need to explore to find it.",
       "steps": [
@@ -218,7 +208,7 @@
     "goal": "Ve a estacion_c",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.8,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "Since 'estacion_c' is not in the known zones and no context is provided, we need to explore to find it.",
       "steps": [
@@ -276,9 +266,11 @@
         {
           "skill": "explore",
           "params": {
-            "duration_sec": 10,
-            "zone": "base"
+            "duration_sec": 10
           }
+        },
+        {
+          "skill": "perceive"
         }
       ]
     }
@@ -291,16 +283,18 @@
     "goal": "Ve a la habitación blanca y despejada",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.2,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The target room is unknown, so we need to explore to find it.",
       "steps": [
         {
           "skill": "explore",
           "params": {
-            "duration_sec": 10,
-            "zone": "base"
+            "duration_sec": 10
           }
+        },
+        {
+          "skill": "perceive"
         }
       ]
     }
@@ -335,7 +329,7 @@
     "goal": "Llévame a donde había muchos objetos",
     "decision": "explore",
     "success": false,
-    "latency_sec": 1.2,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "Since no context is provided, we need to explore to find an area with many objects.",
       "steps": [
@@ -375,28 +369,6 @@
     "task_id": "zone_base",
     "type": "zone_nav",
     "rep": 0,
-    "condition": "norag",
-    "goal": "Ve a la zona base",
-    "decision": "zone_nav",
-    "success": true,
-    "latency_sec": 1.8,
-    "plan": {
-      "reasoning": "The target zone 'base' is known, but no coordinates are provided in the context. Since the location is unknown, we need to explore first to find and describe the base zone.",
-      "steps": [
-        {
-          "skill": "explore",
-          "params": {
-            "duration_sec": 10,
-            "zone": "base"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "task_id": "zone_base",
-    "type": "zone_nav",
-    "rep": 1,
     "condition": "norag",
     "goal": "Ve a la zona base",
     "decision": "zone_nav",
@@ -418,12 +390,34 @@
   {
     "task_id": "zone_base",
     "type": "zone_nav",
-    "rep": 2,
+    "rep": 1,
     "condition": "norag",
     "goal": "Ve a la zona base",
     "decision": "zone_nav",
     "success": true,
     "latency_sec": 1.8,
+    "plan": {
+      "reasoning": "The target zone 'base' is known, but no coordinates are provided in the context. Since the location is unknown, we need to explore first to find and describe the base zone.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "latency_sec": 1.6,
     "plan": {
       "reasoning": "The target zone 'base' is known, but no coordinates are provided in the context. Since the location is unknown, we need to explore first to find and describe the base zone.",
       "steps": [
@@ -466,7 +460,7 @@
     "goal": "Ve al garaje",
     "decision": "declined_or_explore",
     "success": true,
-    "latency_sec": 1.2,
+    "latency_sec": 1.4,
     "plan": {
       "reasoning": "The garage is not a known zone and no context was retrieved, so we need to explore to find it.",
       "steps": [

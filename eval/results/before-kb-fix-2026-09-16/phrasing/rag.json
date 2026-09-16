@@ -7,15 +7,15 @@
     "goal": "Ve a estacion_a",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.4,
+    "latency_sec": 2.2,
     "plan": {
       "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -2.05,
+            "y": -1.57
           }
         },
         {
@@ -39,8 +39,8 @@
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -2.05,
+            "y": -1.57
           }
         },
         {
@@ -57,15 +57,15 @@
     "goal": "Llévame hasta donde está estacion_a",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 5.0,
     "plan": {
       "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -2.05,
+            "y": -1.57
           }
         }
       ]
@@ -86,8 +86,8 @@
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -2.05,
+            "y": -1.57
           }
         }
       ]
@@ -103,17 +103,14 @@
     "success": true,
     "latency_sec": 2.0,
     "plan": {
-      "reasoning": "estacion_a is a known zone with coordinates, so we can navigate directly there.",
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -2.05,
+            "y": -1.57
           }
-        },
-        {
-          "skill": "perceive"
         }
       ]
     }
@@ -126,19 +123,16 @@
     "goal": "Go to estacion_a",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 1.8,
     "plan": {
-      "reasoning": "estacion_a is a known zone with coordinates, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -2.1,
-            "y": -1.61
+            "x": -2.05,
+            "y": -1.57
           }
-        },
-        {
-          "skill": "perceive"
         }
       ]
     }
@@ -151,19 +145,16 @@
     "goal": "Ve a estacion_b",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 1.8,
     "plan": {
       "reasoning": "The target 'estacion_b' is a known zone, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.2,
+            "y": -0.97
           }
-        },
-        {
-          "skill": "perceive"
         }
       ]
     }
@@ -176,19 +167,16 @@
     "goal": "Ve a estacion_b",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 1.8,
     "plan": {
-      "reasoning": "The target 'estacion_b' is a known zone, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_b' is a known zone and its coordinates are provided.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.2,
+            "y": -0.97
           }
-        },
-        {
-          "skill": "perceive"
         }
       ]
     }
@@ -201,19 +189,16 @@
     "goal": "Quiero que vayas a estacion_b, por favor",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 4.6,
     "plan": {
-      "reasoning": "estacion_b is a known zone, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_b' is a known zone with coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.2,
+            "y": -0.97
           }
-        },
-        {
-          "skill": "perceive"
         }
       ]
     }
@@ -226,19 +211,16 @@
     "goal": "Quiero que vayas a estacion_b, por favor",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 1.8,
     "plan": {
-      "reasoning": "estacion_b is a known zone, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_b' is a known zone with coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.2,
+            "y": -0.97
           }
-        },
-        {
-          "skill": "perceive"
         }
       ]
     }
@@ -253,13 +235,13 @@
     "success": true,
     "latency_sec": 1.8,
     "plan": {
-      "reasoning": "Navigating directly to estacion_b since its coordinates are known.",
+      "reasoning": "The target 'estacion_b' is a known zone with coordinates.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.2,
+            "y": -0.97
           }
         }
       ]
@@ -275,13 +257,13 @@
     "success": true,
     "latency_sec": 1.6,
     "plan": {
-      "reasoning": "Navigating directly to estacion_b since its coordinates are known.",
+      "reasoning": "The target 'estacion_b' is a known zone with coordinates.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": -0.05,
-            "y": -1.31
+            "x": 0.2,
+            "y": -0.97
           }
         }
       ]
@@ -302,8 +284,8 @@
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
-            "y": -0.01
+            "x": 2.1,
+            "y": -0.22
           }
         }
       ]
@@ -324,8 +306,8 @@
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
-            "y": -0.01
+            "x": 2.1,
+            "y": -0.22
           }
         }
       ]
@@ -339,19 +321,16 @@
     "goal": "Dirígete al punto llamado estacion_c",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.4,
+    "latency_sec": 2.0,
     "plan": {
-      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it and then describe the surroundings.",
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
-            "y": -0.01
+            "x": 2.1,
+            "y": -0.22
           }
-        },
-        {
-          "skill": "perceive"
         }
       ]
     }
@@ -364,19 +343,16 @@
     "goal": "Dirígete al punto llamado estacion_c",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 1.8,
     "plan": {
-      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it and then describe the surroundings.",
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
-            "y": -0.01
+            "x": 2.1,
+            "y": -0.22
           }
-        },
-        {
-          "skill": "perceive"
         }
       ]
     }
@@ -391,13 +367,13 @@
     "success": true,
     "latency_sec": 2.0,
     "plan": {
-      "reasoning": "The target 'estacion_c' is a known zone with coordinates, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
-            "y": -0.01
+            "x": 2.1,
+            "y": -0.22
           }
         }
       ]
@@ -411,15 +387,15 @@
     "goal": "Take me to estacion_c",
     "decision": "direct_nav",
     "success": true,
-    "latency_sec": 2.0,
+    "latency_sec": 1.8,
     "plan": {
-      "reasoning": "The target 'estacion_c' is a known zone with coordinates, so we can navigate directly to it.",
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
       "steps": [
         {
           "skill": "navigate",
           "params": {
-            "x": 2.05,
-            "y": -0.01
+            "x": 2.1,
+            "y": -0.22
           }
         }
       ]

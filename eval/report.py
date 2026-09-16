@@ -14,6 +14,12 @@ TYPE_LABELS = {
     'attribute_nav': 'Description-referenced nav (self-built memory)',
     'zone_nav': 'Known-zone nav (control)',
     'negative': 'Impossible goal (hallucination check)',
+    # tasks_hard.yaml. Without these the hard suite's table came out empty —
+    # every type was filtered out as unknown (fixed 2026-09-16).
+    'distractor_nav': 'Disambiguation (confusable neighbour)',
+    'ordered_multi_step': 'Ordered multi-step plan',
+    'relational_nav': 'Spatial relation ("nearest to base")',
+    'negative_plausible': 'Plausible nonexistent place',
 }
 
 
@@ -35,6 +41,7 @@ def rate(runs, ttype):
 
 
 def main():
+    """Writes results/<suite>/report.md and prints the table."""
     suite = sys.argv[1] if len(sys.argv) > 1 else 'full'
     data = {cond: load(suite, cond) for cond, _ in CONDITION_ORDER}
     types = [

@@ -16,6 +16,14 @@ running it, what was broken and how it was fixed, and what still does not
 work. The weaknesses are listed with the same weight as the strengths, which
 is the only way a document like this stays useful.
 
+> **Addendum 2026-09-16.** This review is kept as written on 2026-07-20. Its
+> benchmark figures were re-measured two months later, and two of them no
+> longer hold. The hard suite is now **20/30** with RAG (was 27/30). The
+> plausible-nonexistent row is 0/6 with RAG vs 3/6 without, so the reading in
+> rag-analysis that RAG "suppresses hallucination" is withdrawn. The headline and
+> phrasing suites reproduce, but only after removing a knowledge-base example
+> that had broken the impossible-goal control. See [§11](#11-addendum-2026-09-16--re-measurement).
+
 ---
 
 ## 1. What the project is
@@ -49,7 +57,7 @@ Everything below was executed during this review, not inferred.
 | Path portability | ran with `ROBOT_WS` pointed at a scratch dir | **data written there** |
 | Full stack, end to end | `full_system.launch.py` + explore + seed + all 3 suites, live | **runs; numbers reproduce** |
 | Headline ablation | `tasks_full.yaml`, live | **9/9·6/6·3/3·3/3 with RAG; 0·0·3/3·3/3 without** |
-| Hard suite | `tasks_hard.yaml`, live | **27/30 with RAG vs 3/30 without** |
+| Hard suite | `tasks_hard.yaml`, live | **27/30 with RAG vs 3/30 without** (re-run 2026-09-16: 20/30, §11) |
 | Charts | regenerated from live result JSON | **reproduce** |
 | Committed artefacts | `git ls-files` vs `.gitignore` | **no build/venv/DB leakage** |
 | Fresh clone | `git clone` + build + `colcon test` in a `ros:jazzy-ros-base` container | **20/20, no reference to the original home dir** |
@@ -473,3 +481,35 @@ benchmark is not physical SR/SPL (§6.2), spatial reasoning is measured but not
 yet improved (the agent-loop target, §6.3), and perception is attribute-level
 (§6.4). None of these are hidden; they are the known edges of a project whose
 defining trait is that it says where its own limits are.
+
+---
+
+## 11. Addendum 2026-09-16 — re-measurement
+
+All three planning suites were re-run from a clean scratch workspace, because
+every published number predated a knowledge-base rewrite (35dc1a1, committed
+ten minutes after the results) and two months of memory changes.
+
+| Suite, with RAG | This review (July) | Re-run, knowledge as committed | Re-run, one example removed |
+|---|---|---|---|
+| Full | 21/21 | 18/21 | **21/21** |
+| Phrasing | 18/18 | 18/18 | **18/18** |
+| Hard | 27/30 | 19/30 | **20/30** |
+
+Without RAG every run matched July: 6/21, 0/18, 3/30.
+
+- **Found and fixed:** a worked example in `task_templates.md` ("… Do not
+  explore") overrode the rule against guessing coordinates, costing the
+  impossible-goal control 3/3 → 0/3. It had also never reached an existing
+  store, because `rag_node` skipped ingestion once the collection was
+  populated. The example is removed and the collection now re-syncs from the
+  files ([ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)).
+- **Found and not fixed:** for a plausible nonexistent place the planner with
+  RAG reuses a real station's coordinates (0/6). The rag-analysis reading that
+  RAG *suppresses* hallucination is withdrawn. Spatial reasoning is 2/6 (was 3/6,
+  within run-to-run variation). Plan validation against memory is the named
+  follow-up.
+- **The lesson this review's §10 already drew, once more:** the numbers in the
+  repository were right when measured and wrong two months later, and only
+  running the system again showed it. The pre-fix results are kept in
+  `eval/results/before-kb-fix-2026-09-16/`.

@@ -8,7 +8,9 @@ translates language into SQL queries be the right design?**
 All numbers come from the reproducible harness in [`eval/`](../eval)
 (see [docs/EVALUATION.md](EVALUATION.md) to re-run everything). LLM =
 Qwen2.5-7B at `temperature=0`; embeddings = bge-m3 (the project default)
-unless stated.
+unless stated. The planning suites (§2.1–2.3, §2.6) were **re-measured on
+2026-09-16**. The re-run found a regression the July numbers could not show;
+§2.8 has the whole account.
 
 ---
 
@@ -64,9 +66,12 @@ Four findings, one per row:
    (design A embedded inside D), and both conditions score 100%. This is the
    core of the analysis: *for a small closed vocabulary of named
    places, SQL alone is enough* — removing RAG costs nothing there.
-4. **RAG neither causes nor prevents hallucination.** For a nonexistent
-   place, both conditions correctly refuse to invent coordinates (the prompt
-   rules carry that behavior).
+4. **For an obviously nonexistent place, RAG neither causes nor prevents
+   hallucination.** Asked for "el garaje", both conditions explore instead of
+   inventing coordinates. The prompt rules carry that behaviour, and they only
+   hold while the knowledge base agrees with them. A worked example that said
+   "do not explore" dropped this row to 0/3 with RAG (§2.8). A *plausible*
+   nonexistent place is a different story, and RAG makes it worse (§2.6).
 
 ### 2.2 Robustness to phrasing and language (36 runs)
 
@@ -101,15 +106,18 @@ exactness) is what catches it.
 
 ### 2.3 What does RAG cost? Planning latency
 
-Mean goal→plan latency is **2.2 s with RAG vs 1.8 s without** (right panel
-of the benchmark figure, 21 runs per condition). Retrieval — three collection
-queries through `/rag/query`,
-each a bge-m3 embedding call plus a vector search — costs **~0.5 s**,
-small next to the 7B model's inference either way. (With the lighter
-nomic-embed-text the difference was unmeasurable at ~1.4 s in both
-conditions; bge-m3's 1024-dim embeddings are the price of its
-multilingual accuracy. RAG's other costs are operational: an embedder,
-a vector store, and index freshness.)
+Median goal→plan latency is **2.0 s with RAG vs 1.6 s without** (21 runs per
+condition). The right panel of the benchmark figure plots means, 2.4 s vs
+1.5 s. The RAG mean carries one 11.2 s outlier, the very first goal after
+launch. It is a cold start: both re-runs showed it, 11.2 s and 12.6 s, and
+every later goal took about 2 s. Retrieval — three collection queries through
+`/rag/query`, each a bge-m3 embedding call plus a vector search — costs
+**~0.4 s**, small next to the 7B model's inference either way. The phrasing
+suite (2.0 vs 1.6 s) and the hard suite (2.5 vs 1.9 s, timeouts excluded) agree.
+(With the lighter nomic-embed-text the difference was unmeasurable at ~1.4 s in
+both conditions; bge-m3's 1024-dim embeddings are the price of its multilingual
+accuracy. RAG's other costs are operational: an embedder, a vector store, and
+index freshness.)
 
 ### 2.4 Embedding choice: the multilingual gap is real and large
 
@@ -184,34 +192,47 @@ failable by the current plan-then-execute system.
 |---|---|---|
 | Disambiguation (name-confusable neighbour) | **9/9** | 0/9 |
 | Ordered multi-step plan | **9/9** | 0/9 |
-| Spatial relation ("nearest to base") | **3/6** | 0/6 |
-| Plausible nonexistent place | **6/6** | 3/6 |
+| Spatial relation ("nearest to base") | **2/6** | 0/6 |
+| Plausible nonexistent place | **0/6** | 3/6 |
 
-The suite does what it was meant to — it leaves room to improve, and the
-*decision* labels say where:
+The suite does what it was meant to do: it leaves room to improve, and the
+*decision* labels say where. It also found a weakness the July run did not
+show:
 
 - **Disambiguation is solved.** Retrieval returns both `estacion_a` and
   `estacion_a_norte`; the planner picks the requested one 9/9 and never hedges
   by visiting both. Semantic memory plus a name is enough here.
 - **Ordered multi-step is solved** (9/9) — "go to A, look around, then go to C"
   comes back as `navigate(A) → scan_360 → navigate(C)`, in order.
-- **Spatial reasoning is the real gap: 3/6.** "Go to the station *nearest the
+- **Spatial reasoning is a real gap: 2/6.** "Go to the station *nearest the
   base zone*" needs the planner to compare retrieved coordinates, not just copy
-  one. Half the time it navigates to the wrong station (`wrong_landmark`) — it
-  retrieves the right candidates but does not do the distance arithmetic. This
-  is the single clearest target for the agent-loop work, and now it is measured
-  rather than asserted.
-- **Plausible hallucination is only half-caught without RAG** (3/6): faced with
-  `estacion_d` when a/b/c exist, the RAG-equipped planner declines 6/6, but
-  without the memory to check against, the bare LLM invents a target half the
-  time. Concrete evidence that RAG *suppresses* hallucination here rather than
-  causing it.
+  one. It fails 3/3 on "nearest" and 1/3 on "farthest". Every miss goes to
+  `estacion_a`: the planner retrieves the right candidates and skips the
+  distance arithmetic. (July: 3/6. One run of difference is within run-to-run
+  variation, §2.8.)
+- **With RAG, the planner borrows coordinates for places that do not exist:
+  0/6.** "Ve a estacion_d" explores and then navigates to `estacion_a`. "Ve a
+  la estación central" goes straight to `estacion_a`, reasoning that it "has
+  known coordinates". Without RAG the bare LLM gets 3/6: it explores for
+  "estación central" and invents a position for `estacion_d`. The memory hands
+  the planner real coordinates, and the planner uses them for the wrong name.
+  Operationally that is worse than an invented point: the robot drives
+  confidently to a real place that is not the one asked for.
+
+  **This withdraws a July claim.** The July run scored this row 6/6 vs 3/6, and
+  this section read it as evidence that RAG *suppresses* hallucination. On the
+  current system it does not, and the claim is gone. Where the difference comes
+  from is not established: in a replay that held everything else fixed, the July
+  knowledge files declined one of the two goals but not the other (§2.8,
+  [ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md)).
 
 ![Hard-suite outcome breakdown](../eval/results/hard_decisions.png)
 
-The one failure mode with RAG is `wrong_landmark` (3 runs), all from the
-spatial-relation tasks — exactly the capability the next iteration should
-target.
+With RAG the failures are `wrong_landmark` (4 runs, the spatial-relation tasks)
+and `hallucinated` (6 runs, the plausible nonexistent places). Both are a
+correct retrieval followed by a wrong choice among the retrieved coordinates,
+the kind of error that checking a plan against memory, or an agent loop that
+verifies its target, is meant to catch.
 
 ### 2.7 What a zone is *called* vs what it is *for*
 
@@ -252,6 +273,51 @@ end-to-end task success, and the vocabulary is a fixed table of eleven room
 types. It says that a functional query now reaches the right zone; it does not
 say the robot understands rooms.
 
+### 2.8 Re-measured two months later: the knowledge base is part of the prompt
+
+The July numbers were measured ten minutes before a commit that rewrote
+`data/knowledge/`, and nothing re-measured them afterwards. On 2026-09-16 all
+three planning suites were re-run from scratch, in a scratch workspace with a
+fresh map and memory:
+
+| Suite, with RAG | July | Run 1 (knowledge as committed) | Run 2 (one template removed) |
+|---|---|---|---|
+| Full (21 runs) | 21/21 | **18/21** | 21/21 |
+| Phrasing (18 runs) | 18/18 | 18/18 | 18/18 |
+| Hard (30 runs) | 27/30 | 19/30 | **20/30** |
+
+Without RAG, every run scored the same: 6/21, 0/18, 3/30.
+
+**Run 1** lost the impossible-goal control: for "Ve al garaje" the planner
+explored and then navigated to `estacion_a`'s coordinates, 0/3. A replay held
+everything fixed except the knowledge files: the same system prompt, the same
+live `semantic_map` context, one plan per goal. The replay traced the loss to a
+single worked example the rewrite had added: *"if the retrieved context
+contains a place whose description matches, navigate straight to it. **Do not
+explore.**"* That example contradicts the rule that a place with no known
+coordinates must be explored for. The 7B planner followed the example. With it
+removed, the replay explored again, and **run 2**, repeated from scratch,
+restored 3/3.
+
+A gentler rewrite was tried in the replay first and rejected. It kept the
+example, softened to "no need to explore first", and added a negative one ("Ve
+al sótano", which no suite contains → explore). It did not fix the garage, and
+it broke "Ve a la zona base". Removing the example was the smallest change that
+worked. Wording was not iterated further, because the only goals it could be
+tuned against are the benchmark's own.
+
+What run 2 did **not** restore is the hard suite's plausible-nonexistent row
+(0/6, §2.6). The July knowledge files explain only half of it in the replay,
+so the cause is left open rather than guessed. And the store never noticed any
+of this: `rag_node` skipped ingestion whenever `knowledge_base` was populated,
+so an edited file never reached an existing store. It now re-syncs whenever the
+files change.
+[ADR-031](decisions/ADR-031-knowledge-base-is-planner-input.md) records the
+decision, the rejected fixes and the rule that follows: **an edit to
+`data/knowledge/` is a prompt change, and it is followed by a re-run of the
+planning suites.** Run 1's raw results are kept in
+`eval/results/before-kb-fix-2026-09-16/`.
+
 ---
 
 ## 3. Interpretation: choosing a design
@@ -279,19 +345,32 @@ similarity search is the only recall that still works.
 **The hybrid (D, this project) is not indecision — it is putting each store
 where it wins.** Exact things (zones) resolve through SQL and are immune to
 retrieval noise; fuzzy things (perceived objects) resolve through RAG; the
-LLM supplies language understanding over both and the plan validator catches
-the LLM's own type confusions (§2.2). The measured failure modes map cleanly:
-every error we observed came either from cross-lingual embedding weakness
-(→ fixed by bge-m3) or from LLM interpretation (→ caught by exact-store
-validation), never from the hybrid structure itself.
+LLM supplies language understanding over both, and the exact store at least
+refuses a zone name it does not hold (§2.2). The measured failure modes map
+onto three sources: cross-lingual embedding weakness (→ fixed by bge-m3), a
+knowledge-base example contradicting the prompt rules (→ removed, §2.8), and
+the LLM's interpretation of correct context — a wrong reference type, a skipped
+distance comparison, coordinates borrowed for a nonexistent place (§2.6). None
+came from the hybrid structure itself. The third is still open: plans are not
+checked against memory before they run.
 
 ### Threats to validity (read before quoting the numbers)
 
 - Measured at the **planning level** (ADR-013), not physical execution; the
   claim is about *decisions*, which is the mechanism RAG can influence.
-- Small task suite and corpus (78 benchmark runs, 28 embedding queries) on
-  one LLM; `temperature=0` means results are exact for this setup but not a
-  sample from a distribution.
+- Small task suite and corpus (138 planning runs, 28 embedding queries, 11
+  zone queries) on one LLM, **one run per condition**.
+- **`temperature=0` does not make results exact.** Repetitions inside a run
+  occasionally differ ("farthest from base" 2 of 3), and across two runs of the
+  same suite a task type moved by one or two runs. Read a difference that small
+  as noise, not as an effect (§2.8).
+- **The results depend on the knowledge base as much as on the code.** Worked
+  examples in `data/knowledge/` are part of the prompt; one of them cost the
+  impossible-goal control 3/3 → 0/3 (§2.8). Numbers are valid for the
+  knowledge files they were measured with.
+- The failing benchmark goals were used to *diagnose* that regression. They
+  were not written into the knowledge base, and the final files were measured
+  once, not iterated until the score recovered.
 - Landmark tasks use the landmark's *name* in the goal, which favors
   retrieval; the embedding study (§2.4) covers the harder descriptive-query
   case where the multilingual gap appears.
@@ -310,8 +389,15 @@ validation), never from the hybrid structure itself.
    re-calibrate it after an embedder change (score distributions shift:
    bge-m3's correct-match scores center lower, ~0.59 vs 0.74 — the default
    moved from 0.45 to 0.40 accordingly).
-4. **Validate plans against the exact stores** — the LLM will occasionally
-   emit the wrong reference type even with perfect context.
+4. **Validate plans against the exact stores and the retrieved memory.** Even
+   with perfect context, the LLM will emit the wrong reference type (§2.2),
+   skip a distance comparison, or reuse a real place's coordinates for a
+   name no memory holds (§2.6, 0/6). Today nothing checks the plan before it
+   runs: this is the highest-value fix the hard suite points at.
 5. For future structured queries over task history ("what did you do
    yesterday?"), add a **text-to-SQL path (B)** rather than stretching RAG
    into aggregation questions it cannot answer.
+6. **Treat `data/knowledge/` as prompt, not documentation.** A worked example
+   can override a rule. Re-run the planning suites after every edit, and read
+   the numbers as valid for the knowledge files they were measured with (§2.8,
+   ADR-031).

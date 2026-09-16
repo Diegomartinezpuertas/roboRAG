@@ -26,11 +26,13 @@ changing; the targets did.
 
 1. **Cluster** frontier cells into 8-connected groups — each one an unexplored
    edge of the map. Groups under 4 cells (20 cm) are scan noise and dropped.
-2. **Target** of each cluster: the member cell with the **most clearance** from
-   occupied cells, capped at 0.5 m (the inflation radius), ties broken by
-   nearness to the cluster's centroid. A member cell, because a curved
-   frontier's centroid can lie inside a wall; the clearest one, because a goal
-   against a wall fails to plan.
+2. **Target** of each cluster: its best *eligible* member — ranked by
+   **clearance** from occupied cells (capped at 0.5 m, the inflation radius),
+   ties broken by nearness to the centroid — skipping members closer than the
+   minimum distance to the robot or near an already attempted target. A member
+   cell, because a curved frontier's centroid can lie inside a wall; eligible,
+   because a cluster must never be discarded just because its single best cell
+   is beside the robot (see the correction below).
 3. **Score** = cluster size ÷ (1 + distance to its target): the most unexplored
    edge per metre of travel. Minimum distance and previously attempted targets
    are skipped as before.
@@ -45,23 +47,38 @@ here.
 
 ## Rationale
 
-Measured live, same launch, fresh simulation and fresh SLAM map each time,
-`explore(240 s)` from the spawn pose, known area counted from the rendered map:
+Measured live, fresh simulation and fresh SLAM map each time,
+`explore(240 s)` from the spawn pose, known area counted from the rendered map
+(`eval/exploration_coverage.py`, procedure in EVALUATION.md §4c):
 
-| Strategy | Known area | Frontiers visited | Planning failures | Paths leaving the costmap* |
-|---|---|---|---|---|
-| nearest | 9.1 m² | 9 | 0 | 1020 |
-| clusters, centroid target | 13.2 m² | 5 | 1 | 0 |
-| clusters, clearance target (adopted) | 12.6 m² | 4 | **0** | 40 |
+| Strategy | Launch | Known area | Frontiers visited | Planning failures | Paths leaving the costmap* |
+|---|---|---|---|---|---|
+| nearest | A | 9.1 m² | 9 | 0 | 1020 |
+| clusters, single target per cluster | B | 13.2 m² | 5 | 1 | 0 |
+| clusters, single target per cluster | C | 12.6 m² | 4 | 0 | 40 |
+| clusters, single target per cluster | two more | **nothing — stopped at step 1** | 0 | — | — |
+| clusters, eligible clearance target (adopted) | D | **14.1 m²** | 13 | 1 | 0 |
 
 \* `planner_server` "worldToMap failed" log lines: a path running past the
 costmap's current edge — the nearest rule produced them in bulk.
 
-- Clusters map roughly **40% more** in the same time, with fewer, longer legs.
-- The clearance target removed the one planning failure clusters still had. Its
-  area (12.6 vs 13.2 m²) is within what one run each can resolve.
-- **One run per strategy.** Enough to see a 40% difference and a failure mode
-  disappear; not enough to rank the two cluster variants by area.
+- Clusters map **~40–55% more** than the nearest rule in the same time.
+- The single-target version was unreliable: in two of its four launches the
+  robot stood inside one large frontier whose best cell was beside it, the
+  whole cluster was skipped, and exploration ended before moving. Eligible
+  targets fix that by construction (layer-1 regression tests).
+- **Clearance did not measurably remove planning failures** (one in D). It
+  stays because a goal against a wall is the failure mode seen at the doorway,
+  but no claim rests on it.
+- **One run per launch.** Enough to see a 40% difference and a strategy that
+  stops dead; not enough to rank area between the cluster variants.
+
+**Correction (same day).** A first version of this ADR attributed launch C to
+the clearance target and claimed it removed planning failures. Launch C in fact
+ran the previous code: in this workspace `colcon build --symlink-install` installs
+*copies* of Python modules, and that edit had not been rebuilt. Found when the
+benchmark rerun hit the stop-at-step-one bug; every live measurement since
+starts by checking the installed modules against `src/`.
 
 **Why not raise the planner tolerance instead.** `GridBased.tolerance` is already
 0.5 m; the failure happened with it. Choosing a goal that is valid in the first
