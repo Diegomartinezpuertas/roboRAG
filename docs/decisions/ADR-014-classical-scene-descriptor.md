@@ -66,6 +66,11 @@ the top-k is the LLM's job).
 - Object-level detection ("find the fridge") is out of scope until a real
   detector lands (YOLO on the roadmap; VLM worth revisiting on real-camera
   hardware — this decision is simulator-specific, not anti-VLM).
+- Room-level naming does not come from perception either, and
+  [ADR-022](ADR-022-room-semantics.md) is where it does come from: the name a
+  human gives a zone. A scene stored inside a named room inherits what that
+  room is for, so "where does one usually cook" resolves without the robot
+  ever recognising a kitchen.
 - The `attribute_nav` benchmark category covers the new capability
   ("go to the white, open room" → direct nav to the remembered coordinates).
 - qwen2.5vl:7b is no longer required; the "don't load both models" VRAM

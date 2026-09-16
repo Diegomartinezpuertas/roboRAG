@@ -1,7 +1,9 @@
 # ADR-011: RAG quality fixes and zones in SQLite (supersedes ADR-008)
 
 **Date:** 2026-07-14
-**Status:** Accepted
+**Status:** Accepted — extended by
+[ADR-022](ADR-022-room-semantics.md) (a zone name also carries what the room is
+for, so a zone is retrievable by function and not only by name)
 
 ## Context
 

@@ -229,14 +229,16 @@ a plain runner and layer 2 in `ros:jazzy-ros-base`, on every push.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [21 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [24 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
 silently dropping frames over DDS),
 [ADR-011](docs/decisions/ADR-011-rag-quality-zones-sqlite.md) and
 [ADR-012](docs/decisions/ADR-012-navigable-rag-post-execution-report.md)
-(making the RAG genuinely navigable).
+(making the RAG genuinely navigable),
+[ADR-022](docs/decisions/ADR-022-room-semantics.md) (rooms findable by what
+they are for, measured 55% → 100%).
 
 ---
 

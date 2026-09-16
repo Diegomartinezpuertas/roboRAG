@@ -1,7 +1,9 @@
 # ADR-005: Web dashboard with FastAPI embedded in a ROS 2 node
 
 **Date:** 2026-07-14
-**Status:** Accepted
+**Status:** Accepted — extended by
+[ADR-023](ADR-023-browser-teleop.md) (manual driving) and
+[ADR-024](ADR-024-memory-inspection-service.md) (memory viewer)
 
 ## Context
 
@@ -39,5 +41,8 @@ New package `robot_dashboard` with a single node (`dashboard_node`) that:
 ## Consequences
 
 - Local use only (no auth); do not expose port 8080 outside the machine.
+  Since [ADR-023](ADR-023-browser-teleop.md) the API can also *command motion*,
+  so this is no longer a privacy rule: exposing the port hands over the
+  controls. The default bind address is loopback for that reason.
 - Event latency ≤ ~700 ms (polling interval), fine for human observability.
 - Voice input requires Chrome/Edge; Firefox does not implement Web Speech.
