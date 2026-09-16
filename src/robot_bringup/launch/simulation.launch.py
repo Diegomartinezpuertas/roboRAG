@@ -26,7 +26,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import AndSubstitution, LaunchConfiguration, NotSubstitution
 from launch_ros.actions import Node
 
 from robot_bringup.saved_maps import resolve_saved_map, slam_params_for_saved_map
@@ -90,6 +90,9 @@ def generate_launch_description() -> LaunchDescription:
     rviz_config = os.path.join(
         get_package_share_directory('nav2_bringup'), 'rviz', 'nav2_default_view.rviz',
     )
+    # Without Nav2 (a manual mapping run) the stock view's Nav2 panels poll for
+    # servers that never come up and flood the terminal; this copy drops them.
+    rviz_mapping_config = os.path.join(bringup_dir, 'rviz', 'mapping.rviz')
 
     gz_server = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -175,7 +178,15 @@ def generate_launch_description() -> LaunchDescription:
         arguments=['-d', rviz_config],
         parameters=[{'use_sim_time': True}],
         output='log',
-        condition=IfCondition(use_rviz),
+        condition=IfCondition(AndSubstitution(use_rviz, use_nav2)),
+    )
+    rviz_mapping = Node(
+        package='rviz2',
+        executable='rviz2',
+        arguments=['-d', rviz_mapping_config],
+        parameters=[{'use_sim_time': True}],
+        output='log',
+        condition=IfCondition(AndSubstitution(use_rviz, NotSubstitution(use_nav2))),
     )
 
     return LaunchDescription([
@@ -210,4 +221,5 @@ def generate_launch_description() -> LaunchDescription:
         slam_launch,
         nav2_launch,
         rviz,
+        rviz_mapping,
     ])

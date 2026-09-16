@@ -283,7 +283,7 @@ from it ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)).
 | Launch file | Argument (default) | Meaning |
 |---|---|---|
 | `full_system` | `use_nav2` (true) | Nav2 alongside SLAM; `false` for a manual mapping run |
-| `full_system` | `use_rviz` (true) | RViz with map, LIDAR and costmaps |
+| `full_system` | `use_rviz` (true) | RViz with map, LIDAR and costmaps — Nav2's stock view; with `use_nav2:=false`, `robot_bringup/rviz/mapping.rviz`, the same view without the Nav2 panels |
 | `full_system` | `use_gz_gui` (false) | Gazebo window — on WSL2 drops the real-time factor ~1.0 → ~0.15 |
 | `full_system` | `saved_map` ('') | Start from a saved map id: SLAM loads `map.{posegraph,data}` from `$ROBOT_WS/data/maps/<id>/`, else `robot_bringup/maps/<id>/`, starting at the dock; rag_node pins its memory session to the id. An unknown id fails the launch |
 | `demo` | `use_gz_gui` (true), `use_rviz` (true), `use_nav2` (true), `saved_map` (`house`) | `full_system` as the demo is recorded |

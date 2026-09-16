@@ -323,6 +323,7 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 | Intermittent DDS discovery | WSL2 multi-NIC (eth0/docker0) | CycloneDDS pinned to lo — cyclonedds.xml + CYCLONEDDS_URI (ADR-006) |
 | Gazebo window doesn't appear | Dead msrdc.exe (WSLg bridge) | `wsl --shutdown` from PowerShell and relaunch |
 | Goals outside the SLAM map | Map grows with exploration | Explore first, or start from a saved map (`saved_map:=house`); Nav2 rejects "outside bounds" goals |
+| RViz floods the terminal with "controller_server service not available … Retrying" | Nav2's RViz panels poll for servers that `use_nav2:=false` never starts | Fixed: without Nav2, RViz opens `robot_bringup/rviz/mapping.rviz` (no Nav2 panels). Harmless if seen on an old build |
 | Autonomous explore maps little of the house | Nearest-frontier hugs walls; 3.5 m LIDAR; doors blocked by 0.5 m inflation | Map by hand with WASD (`use_nav2:=false`) and save it (ADR-023, ADR-026) |
 | End-to-end navigation unreliable | Narrow doorways + software physics | Benchmark measures the planning decision (ADR-013) |
 | Stale installs after edits | colcon symlink-install quirk | `rm -rf build/<pkg> install/<pkg>` then rebuild |
