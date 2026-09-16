@@ -38,6 +38,25 @@ stable exact name, RAG is overhead.
 
 ## 2. The evidence
 
+### What the ablation compares — and what it does not
+
+| | With RAG | Without RAG |
+|---|---|---|
+| Planner | Qwen2.5-7B, same prompt | same |
+| Named zones (SQLite) | names + centres in the prompt; `navigate(zone)` resolved by exact name | same |
+| Vector memory (landmarks, scene descriptions, task history) | retrieved and put in the prompt | **not available** |
+| Plan check (§2.9) | on | on |
+
+So the benchmark compares **design D** (LLM + SQL zones + RAG) with **D minus
+RAG**, which is an LLM used as an interpreter over a SQL zone table — a
+restricted form of design A inside an LLM prompt. It does not compare RAG and
+SQL on the same data. The landmarks and scene descriptions exist only in
+vector memory, so without RAG the planner has no source for them in any form.
+The one place both conditions can see is the `base` zone, the known-zone
+control. Design **B** — an LLM that writes SQL queries over a table holding the
+landmarks — was **not implemented or measured**; §3 argues where it would win,
+and those arguments are reasoning, not results.
+
 ### 2.1 Ablation: RAG on vs off (42 runs, plan check on in both)
 
 ![Benchmark results](../eval/results/benchmark.png)
@@ -433,6 +452,10 @@ the fixture seeds one on top of the other. It can also over-reject, as with
 exactly named — like this project's user-defined zones. The control row shows
 zero benefit from RAG there. No embedder, no index, perfect precision.
 
+*(What follows for A and B is argued from how they work, not measured: the
+benchmark only ever ran D with and without RAG — see "What the ablation
+compares" at the start of §2.)*
+
 **Use LLM → SQL (B) when** the data is *structured* and the questions are
 *exact or aggregative*: "how many chairs did you log yesterday?", "which zone
 did you visit last?". Text-to-query gives perfect answers over keys and
@@ -466,6 +489,11 @@ planner's spatial comparisons.
 
 - Measured at the **planning level** (ADR-013), not physical execution; the
   claim is about *decisions*, which is the mechanism RAG can influence.
+- **The baseline is "LLM + SQL zones", and the memory-only facts are absent
+  from it.** The 15/15 vs 0/15 says the information in vector memory is used;
+  it does not say RAG beats a SQL table holding the same information, and
+  design B (LLM → SQL) was never run. Only the one-zone control compares on
+  shared data.
 - Small task suite and corpus (207 planning runs per measurement, 28 embedding
   queries, 11 zone queries) on one LLM, **one run per condition**.
 - **`temperature=0` does not make results exact.** Repetitions inside a run

@@ -69,8 +69,8 @@ class LLMPlannerNode(Node):
             than helping it. Calibrated for bge-m3. Default: 0.40
         rag_enabled (bool): When False, no RAG context is retrieved or injected.
             This is the ablation switch for the A/B navigation benchmark. Default: True
-        zones_in_prompt (bool): When False, known zone names are withheld from the
-            prompt (the "blind" control condition). Default: True
+        zones_in_prompt (bool): When False, the known zones (names and centres) are
+            withheld from the prompt (the "blind" control condition). Default: True
         dry_run (bool): When True, the plan is produced and published but not
             executed — the benchmark's mode (ADR-013). Default: False
         plan_validation (bool): Check every navigate step against the known zones

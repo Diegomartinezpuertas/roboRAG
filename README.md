@@ -20,6 +20,24 @@ remembers, and WASD driving to map the house by hand first.
 
 ## Does the RAG actually help? (measured)
 
+> **Short answer: yes — where the information exists only in memory.** Asked
+> for a remembered place by name or by description, the planner with RAG goes
+> straight to it 15/15; without RAG it has nothing to go on and explores, 0/15.
+> For a place the SQL zone table already names, RAG adds nothing (control: 3/3
+> in both). And memory can mislead: asked for a plausible place that does not
+> exist, the planner borrows a real place's coordinates unless the plan is
+> checked before it runs (0/6 → 6/6). Cost: ~0.6 s of retrieval and ~0.4 s for
+> the check.
+>
+> **What "without RAG" means here:** the same Qwen planner, the same prompt,
+> and the same SQLite zone table (zone names and centres in the prompt,
+> resolved by exact name) — only retrieval from the vector memory is switched
+> off. So the baseline is *LLM as interpreter + SQL zones*, not a bare LLM.
+> Two things this does **not** measure: SQL holding the *same* landmarks and
+> descriptions that memory holds (only the one-zone control compares on shared
+> data), and an LLM that writes SQL queries itself (design B in
+> [rag-analysis §1](docs/rag-analysis.md) — argued there, not benchmarked).
+
 The central question of this project is whether semantic memory (RAG) improves
 natural-language navigation. Rather than assert it, it is **measured** with an
 ablation: the same tasks are run with RAG on and off, and the planner's
@@ -335,15 +353,19 @@ before the robot moves — and a variant that was measured and reverted).
    "farthest" over retrieved coordinates in code and hand the planner the
    answer, or let the agent loop check its choice. Baseline: 1/6 (0/6 and 3/6
    in other sessions) on the hard suite's spatial relations.
-3. **Native voice phase** (Whisper on the Windows NPU, publishing to
+3. **RAG vs LLM → SQL on the same data** — put the landmarks and scene
+   descriptions in SQLite, let the LLM write the query (design B), and run the
+   same suites. It is the comparison this benchmark does not make: today's
+   baseline has the SQL zone table but not the facts memory holds.
+4. **Native voice phase** (Whisper on the Windows NPU, publishing to
    `/robot/goal`) — the NPU is unreachable from WSL2, so this runs host-side.
-4. **Object-level detection** (YOLOv8n; VLM revisit on real-camera hardware)
+5. **Object-level detection** (YOLOv8n; VLM revisit on real-camera hardware)
    — the classical descriptor covers place attributes, naming objects needs
    a detector.
-5. **Physical SR/SPL benchmark run** on hardware that can navigate reliably —
+6. **Physical SR/SPL benchmark run** on hardware that can navigate reliably —
    the planning-level metric isolates the mechanism, a physical run would
    measure the outcome.
-6. ~~**Docker/devcontainer** for full reproducibility.~~ **Done** —
+7. ~~**Docker/devcontainer** for full reproducibility.~~ **Done** —
    [ADR-021](docs/decisions/ADR-021-container-reproducibility.md). The
    remaining "works on my WSL2" caveat is now the simulator alone.
 
