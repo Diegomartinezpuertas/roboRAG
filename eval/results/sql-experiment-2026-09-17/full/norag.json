@@ -1,0 +1,509 @@
+[
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.6,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_a",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.6,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_b"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_b"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_b",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.6,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_b"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.6,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not in the known zones or context, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_c"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not in the known zones or context, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_c"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "nav_estacion_c",
+    "type": "object_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not in the known zones or context, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_c"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "attr_white_open",
+    "type": "attribute_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a la habitación blanca y despejada",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target room is described but not located in the semantic map or knowledge base. We need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        }
+      ],
+      "raw_steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ],
+      "plan_corrections": [
+        "No tengo \"la habitación blanca y despejada\" en la memoria: el plan iba a (1.10, -0.60), que es \"base\". Exploro en su lugar."
+      ]
+    }
+  },
+  {
+    "task_id": "attr_white_open",
+    "type": "attribute_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a la habitación blanca y despejada",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target room is described but not located in the semantic map or knowledge base. We need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        }
+      ],
+      "raw_steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ],
+      "plan_corrections": [
+        "No tengo \"la habitación blanca y despejada\" en la memoria: el plan iba a (1.10, -0.60), que es \"base\". Exploro en su lugar."
+      ]
+    }
+  },
+  {
+    "task_id": "attr_white_open",
+    "type": "attribute_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a la habitación blanca y despejada",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target room is described but not located in the semantic map or knowledge base. We need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        }
+      ],
+      "raw_steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ],
+      "plan_corrections": [
+        "No tengo \"la habitación blanca y despejada\" en la memoria: el plan iba a (1.10, -0.60), que es \"base\". Exploro en su lugar."
+      ]
+    }
+  },
+  {
+    "task_id": "attr_cluttered",
+    "type": "attribute_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Llévame a donde había muchos objetos",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since no specific location with many objects is known, we need to explore to find such a place.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "attr_cluttered",
+    "type": "attribute_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Llévame a donde había muchos objetos",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.2,
+    "plan": {
+      "reasoning": "Since no specific location with many objects is known, we need to explore to find such a place.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "attr_cluttered",
+    "type": "attribute_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Llévame a donde había muchos objetos",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.2,
+    "plan": {
+      "reasoning": "Since no specific location with many objects is known, we need to explore to find such a place.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 10
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "latency_sec": 1.8,
+    "plan": {
+      "reasoning": "The target zone 'base' is known and has coordinates. We can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "latency_sec": 1.8,
+    "plan": {
+      "reasoning": "The target zone 'base' is known and has coordinates. We can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "zone_base",
+    "type": "zone_nav",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve a la zona base",
+    "decision": "zone_nav",
+    "success": true,
+    "latency_sec": 1.8,
+    "plan": {
+      "reasoning": "The target zone 'base' is known and has coordinates. We can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 1.2,
+    "plan": {
+      "reasoning": "The garage is not known and no coordinates are provided, so we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 1.2,
+    "plan": {
+      "reasoning": "The garage is not known and no coordinates are provided, so we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "neg_garaje",
+    "type": "negative",
+    "rep": 2,
+    "condition": "norag",
+    "goal": "Ve al garaje",
+    "decision": "declined_or_explore",
+    "success": true,
+    "latency_sec": 1.2,
+    "plan": {
+      "reasoning": "The garage is not known and no coordinates are provided, so we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        }
+      ]
+    }
+  }
+]

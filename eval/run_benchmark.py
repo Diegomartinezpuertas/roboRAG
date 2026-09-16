@@ -16,17 +16,23 @@ Suites:
   tasks_hard.yaml     disambiguation, ordered multi-step, spatial relations —
                       the suite with headroom (needs `seed_memory.py --hard`)
 
-Conditions (planner parameters flipped live, same memory for all three):
+Conditions (planner parameters flipped live, same memory for all of them):
   rag           RAG on,  plan check on  — the system as shipped
   norag         RAG off, plan check on  — the RAG ablation
   rag_unchecked RAG on,  plan check off — the plan-check ablation (ADR-032)
+  sql           place memory looked up by an LLM-written SQL query over the same
+                places instead of vector search (ADR-033); run
+                export_places_sql.py first. Not in the default set.
 
 Results go to eval/results/<suite>/<condition>.json, where <suite> is the YAML
 stem without the "tasks_" prefix (e.g. tasks_full.yaml -> results/full/).
 
-Usage: python3 run_benchmark.py [tasks_full.yaml]
+Usage: python3 run_benchmark.py [tasks_full.yaml] [--conditions rag,sql] [--out DIR]
+  --conditions  comma-separated subset (default: rag,norag,rag_unchecked)
+  --out         results directory under eval/results/ (default: the published one)
 """
 
+import argparse
 import json
 import os
 import subprocess
@@ -49,11 +55,13 @@ LANDMARKS_FILE = HERE / 'landmarks.json'
 WS_ROOT = Path(os.environ.get('ROBOT_WS', HERE.parent))
 ZONES_DB = str(WS_ROOT / 'data' / 'zones.db')
 PLANNER = '/llm_planner_node'
-CONDITIONS = [
-    ('rag', {'rag_enabled': 'true', 'plan_validation': 'true'}),
-    ('norag', {'rag_enabled': 'false', 'plan_validation': 'true'}),
-    ('rag_unchecked', {'rag_enabled': 'true', 'plan_validation': 'false'}),
-]
+CONDITIONS = {
+    'rag': {'rag_enabled': 'true', 'plan_validation': 'true', 'memory_source': 'vector'},
+    'norag': {'rag_enabled': 'false', 'plan_validation': 'true', 'memory_source': 'vector'},
+    'rag_unchecked': {'rag_enabled': 'true', 'plan_validation': 'false', 'memory_source': 'vector'},
+    'sql': {'rag_enabled': 'true', 'plan_validation': 'true', 'memory_source': 'sql'},
+}
+DEFAULT_CONDITIONS = 'rag,norag,rag_unchecked'
 
 
 def set_param(name: str, value: str) -> None:
@@ -84,13 +92,20 @@ def load_zone_centers():
 
 
 def main():
-    tasks_file = HERE / (sys.argv[1] if len(sys.argv) > 1 else 'tasks_full.yaml')
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument('tasks', nargs='?', default='tasks_full.yaml')
+    parser.add_argument('--conditions', default=DEFAULT_CONDITIONS)
+    parser.add_argument('--out', default='', help='results subdirectory, e.g. sql-experiment')
+    args = parser.parse_args()
+    conditions = [(name, CONDITIONS[name]) for name in args.conditions.split(',')]
+
+    tasks_file = HERE / args.tasks
     suite_name = tasks_file.stem.replace('tasks_', '')
     suite = yaml.safe_load(tasks_file.read_text(encoding='utf-8'))
     landmarks = json.loads(LANDMARKS_FILE.read_text(encoding='utf-8'))
     zones = load_zone_centers()
     reps = suite['repetitions']
-    out_dir = HERE / 'results' / suite_name
+    out_dir = HERE / 'results' / args.out / suite_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rclpy.init()
@@ -100,7 +115,7 @@ def main():
     set_param('dry_run', 'true')
     set_param('zones_in_prompt', 'true')
 
-    for cond_name, params in CONDITIONS:
+    for cond_name, params in conditions:
         for name, value in params.items():
             set_param(name, value)
         time.sleep(1.0)
@@ -112,8 +127,12 @@ def main():
                 node.publish_goal(task['goal'])
                 plan = node.wait_for_plan(timeout_sec=60.0)
                 latency = time.monotonic() - t0
+                # Any remembered area whose text matches the attribute is a valid
+                # answer. Every memory, not the vector top-5: the SQL condition can
+                # reach areas similarity search would not return. For the vector
+                # conditions nothing changes — the planner only sees its top-3.
                 retrieved = (
-                    node.query_rag(task['goal'], 'semantic_map', top_k=5)
+                    [entry['document'] for entry in node.inspect_memory('semantic_map')]
                     if task['type'] == 'attribute_nav' else ()
                 )
                 decision, success = classify(plan or {}, task, landmarks, zones, retrieved)
@@ -135,6 +154,7 @@ def main():
     set_param('dry_run', 'false')
     set_param('rag_enabled', 'true')
     set_param('plan_validation', 'true')
+    set_param('memory_source', 'vector')
     spin.stop()
     rclpy.shutdown()
 

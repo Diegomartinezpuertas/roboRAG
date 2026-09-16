@@ -45,6 +45,7 @@ Gazebo without prior confirmation.
 | Robot | TurtleBot3 Waffle | — | LIDAR + camera (own model copy at 640×480, ADR-009) |
 | Planner LLM | Qwen2.5-7B-Instruct | Ollama | Port 11434, temperature=0 |
 | Plan check | plan_validation.py | robot_brain | Every navigate checked before execution: known zone, known point, no borrowed place (ADR-032) |
+| SQL place memory (experiment) | sql_memory.py | robot_brain | `memory_source: sql` — Qwen writes a read-only SELECT over a SQLite copy of the places; measured against RAG, not the default (ADR-033) |
 | Perception | Scene descriptor | robot_skills | Classical colors+clutter, no ML (ADR-014) |
 | Embeddings | bge-m3 | Ollama | Multilingual, for ChromaDB (ADR-014 / rag-analysis §2.4) |
 | Vector DB | ChromaDB | pip | Persistent at ~/robot_ws/data/chroma_db |
@@ -231,6 +232,9 @@ ros2 topic pub --once /robot/goal std_msgs/String "data: 'Go to the kitchen and 
 # Watch the robot's response
 ros2 topic echo /robot/response
 
+# RAG vs LLM → SQL on the same places (ADR-033): export memory, then flip the source
+cd eval && python3 export_places_sql.py && ros2 param set /llm_planner_node memory_source sql
+
 # The plan as it will run — with raw_steps + plan_corrections when the check
 # replaced a step (ADR-032). Turn the check off to see the planner unchecked:
 ros2 topic echo /robot/plan
@@ -271,7 +275,7 @@ ros2 launch robot_bringup full_system.launch.py saved_map:=house
 # Demo setup: Gazebo window + RViz + dashboard on map `house` (GUI costs RTF)
 ros2 launch robot_bringup demo.launch.py
 
-# Layer 1 — pure logic, no ROS needed (346 tests, 8 of them drive the dashboard
+# Layer 1 — pure logic, no ROS needed (363 tests, 8 of them drive the dashboard
 # page in headless Chromium — once: python3 -m playwright install chromium) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
@@ -287,7 +291,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 346 + 28, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 363 + 28, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 
@@ -345,6 +349,7 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 | End-to-end navigation unreliable | Narrow doorways + software physics | Benchmark measures the planning decision (ADR-013) |
 | "Ve a estacion_d" (plausible but nonexistent) drove to a *real* station | With RAG the 7B planner invents a zone or reuses retrieved coordinates for a name no memory holds (hard suite 0/6 with the check off) | Plan check before execution replaces such steps with explore: 6/6 (ADR-032). It is a model call: it wrongly rejected 2 correct spatial answers. Never "repair" a memory named as a zone into coordinates — measured, it let a borrowed place through |
 | Spatial goals ("the station nearest the base") | The planner compares coordinates unreliably, even with every coordinate and the zone's centre in the prompt | Open: right station 6/6 in one session, 0/6 in the next (rag-analysis §2.6). Candidate fixes: compute the relation in code, or the agent loop |
+| "Is RAG better than SQL?" | The same-data comparison ran on 8–12 places with a vocabulary the SQL prompt lists | It tied on every lookup and lost only spatial comparisons (ADR-033). Do not claim RAG beats SQL; claim it at scale only after measuring it there |
 | Benchmark totals move between sessions | `temperature=0` is repeatable, not exact | Claim effects only from conditions compared inside one session (the runner does rag / norag / rag_unchecked on one memory); ±2–3 runs between sessions is noise |
 | Python edits not taking effect | In this workspace `--symlink-install` installs *copies* of Python modules, not links | Rebuild after every Python edit (`colcon build --symlink-install --packages-select <pkg>`); if in doubt `rm -rf build/<pkg> install/<pkg>` first. Before a live measurement, check the installed module matches `src/` — a published run was once invalidated by this (ADR-027) |
 
@@ -382,6 +387,9 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
   "explore, don't guess" rule (3/3 → 0/3). `rag_node` re-syncs the collection on
   start; the numbers do not update themselves (ADR-031, EVALUATION.md §5b).
   Never write benchmark goals or landmark names into it
+- **Do not change the scene descriptor's phrases or colour names** without
+  updating `PLACES_SQL_SYSTEM_PROMPT` (prompts.py): the SQL memory experiment
+  only matches because its prompt lists that vocabulary (ADR-033)
 - **No `main()` that catches only `KeyboardInterrupt`** — catch
   `ExternalShutdownException` too and guard `rclpy.shutdown()` with
   `rclpy.ok()`, or every `ros2 launch` stop prints a traceback (ADR-016)

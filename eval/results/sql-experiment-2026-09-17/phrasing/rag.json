@@ -1,0 +1,431 @@
+[
+  {
+    "task_id": "a_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Llévame hasta donde está estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Llévame hasta donde está estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Go to estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Go to estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "estacion_b is a known zone with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.0,
+    "plan": {
+      "reasoning": "estacion_b is a known zone with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Quiero que vayas a estacion_b, por favor",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "estacion_b is specified by coordinates and matches a known zone, so we can navigate directly there.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Quiero que vayas a estacion_b, por favor",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "estacion_b is specified by coordinates and matches a known zone, so we can navigate directly there.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Navigate to estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "estacion_b is specified by coordinates and matches known zones, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Navigate to estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "estacion_b is a known zone with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Ve a estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Ve a estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Dirígete al punto llamado estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Dirígete al punto llamado estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "rag",
+    "goal": "Take me to estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "estacion_c has known coordinates, so we can navigate directly there.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "rag",
+    "goal": "Take me to estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.4,
+    "plan": {
+      "reasoning": "The target 'estacion_c' is a known zone with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        }
+      ]
+    }
+  }
+]

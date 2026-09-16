@@ -79,3 +79,15 @@ def test_build_resolver_prompt_numbers_places_from_one():
     prompt = build_resolver_prompt('Ve a estacion_d', places)
     assert 'GOAL: Ve a estacion_d' in prompt
     assert '1. estacion_a at (x=1.00, y=2.00)' in prompt
+
+
+def test_places_sql_prompt_names_no_benchmark_landmark_or_attribute():
+    # The SQL writer was designed without looking at the suites (ADR-033).
+    from robot_brain.prompts import PLACES_SQL_SYSTEM_PROMPT, build_places_sql_prompt
+
+    # "white" is allowed only as one of the descriptor's colour names. One word a
+    # suite goal also uses, "despejado", is in the prompt as a translation
+    # example; ADR-033 discloses it rather than pretending the prompt is clean.
+    for word in ('estacion', 'blanca', 'zona base', 'garaje', 'muchos objetos'):
+        assert word not in PLACES_SQL_SYSTEM_PROMPT.lower()
+    assert 'GOAL: Ve a punto_3' in build_places_sql_prompt('Ve a punto_3')

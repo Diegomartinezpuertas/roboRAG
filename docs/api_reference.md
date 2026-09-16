@@ -362,6 +362,8 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 | llm_planner_node | `zones_in_prompt` (true) | Ablation switch: withholds the known zones (names and centres) from the prompt |
 | llm_planner_node | `dry_run` (false) | Produce/publish the plan but skip execution (benchmark mode) |
 | llm_planner_node | `plan_validation` (true) | Check every `navigate` step before execution: an unknown zone, a point that is no known place, or a remembered place borrowed for one the goal asks for but memory lacks becomes `explore` ([ADR-032](decisions/ADR-032-plan-check-before-execution.md)). Costs one extra Qwen call per goal whose plan navigates to coordinates (~0.4 s median) |
+| llm_planner_node | `memory_source` (`vector`) | How place memory is looked up when `rag_enabled` is true: `vector` (similarity search over `semantic_map`) or `sql` (Qwen writes a read-only SELECT over `places_db`, which holds the same places — the LLM → SQL experiment, [ADR-033](decisions/ADR-033-llm-to-sql-place-memory.md)). The knowledge base is retrieved the same way in both. Re-read per goal |
+| llm_planner_node | `places_db` (`$ROBOT_WS/data/places.db`) | SQLite `places(name, x, y, zone, description)` for `memory_source: sql`, written by `eval/export_places_sql.py` |
 | rag_node | `ollama_base_url` (`http://localhost:11434`) | Ollama server URL for embeddings |
 | rag_node | `embedding_model` (`bge-m3`) | Ollama embedding model (see [rag-analysis](rag-analysis.md) §2.4) |
 | rag_node | `collections` | Collections created on startup |
@@ -379,7 +381,7 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 | dashboard_node | `teleop_rate_hz` (20.0) | Rate at which a held command is republished |
 
 The teleop speeds are re-read on every command and `explore_strategy` on every
-exploration step, so `ros2 param set` changes them mid-session. `rag_enabled`, `zones_in_prompt`, `dry_run` and `plan_validation` are re-read on every goal, so the
+exploration step, so `ros2 param set` changes them mid-session. `rag_enabled`, `zones_in_prompt`, `dry_run`, `plan_validation` and `memory_source` are re-read on every goal, so the
 benchmark can flip conditions with `ros2 param set` without restarting the node
 (a restart would reset the shared SLAM map and break cross-condition fairness).
 

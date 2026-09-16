@@ -1,0 +1,524 @@
+[
+  {
+    "task_id": "a_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.4,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_a%' OR lower(name) LIKE '%estacion_a%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "a_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Ve a estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.0,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_a%' OR lower(name) LIKE '%estacion_a%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "a_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Llévame hasta donde está estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_a%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "a_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Llévame hasta donde está estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_a%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "a_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Go to estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.2,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion a%' OR lower(name) = 'estacion_a'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "a_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Go to estacion_a",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.0,
+    "plan": {
+      "reasoning": "The target 'estacion_a' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": -1.9,
+            "y": -1.1
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion a%' OR lower(name) = 'estacion_a'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "b_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Ve a estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "estacion_b has coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_b%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "b_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Ve a estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "estacion_b has coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_b%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "b_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Quiero que vayas a estacion_b, por favor",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.2,
+    "plan": {
+      "reasoning": "The target location, estacion_b, is known with coordinates and does not require exploration.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_b%' OR lower(name) = 'estacion_b'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "b_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Quiero que vayas a estacion_b, por favor",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.0,
+    "plan": {
+      "reasoning": "The target location is known by coordinates and name, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_b%' OR lower(name) = 'estacion_b'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "b_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Navigate to estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "estacion_b has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_b%' OR lower(name) LIKE '%estacion_b%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "b_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Navigate to estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "estacion_b has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_b%' OR lower(name) LIKE '%estacion_b%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "c_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Ve a estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.2,
+    "plan": {
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_c%' OR name = 'area' AND lower(description) LIKE '%estacion_c%';",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "c_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Ve a estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.2,
+    "plan": {
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_c%' OR name = 'area' AND lower(description) LIKE '%estacion_c%';",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "c_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Dirígete al punto llamado estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.0,
+    "plan": {
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(name) LIKE '%estacion_c%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "c_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Dirígete al punto llamado estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.6,
+    "plan": {
+      "reasoning": "The target 'estacion_c' has known coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        },
+        {
+          "skill": "perceive"
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(name) LIKE '%estacion_c%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "c_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "sql",
+    "goal": "Take me to estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 3.0,
+    "plan": {
+      "reasoning": "The target 'estacion_c' is a known zone with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_c%' OR lower(name) LIKE '%estacion_c%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  },
+  {
+    "task_id": "c_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "sql",
+    "goal": "Take me to estacion_c",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 2.8,
+    "plan": {
+      "reasoning": "The target 'estacion_c' is a known zone with coordinates, so we can navigate directly to it.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 3.4,
+            "y": 0.0
+          }
+        }
+      ],
+      "memory_query": {
+        "sql": "SELECT name, x, y, zone, description FROM places WHERE lower(description) LIKE '%estacion_c%' OR lower(name) LIKE '%estacion_c%'",
+        "rows": 1,
+        "error": ""
+      }
+    }
+  }
+]

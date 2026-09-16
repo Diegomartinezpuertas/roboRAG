@@ -28,7 +28,7 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
 from robot_interfaces.msg import SemanticObject
-from robot_interfaces.srv import ExecuteSkill, QueryRAG, UpdateMap
+from robot_interfaces.srv import ExecuteSkill, InspectMemory, QueryRAG, UpdateMap
 
 _MAP_QOS = QoSProfile(
     depth=1,
@@ -50,6 +50,7 @@ class BenchNode(Node):
         self._skills_client = self.create_client(ExecuteSkill, '/skills/execute')
         self._update_map_client = self.create_client(UpdateMap, '/rag/update_map')
         self._rag_client = self.create_client(QueryRAG, '/rag/query')
+        self._inspect_client = self.create_client(InspectMemory, '/rag/inspect')
 
         self._response_lock = threading.Lock()
         self._latest_response: str | None = None
@@ -166,6 +167,28 @@ class BenchNode(Node):
             return []
         response = future.result()
         return list(response.contexts) if response.success else []
+
+    def inspect_memory(self, collection: str, limit: int = 200) -> list[dict]:
+        """Browses a collection of the active map session via /rag/inspect.
+
+        Args:
+            collection: Collection name, e.g. "semantic_map".
+            limit: Entries at most (rag_node caps it at 200).
+
+        Returns:
+            Entries as {id, document, metadata, score}; [] if the call fails.
+        """
+        self._inspect_client.wait_for_service(timeout_sec=10.0)
+        request = InspectMemory.Request(
+            collection_name=collection, query_text='', limit=limit, active_map_only=True,
+        )
+        future = self._inspect_client.call_async(request)
+        done = threading.Event()
+        future.add_done_callback(lambda _: done.set())
+        if not done.wait(timeout=15.0):
+            return []
+        response = future.result()
+        return json.loads(response.items_json) if response.success else []
 
     def wait_for_plan(self, timeout_sec: float) -> dict | None:
         """Blocks until a new /robot/plan arrives, returning the parsed plan dict."""

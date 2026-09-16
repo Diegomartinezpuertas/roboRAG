@@ -24,13 +24,16 @@ from robot_brain.plan_validation import (
 )
 from robot_brain.prompts import (
     PLACE_RESOLVER_SYSTEM_PROMPT,
+    PLACES_SQL_SYSTEM_PROMPT,
     REPORT_SYSTEM_PROMPT,
     ROBOT_SYSTEM_PROMPT,
+    build_places_sql_prompt,
     build_report_prompt,
     build_resolver_prompt,
     build_user_prompt,
 )
 from robot_brain.qwen_client import QwenClient
+from robot_brain.sql_memory import parse_sql, query_places, rows_as_documents
 from robot_brain.toolkit import RobotToolkit, execute_plan
 
 # Workspace root for the default data paths. Reads ROBOT_WS (exported by
@@ -78,6 +81,13 @@ class LLMPlannerNode(Node):
             an unknown zone, an unknown point, or a remembered place borrowed for
             one that is not in memory (plan_validation.py, ADR-032). Re-read per
             goal, like rag_enabled, so the benchmark can ablate it. Default: True
+        memory_source (str): How place memory is looked up when rag_enabled is
+            true: "vector" (similarity search over semantic_map) or "sql" (Qwen
+            writes a read-only SELECT over places_db, which holds the same places —
+            the LLM → SQL experiment of ADR-033). The knowledge base is retrieved the
+            same way in both. Re-read per goal. Default: vector
+        places_db (str): SQLite file with the places table for memory_source "sql",
+            written by eval/export_places_sql.py.
         zones_db (str): SQLite file with user-defined navigation zones.
     """
 
@@ -93,6 +103,8 @@ class LLMPlannerNode(Node):
         self.declare_parameter('zones_in_prompt', True)
         self.declare_parameter('dry_run', False)
         self.declare_parameter('plan_validation', True)
+        self.declare_parameter('memory_source', 'vector')
+        self.declare_parameter('places_db', str(WS_ROOT / 'data' / 'places.db'))
         self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 
         base_url = self.get_parameter('ollama_base_url').value
@@ -143,9 +155,14 @@ class LLMPlannerNode(Node):
         self._publish_status(f'Received goal: {goal_text}')
 
         rag_context: list[str] = []
+        memory_query: dict | None = None
         if rag_enabled:
             rag_context += self._retrieve_context(goal_text, 'knowledge_base', top_k=3)
-            rag_context += self._retrieve_context(goal_text, 'semantic_map', top_k=3)
+            if self.get_parameter('memory_source').value == 'sql':
+                places, memory_query = self._places_from_sql(goal_text)
+                rag_context += places
+            else:
+                rag_context += self._retrieve_context(goal_text, 'semantic_map', top_k=3)
             rag_context += self._retrieve_context(goal_text, 'task_history', top_k=2)
 
         known_zones = self._known_zones()
@@ -192,6 +209,8 @@ class LLMPlannerNode(Node):
             self._publish_status(
                 f'Plan paso {index + 1}/{len(steps)}: {step.get("skill")}({params_str})',
             )
+        if memory_query is not None:
+            plan = {**plan, 'memory_query': memory_query}
         # Publish the plan as it will run, for the planning benchmark / dashboard.
         self._plan_pub.publish(String(data=json.dumps(plan, ensure_ascii=False)))
         self.get_logger().info(f'Plan published: {json.dumps(plan, ensure_ascii=False)}')
@@ -207,6 +226,32 @@ class LLMPlannerNode(Node):
             self._publish_status(f'Step {index + 1}/{len(results)} ({result["skill"]}): {status}')
 
         self._report_from_results(goal_text, results, corrections)
+
+    def _places_from_sql(self, goal_text: str) -> tuple[list[str], dict]:
+        """Looks up place memory with a query Qwen writes (memory_source "sql", ADR-033).
+
+        Args:
+            goal_text: The user's goal.
+
+        Returns:
+            (place documents in semantic_map format, a record of the attempt:
+            the SQL, how many rows it returned, and the error if it failed). A
+            failed query yields no places — the planner then sees no memory,
+            exactly as a retrieval that found nothing.
+        """
+        record: dict = {'sql': '', 'rows': 0, 'error': ''}
+        try:
+            record['sql'] = parse_sql(
+                self._qwen.chat(PLACES_SQL_SYSTEM_PROMPT, build_places_sql_prompt(goal_text)),
+            )
+            rows = query_places(self.get_parameter('places_db').value, record['sql'])
+        except Exception as exc:  # noqa: BLE001 — any failure is recorded, not raised
+            record['error'] = str(exc)
+            self.get_logger().info(f'Place SQL failed: {exc}')
+            return [], record
+        record['rows'] = len(rows)
+        self.get_logger().info(f'Place SQL ({len(rows)} rows): {record["sql"]}')
+        return rows_as_documents(rows), record
 
     def _known_zones(self) -> dict[str, dict]:
         """Returns the zones the robot currently knows, {name: bounds}.

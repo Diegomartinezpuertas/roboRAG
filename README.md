@@ -20,23 +20,26 @@ remembers, and WASD driving to map the house by hand first.
 
 ## Does the RAG actually help? (measured)
 
-> **Short answer: yes — where the information exists only in memory.** Asked
-> for a remembered place by name or by description, the planner with RAG goes
-> straight to it 15/15; without RAG it has nothing to go on and explores, 0/15.
-> For a place the SQL zone table already names, RAG adds nothing (control: 3/3
-> in both). And memory can mislead: asked for a plausible place that does not
-> exist, the planner borrows a real place's coordinates unless the plan is
-> checked before it runs (0/6 → 6/6). Cost: ~0.6 s of retrieval and ~0.4 s for
-> the check.
+> **Short answer: memory is decisive; *vector* search is not shown to be the
+> only way to use it.** Asked for a remembered place by name or by description,
+> the planner with the robot's memory goes straight to it 15/15; without memory
+> it has nothing to go on and explores, 0/15. But an **LLM writing SQL over the
+> same places** did just as well on every lookup — names, descriptions,
+> Spanish and English, confusable names, multi-step plans — and lost only the
+> spatial comparisons (0/6 vs 3/6), 0.6 s slower. At this memory size (a dozen
+> places, a description vocabulary the SQL prompt can list), RAG is not shown to
+> beat SQL; where it should — large, open-vocabulary memories — is not measured
+> yet ([rag-analysis §2.10](docs/rag-analysis.md)). For places the zone table
+> already names, neither adds anything (3/3 in both). And memory can mislead:
+> asked for a plausible place that does not exist, the planner borrows a real
+> place's coordinates unless the plan is checked before it runs (0/6 → 6/6).
 >
-> **What "without RAG" means here:** the same Qwen planner, the same prompt,
-> and the same SQLite zone table (zone names and centres in the prompt,
-> resolved by exact name) — only retrieval from the vector memory is switched
-> off. So the baseline is *LLM as interpreter + SQL zones*, not a bare LLM.
-> Two things this does **not** measure: SQL holding the *same* landmarks and
-> descriptions that memory holds (only the one-zone control compares on shared
-> data), and an LLM that writes SQL queries itself (design B in
-> [rag-analysis §1](docs/rag-analysis.md) — argued there, not benchmarked).
+> **What each condition is:** all use the same Qwen planner, prompt and SQLite
+> zone table (names and centres, resolved by exact name). *With RAG* adds
+> similarity search over the vector memory. *Without RAG* has no access to that
+> memory — so it is *LLM as interpreter + SQL zones*, not a bare LLM, and it
+> lacks the facts memory holds. *LLM → SQL* gives it the same places as a table
+> it queries itself ([ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md)).
 
 The central question of this project is whether semantic memory (RAG) improves
 natural-language navigation. Rather than assert it, it is **measured** with an
@@ -86,6 +89,10 @@ More measured findings (full data and charts in
   caught it ([ADR-031](docs/decisions/ADR-031-knowledge-base-is-planner-input.md)).
 
 ![Embedding comparison](eval/results/embeddings.png)
+
+**RAG vs an LLM writing SQL over the same places** (one session, one memory):
+
+![RAG vs LLM → SQL](eval/results/sql_vs_rag.png)
 
 How to read this:
 
@@ -193,7 +200,7 @@ docker build -t robot-rag-agent .
 docker run --rm robot-rag-agent
 ```
 
-Expected: `ruff` clean, **346** + **28** tests, exit `0`. The image sources the
+Expected: `ruff` clean, **363** + **28** tests, exit `0`. The image sources the
 project's own `setup_env.sh` and runs at `/robot_ws`, which also exercises the
 path-portability fix ([ADR-015](docs/decisions/ADR-015-workspace-relative-paths.md)).
 
@@ -253,7 +260,7 @@ Three layers, split by what each needs to run
 
 | Layer | Covers | Needs | Tests | Run |
 |---|---|---|---|---|
-| Pure logic | chunking, plan parsing, prompts, frontier clusters, scene descriptor, scene merging, knowledge-base sync, plan check, zone store, room semantics, teleop deadman, cmd_vel mux, sim speed, saved maps and sessions, HTTP layer, the dashboard page in headless Chromium, benchmark scorer | nothing (Chromium for the page tests) | 346 | `pytest tests/` |
+| Pure logic | chunking, plan parsing, prompts, frontier clusters, scene descriptor, scene merging, knowledge-base sync, plan check, SQL place memory, zone store, room semantics, teleop deadman, cmd_vel mux, sim speed, saved maps and sessions, HTTP layer, the dashboard page in headless Chromium, benchmark scorer | nothing (Chromium for the page tests) | 363 | `pytest tests/` |
 | Node level | real services on real executors, the HTTP↔ROS bridge (goals, driving, memory), the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 28 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
 | Manual | navigation, exploration, perception, the LLM calls | Gazebo + Ollama | — | see [Limitations](#limitations) |
 
@@ -277,7 +284,7 @@ a plain runner and layer 2 in `ros:jazzy-ros-base`, on every push.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [32 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [33 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
@@ -290,7 +297,9 @@ they are for, measured 55% → 100%),
 [ADR-031](docs/decisions/ADR-031-knowledge-base-is-planner-input.md) (a re-run
 that caught a knowledge-base regression, and the claim it withdrew),
 [ADR-032](docs/decisions/ADR-032-plan-check-before-execution.md) (checking plans
-before the robot moves — and a variant that was measured and reverted).
+before the robot moves — and a variant that was measured and reverted),
+[ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md) (RAG measured against
+an LLM writing SQL over the same memory — a tie on every lookup).
 
 ---
 
@@ -321,9 +330,12 @@ before the robot moves — and a variant that was measured and reverted).
   did not survive the re-run and was withdrawn
   ([rag-analysis §2.8](docs/rag-analysis.md),
   [ADR-031](docs/decisions/ADR-031-knowledge-base-is-planner-input.md)).
-- **RAG's value is scale-dependent.** For a handful of places a SQLite lookup
-  does the job (the known-zone control shows it). RAG matters as the
-  open-vocabulary memory grows.
+- **RAG's value over SQL is not shown at this size.** For a handful of places a
+  SQLite lookup does the job (the known-zone control), and an LLM writing SQL
+  over the same memory matched RAG on every lookup — with 8–12 places and a
+  vocabulary its prompt lists, and one prompt example that also appears in a
+  suite goal (disclosed in [ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md)).
+  RAG should matter as the open-vocabulary memory grows; that is not measured.
 - **Perception is attribute-level.** The descriptor characterises places
   (colours, clutter) but cannot name objects. The VLM was removed as
   unreliable on software-rendered frames
@@ -353,10 +365,11 @@ before the robot moves — and a variant that was measured and reverted).
    "farthest" over retrieved coordinates in code and hand the planner the
    answer, or let the agent loop check its choice. Baseline: 1/6 (0/6 and 3/6
    in other sessions) on the hard suite's spatial relations.
-3. **RAG vs LLM → SQL on the same data** — put the landmarks and scene
-   descriptions in SQLite, let the LLM write the query (design B), and run the
-   same suites. It is the comparison this benchmark does not make: today's
-   baseline has the SQL zone table but not the facts memory holds.
+3. **RAG vs LLM → SQL at scale** — the same-data comparison exists
+   ([ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md)) and ties at a
+   dozen places. Repeat it with hundreds of self-built memories and
+   open-vocabulary descriptions, where similarity ranking should separate from
+   `LIKE`.
 4. **Native voice phase** (Whisper on the Windows NPU, publishing to
    `/robot/goal`) — the NPU is unreachable from WSL2, so this runs host-side.
 5. **Object-level detection** (YOLOv8n; VLM revisit on real-camera hardware)

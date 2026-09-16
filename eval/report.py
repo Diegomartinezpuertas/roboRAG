@@ -1,6 +1,6 @@
 """Aggregates eval/results/<suite>/*.json into a Markdown table by task type.
 
-Usage: python3 report.py [suite]   (suite defaults to 'full')
+Usage: python3 report.py [suite] [--root results/<experiment>]   (suite defaults to 'full')
 """
 
 import json
@@ -14,6 +14,7 @@ CONDITION_ORDER = [
     ('rag', 'With RAG'),
     ('norag', 'Without RAG'),
     ('rag_unchecked', 'With RAG, plan check off'),
+    ('sql', 'LLM → SQL over the same places'),
 ]
 TYPE_LABELS = {
     'object_nav': 'Object-referenced nav (RAG-dependent)',
@@ -48,7 +49,12 @@ def rate(runs, ttype):
 
 def main():
     """Writes results/<suite>/report.md and prints the table."""
-    suite = sys.argv[1] if len(sys.argv) > 1 else 'full'
+    global RESULTS_ROOT
+    args = [a for a in sys.argv[1:] if not a.startswith('--root')]
+    if '--root' in sys.argv:
+        RESULTS_ROOT = Path(__file__).resolve().parent / sys.argv[sys.argv.index('--root') + 1]
+        args = [a for a in args if a != sys.argv[sys.argv.index('--root') + 1]]
+    suite = args[0] if args else 'full'
     data = {cond: load(suite, cond) for cond, _ in CONDITION_ORDER}
     columns = [(cond, label) for cond, label in CONDITION_ORDER if data[cond]]
     types = [

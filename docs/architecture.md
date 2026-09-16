@@ -129,6 +129,11 @@ Subscribes to `/robot/goal`. For each goal:
 1. Retrieves context from `/rag/query` over `knowledge_base`, `semantic_map`,
    and `task_history`, dropping hits below `rag_score_threshold` (an
    irrelevant hit is worse than none — it enters the prompt as ground truth).
+   With `memory_source: sql` — an experiment, not the default — place memory
+   comes instead from a read-only SELECT that Qwen writes over a SQLite copy of
+   the same places (`sql_memory.py`,
+   [ADR-033](decisions/ADR-033-llm-to-sql-place-memory.md)); the rows enter the
+   prompt in the same text form.
 2. Builds the prompt (`prompts.py`) — goal, retrieved context, and the known
    zones with their centres — and requests a JSON plan from Qwen2.5-7B
    (`qwen_client.py`, `temperature=0` for repeatability — not exact identity

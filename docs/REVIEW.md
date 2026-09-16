@@ -519,6 +519,11 @@ Without RAG every run matched July: 6/21, 0/18, 3/30.
   zone was measured, let a borrowed place through, and was reverted. The zones'
   centres now reach the prompt; before, the spatial tasks could only be
   guessed.
+- **And the comparison the review never asked for (ADR-033):** RAG against an
+  LLM writing SQL over the same places, one session. It tied on every lookup
+  (main 21/21 both, phrasing 18/18 both) and lost only the spatial comparisons
+  (hard 27/30 vs 24/30). At this size RAG is not shown to beat SQL; the
+  project's claim is narrowed to match.
 - **The lesson this review's §10 already drew, once more:** the numbers in the
   repository were right when measured and wrong two months later, and only
   running the system again showed it. The pre-fix results are kept in

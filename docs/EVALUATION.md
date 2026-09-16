@@ -176,6 +176,35 @@ The scoring rules live in `eval/scoring.py` (pure logic, no ROS) and are
 covered by `tests/test_benchmark_scoring.py`, so the suite's definition of
 success is verified without needing a simulator (ADR-018).
 
+### 3c. RAG vs LLM → SQL on the same places (ADR-033)
+
+The ablation above compares memory with no memory. This experiment compares two
+ways of *looking up* the same memory: vector similarity (`rag`) and a SELECT
+the planner's model writes over a SQLite copy of the same places (`sql`).
+Everything else is identical — prompt, knowledge base retrieval, zone table,
+plan check, scoring — and all conditions run in one session on one memory.
+Results go to their own directory, so the published ones are untouched.
+
+```bash
+# after exploring and seeding (§1–2); the export must follow each seeding
+python3 export_places_sql.py                                      # places.db = semantic_map
+python3 run_benchmark.py tasks_full.yaml --conditions rag,sql,norag --out sql-experiment
+python3 run_benchmark.py tasks_phrasing.yaml --conditions rag,sql,norag --out sql-experiment
+python3 seed_memory.py --hard --reset-zones && python3 export_places_sql.py
+python3 run_benchmark.py tasks_hard.yaml --conditions rag,sql,norag --out sql-experiment
+python3 report.py hard --root results/sql-experiment              # and full, phrasing
+```
+
+Each `sql` run stores the query the model wrote, how many rows it returned and
+any error in the plan's `memory_query`, so every miss can be traced to the
+query or to the planner.
+
+Measured result (2026-09-17, `eval/results/sql-experiment-2026-09-17/`):
+main suite 21/21 · 21/21 · 6/21 (rag · sql · norag), phrasing 18/18 · 18/18 ·
+1/18, hard 27/30 · 24/30 · 6/30 — the difference is the spatial relations, 3/6
+vs 0/6. Median latency 2.4 · 3.0 · 1.4 s. Analysis in
+[rag-analysis §2.10](rag-analysis.md).
+
 ## 4. Embedding model comparison (no ROS needed)
 
 ```bash
@@ -272,7 +301,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 346 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 363 tests
 ruff check .
 ```
 

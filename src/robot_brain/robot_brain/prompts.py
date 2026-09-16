@@ -197,3 +197,50 @@ def build_resolver_prompt(goal_text: str, places: list) -> str:
     lines = '\n'.join(f'{number}. {place.text}' for number, place in enumerate(places, start=1))
     return f'GOAL: {goal_text}\n\nPLACES:\n{lines or "(none)"}\n\nAnswer with the JSON now.'
 
+
+
+PLACES_SQL_SYSTEM_PROMPT = """
+You look up a robot's memory of places by writing ONE SQLite query.
+
+TABLE places(name TEXT, x REAL, y REAL, zone TEXT, description TEXT)
+- name: the place's label. Either an identifier a user gave it (for example "punto_3"),
+  the generic label "area" for a spot the robot described itself, or an English room type
+  ("kitchen", "bedroom", "living_room", ...) for a room the user named.
+- x, y: map-frame coordinates in metres.
+- zone: the user-defined zone the place lies in, or "unknown area".
+- description: English text in one of these forms:
+  * a spot the robot described: "predominantly <colour> and <colour>, <clutter>", where
+    <clutter> is exactly one of "an open, uncluttered space",
+    "a moderately furnished space (N obstacle groups nearby)" or
+    "a cluttered space with many objects (N obstacle groups nearby)";
+    colours are plain English names: white, gray, black, red, orange, brown, yellow,
+    green, blue, purple.
+  * a named location: "<name>, a named location in the house".
+  * a room the user named: what the room is for, in English and in Spanish.
+
+Write the query that returns the rows the robot needs to decide where to go for the goal.
+Rules:
+- Always SELECT name, x, y, zone, description FROM places, filtered with WHERE.
+- Goals are often in Spanish; the stored text is English. Match the stored vocabulary
+  above, not a literal translation (for example "despejado" is "uncluttered", not "clear").
+- Compare text case-insensitively with lower(column) LIKE. Beware of substrings: "red" is
+  inside "uncluttered", so match a colour with its leading word: '%predominantly red%'
+  or '% red%'.
+- If the goal asks for no particular place (explore, look around, turn), return no rows:
+  WHERE 0.
+- A single read-only statement.
+
+Answer with the SQL statement only, no explanation and no code fence.
+"""
+
+
+def build_places_sql_prompt(goal_text: str) -> str:
+    """Builds the user-turn prompt for the SQL writer (sql_memory.py, ADR-033).
+
+    Args:
+        goal_text: The user's goal, verbatim.
+
+    Returns:
+        Formatted prompt string.
+    """
+    return f'GOAL: {goal_text}\n\nWrite the SQL statement now.'

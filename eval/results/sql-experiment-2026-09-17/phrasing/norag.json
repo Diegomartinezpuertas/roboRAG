@@ -1,0 +1,426 @@
+[
+  {
+    "task_id": "a_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.8,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Llévame hasta donde está estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones or context, we need to explore to find its location.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Llévame hasta donde está estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 2.2,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones or context, we need to explore to find its location.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Go to estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.6,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "a_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Go to estacion_a",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.6,
+    "plan": {
+      "reasoning": "Since 'estacion_a' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        }
+      ],
+      "raw_steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60
+          }
+        },
+        {
+          "skill": "navigate",
+          "params": {
+            "zone": "estacion_a"
+          }
+        }
+      ],
+      "plan_corrections": [
+        "No existe ninguna zona llamada \"estacion_a\"; exploro en su lugar."
+      ]
+    }
+  },
+  {
+    "task_id": "b_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_b"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_b",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_b"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Quiero que vayas a estacion_b, por favor",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not in the known zones or context, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_b"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Quiero que vayas a estacion_b, por favor",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not in the known zones or context, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_b"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Navigate to estacion_b",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_b' is not in the known zones and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "b_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Navigate to estacion_b",
+    "decision": "direct_nav",
+    "success": true,
+    "latency_sec": 1.8,
+    "plan": {
+      "reasoning": "Navigate directly to estacion_b since its coordinates are not provided and it is a known zone.",
+      "steps": [
+        {
+          "skill": "navigate",
+          "params": {
+            "x": 1.1,
+            "y": -0.6
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_es_imperative",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.6,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not in the known zones or context, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "base"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_es_imperative",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Ve a estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not in the known zones or context, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_c"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_es_paraphrase",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Dirígete al punto llamado estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not found in the known zones or context, we need to explore to locate it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_es_paraphrase",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Dirígete al punto llamado estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not found in the known zones or context, we need to explore to locate it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": null
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_en",
+    "type": "object_nav",
+    "rep": 0,
+    "condition": "norag",
+    "goal": "Take me to estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not in the known zones and no context was retrieved, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_c"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "task_id": "c_en",
+    "type": "object_nav",
+    "rep": 1,
+    "condition": "norag",
+    "goal": "Take me to estacion_c",
+    "decision": "explore",
+    "success": false,
+    "latency_sec": 1.4,
+    "plan": {
+      "reasoning": "Since 'estacion_c' is not in the known zones and no coordinates are provided, we need to explore to find it.",
+      "steps": [
+        {
+          "skill": "explore",
+          "params": {
+            "duration_sec": 60,
+            "zone": "estacion_c"
+          }
+        }
+      ]
+    }
+  }
+]

@@ -12,7 +12,8 @@ unless stated. The planning suites (§2.1–2.3, §2.6) were **re-measured on
 2026-09-16**. The first re-run found a regression the July numbers could not
 show (§2.8); the second measured the plan check added in response (§2.9). Every
 planning number below is from that second run, with the check on unless a
-column says otherwise.
+column says otherwise. A separate session then compared RAG with an LLM writing
+SQL over the same places (§2.10).
 
 ---
 
@@ -54,8 +55,8 @@ SQL on the same data. The landmarks and scene descriptions exist only in
 vector memory, so without RAG the planner has no source for them in any form.
 The one place both conditions can see is the `base` zone, the known-zone
 control. Design **B** — an LLM that writes SQL queries over a table holding the
-landmarks — was **not implemented or measured**; §3 argues where it would win,
-and those arguments are reasoning, not results.
+*same* places — is measured separately, in §2.10: that is the comparison of RAG
+against SQL on shared data.
 
 ### 2.1 Ablation: RAG on vs off (42 runs, plan check on in both)
 
@@ -444,6 +445,56 @@ miss: in the phrasing suite it accepted the `base` zone as "estacion_b", because
 the fixture seeds one on top of the other. It can also over-reject, as with
 "farthest".
 
+### 2.10 RAG vs an LLM writing SQL, on the same places
+
+Everything above compares memory with no memory. This compares two ways of
+looking up the *same* memory ([ADR-033](decisions/ADR-033-llm-to-sql-place-memory.md)).
+The active map's `semantic_map` is copied into a SQLite table
+`places(name, x, y, zone, description)`. In the `sql` condition Qwen writes one
+read-only SELECT per goal over it, and the rows reach the planner in the same
+text form a retrieved memory has. The knowledge base, zone table, planner
+prompt, plan check and scoring are shared. `rag`, `sql` and `norag` ran in one
+session on one memory: 8 places for the main and phrasing suites, 12 for the
+hard suite.
+
+![RAG vs LLM → SQL](../eval/results/sql_vs_rag.png)
+
+| | Vector memory (RAG) | LLM → SQL, same places | No memory |
+|---|---|---|---|
+| Main suite | 21/21 | 21/21 | 6/21 |
+| Phrasing | 18/18 | 18/18 | 1/18 |
+| Hard suite | 27/30 | 24/30 | 6/30 |
+| – of which spatial relations | 3/6 | **0/6** | 0/6 |
+| Median goal→plan | 2.4 s | 3.0 s | 1.4 s |
+
+- **On every lookup, SQL kept up.** Names, descriptions, Spanish and English
+  phrasings, confusable names and multi-step plans all matched RAG. The queries
+  were sensible — `WHERE lower(name) LIKE '%estacion_c%' AND lower(name) NOT LIKE
+  '%sur%'` for "estacion_c, no a la del sur" — and all 69 were valid and
+  filtered.
+- **SQL lost where the goal is a choice, not a lookup.** "La estación más
+  cercana a la zona base" became `WHERE description LIKE '%base%'`, which
+  returned nothing, so the planner had no stations to compare. Similarity search
+  always returns its top-k and so hands over the candidates — an advantage of
+  its mechanics, not of understanding meaning.
+- **The planner invents with either lookup.** For "estacion_d" and "la estación
+  central" the SQL correctly returned no rows. The planner then made up a point
+  and a zone called "central", and the plan check (§2.9) caught all six.
+- **The prompt was designed fairly and off the suites** (goals like "Llévame a
+  punto_7" over made-up places), and it documents the descriptor's fixed
+  vocabulary, as any text-to-SQL deployment documents column values. One
+  translation example in it, "despejado" → "uncluttered", also appears in a suite
+  goal; that favours SQL on one task, and is disclosed in the ADR.
+
+**What this means for the central question.** Against no memory, RAG is
+decisive. Against an LLM writing SQL over the same places — at a dozen places
+with a vocabulary the query writer is told — RAG is not shown to be the better
+lookup: it tied on every lookup, won only a comparison its top-k happens to
+enable, and was faster. The cases that should separate them were not in this
+experiment: hundreds of self-built memories where `LIKE` returns an arbitrary
+five and similarity ranks them, and descriptions whose words nobody can list in
+a prompt. That is the next measurement, not a conclusion.
+
 ---
 
 ## 3. Interpretation: choosing a design
@@ -452,9 +503,9 @@ the fixture seeds one on top of the other. It can also over-reject, as with
 exactly named — like this project's user-defined zones. The control row shows
 zero benefit from RAG there. No embedder, no index, perfect precision.
 
-*(What follows for A and B is argued from how they work, not measured: the
-benchmark only ever ran D with and without RAG — see "What the ablation
-compares" at the start of §2.)*
+*(B was measured against C on this project's tasks in §2.10, with a small
+memory and a fixed description vocabulary. The claims below about scale,
+aggregation and open vocabulary are still argued, not measured.)*
 
 **Use LLM → SQL (B) when** the data is *structured* and the questions are
 *exact or aggregative*: "how many chairs did you log yesterday?", "which zone
@@ -468,9 +519,12 @@ temperature/version; C's retrieval is deterministic given the index.)
 **Use LLM + RAG (C) when** memories are open-vocabulary and described rather
 than named: objects the camera saw ("a black mailbox on a pole"), places
 characterized by free text. §2.2 shows the recall surviving phrasings no
-lookup could match. This is also the design that scales with memory size:
-at 3 landmarks a human could hand-check, at 10,000 perception memories
-similarity search is the only recall that still works.
+*exact-match* lookup could match — but §2.10 shows an LLM writing the query
+matching them too, at this size. The argument for C is scale and open
+vocabulary: at a dozen places with a documented vocabulary B keeps up; at
+10,000 self-built memories sharing one vocabulary, or descriptions no schema can
+list, similarity ranking should be the recall that still works. That part is
+not measured.
 
 **The hybrid (D, this project) is not indecision — it is putting each store
 where it wins.** Exact things (zones) resolve through SQL and are immune to
@@ -489,11 +543,11 @@ planner's spatial comparisons.
 
 - Measured at the **planning level** (ADR-013), not physical execution; the
   claim is about *decisions*, which is the mechanism RAG can influence.
-- **The baseline is "LLM + SQL zones", and the memory-only facts are absent
-  from it.** The 15/15 vs 0/15 says the information in vector memory is used;
-  it does not say RAG beats a SQL table holding the same information, and
-  design B (LLM → SQL) was never run. Only the one-zone control compares on
-  shared data.
+- **The RAG ablation's baseline is "LLM + SQL zones", and the memory-only facts
+  are absent from it.** The 15/15 vs 0/15 says the information in vector memory
+  is used; it does not say RAG beats SQL on the same information. §2.10 is the
+  comparison that does, and it ran on 8–12 places with a vocabulary the SQL
+  prompt documents, in one session.
 - Small task suite and corpus (207 planning runs per measurement, 28 embedding
   queries, 11 zone queries) on one LLM, **one run per condition**.
 - **`temperature=0` does not make results exact.** Repetitions inside a run
@@ -520,9 +574,13 @@ planner's spatial comparisons.
 
 ## 4. Actionable conclusions
 
-1. **Keep the hybrid.** SQL for named zones, RAG for perceived/described
-   memories, LLM as the language layer. Each is measurably doing the job the
-   others can't.
+1. **Keep the hybrid, and be precise about why.** SQL for named zones and the LLM
+   as the language layer are measurably doing their jobs. That *vector* search is
+   the better lookup for perceived and described memories is not shown at this
+   size: an LLM writing SQL over the same places tied on every lookup and lost
+   only the spatial comparisons (§2.10). Vector memory stays the default for
+   scale, for vocabulary the SQL prompt does not have to spell out, and because
+   B was slower — the next measurement should be at scale.
 2. **Switch to bge-m3 for multilingual use** — the single highest-leverage
    change the data supports (43%→86% Spanish top-1). *Adopted as the
    project default.*

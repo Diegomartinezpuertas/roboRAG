@@ -42,6 +42,10 @@ MUTED = '#9a988f'
 # Status, not a category: marks a failure outcome. Never a series colour, so a
 # failure bar cannot be mistaken for the "Without RAG" / nomic series.
 FAIL = '#c8553d'
+# Slot 4 — "LLM → SQL over the same places" (ADR-033). A third design, so a third
+# hue, distinct from both RAG's blue and no-memory's green.
+PURPLE = '#7b4fb0'
+SQL_EXPERIMENT = 'sql-experiment-2026-09-17'
 # Latency axis cap. A run above it (in practice the first goal after launch,
 # a cold start of 11-13 s) is drawn as a marker on the cap and labelled with
 # its real value, instead of stretching the axis until the bars are unreadable.
@@ -87,16 +91,18 @@ def grouped_bars(ax, categories, series, ylabel, ymax=1.12, as_pct=True, counts=
     It also exposes empty cells (n=0), which would otherwise render as an
     indistinguishable 0%.
     """
-    width = 0.32
+    # Two series keep the house width; more share the same 0.72 so groups never touch.
+    width = 0.32 if len(series) <= 2 else 0.72 / len(series) - 0.03
     n = len(categories)
     for i, (label, color, values) in enumerate(series):
-        xs = [x + (i - (len(series) - 1) / 2) * (width + 0.04) for x in range(n)]
+        gap = 0.04 if len(series) <= 2 else 0.03
+        xs = [x + (i - (len(series) - 1) / 2) * (width + gap) for x in range(n)]
         ax.bar(xs, values, width=width, color=color, label=label,
                edgecolor=SURFACE, linewidth=2, zorder=3)
         for x, v in zip(xs, values, strict=True):
             text = f'{v * 100:.0f}%' if as_pct else f'{v:.1f}'
             ax.annotate(text, (x, v), textcoords='offset points', xytext=(0, 4),
-                        ha='center', fontsize=9, color=INK)
+                        ha='center', fontsize=9 if len(series) <= 2 else 7.5, color=INK)
     labels = list(categories)
     if counts is not None:
         labels = [f'{c}\nn={k} per condition' for c, k in zip(labels, counts, strict=True)]
@@ -516,6 +522,54 @@ def fig_plan_check():
     print('Wrote', RESULTS / 'plan_check.png')
 
 
+def fig_sql_experiment():
+    """Renders results/sql_vs_rag.png: vector memory vs LLM-written SQL vs no memory.
+
+    Same session, same places (ADR-033). One panel per suite; within each, the
+    task types in the order the other charts use.
+    """
+    def runs(suite, cond):
+        path = RESULTS / SQL_EXPERIMENT / suite / f'{cond}.json'
+        return json.loads(path.read_text(encoding='utf-8')) if path.exists() else []
+
+    panels = []
+    for suite, title, labels, types in (
+        ('full', 'Main suite', SHORT_TYPE_LABELS,
+         ['object_nav', 'attribute_nav', 'zone_nav', 'negative']),
+        ('phrasing', 'Phrasing suite', {'object_nav': 'Object-referenced\n(3 phrasings)'},
+         ['object_nav']),
+        ('hard', 'Hard suite', HARD_LABELS,
+         ['distractor_nav', 'ordered_multi_step', 'relational_nav', 'negative_plausible']),
+    ):
+        rag, sql, norag = runs(suite, 'rag'), runs(suite, 'sql'), runs(suite, 'norag')
+        if rag and sql and norag:
+            panels.append((title, labels, [t for t in types if sample_size(rag, t)],
+                           rag, sql, norag))
+    if not panels:
+        return
+    widths = [len(p[2]) for p in panels]
+    fig, axes = plt.subplots(1, len(panels), figsize=(1.55 * sum(widths) + 1.5, 4.8),
+                             facecolor=SURFACE, squeeze=False,
+                             gridspec_kw={'width_ratios': widths})
+    for ax, (title, labels, types, rag, sql, norag) in zip(axes[0], panels, strict=True):
+        grouped_bars(
+            ax, [labels[t] for t in types],
+            [('Vector memory (RAG)', BLUE, [success_rate(rag, t) for t in types]),
+             ('LLM → SQL, same places', PURPLE, [success_rate(sql, t) for t in types]),
+             ('No memory', GREEN, [success_rate(norag, t) for t in types])],
+            ylabel='Success rate' if ax is axes[0][0] else '',
+            counts=[sample_size(rag, t) for t in types],
+        )
+        ax.set_title(title, fontsize=11, color=INK, pad=30)
+    axes[0][0].legend(frameon=False, fontsize=9, ncol=3, loc='lower left',
+                      bbox_to_anchor=(0.0, 1.0), labelcolor=INK)
+    fig.suptitle('Looking up the same memory: similarity search vs a query the LLM writes',
+                 fontsize=12, color=INK, y=1.0)
+    fig.tight_layout()
+    fig.savefig(RESULTS / 'sql_vs_rag.png', dpi=200, facecolor=SURFACE, bbox_inches='tight')
+    print('Wrote', RESULTS / 'sql_vs_rag.png')
+
+
 def main():
     fig_benchmark()
     fig_phrasing()
@@ -524,6 +578,7 @@ def main():
     fig_hard()
     fig_hard_decisions()
     fig_plan_check()
+    fig_sql_experiment()
 
 
 if __name__ == '__main__':
