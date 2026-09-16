@@ -438,14 +438,14 @@ fresh-clone verification above a single command for anyone, not a claim.
 
 1. **Real agent loop** — replanning from execution feedback: the jump from
    plan-then-execute to a true agent. The hard suite (§6.3) already localises
-   the payoff (spatial reasoning, 3/6) and gives the baseline to beat. Design
-   written up in [agent-loop-roadmap.md](agent-loop-roadmap.md).
+   the payoff (spatial reasoning, 3/6 at the time; see §11 and the README for
+   the current baseline). Design written up in
+   [agent-loop-roadmap.md](agent-loop-roadmap.md).
 2. **Native voice** — Whisper on the Windows NPU (unreachable from WSL2).
 3. **Object-level detection** — YOLOv8n; revisit a VLM on real-camera hardware.
-4. **Full map save/load orchestration** — the pieces exist (serialize skill,
-   `map_file_name`, `map_session_id`, ADR-019); a single `saved_map:=<id>`
-   launch arg wiring SLAM + rag_node is the remaining convenience, and the
-   prerequisite for a reproducible physical SR/SPL run.
+4. ~~**Full map save/load orchestration**~~ — **done** (`saved_map:=<id>`,
+   [ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)). A mapped
+   house shipped with the repository is still missing.
 5. ~~**Docker/devcontainer**~~ — **done** (ADR-021). What is left of the
    "works on my WSL2" caveat is the simulator, which is where it belongs.
 

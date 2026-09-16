@@ -303,7 +303,7 @@ All four are re-read per goal — no restart needed.
 | Symptom | Fix |
 |---|---|
 | `No map received` in seed_memory | Sim not running or SLAM not up — use Option A |
-| Plans never arrive (`no_plan`) | Check Ollama: `ollama ps`; first call after idle takes ~4 s extra (model load) |
+| Plans never arrive (`no_plan`) | Check Ollama: `ollama ps`; first call after idle takes ~4 s extra (model load). If the planner log says `Failed to parse plan`, Qwen returned JSON with a `// comment` in it — seen 3 times without RAG in one run; the goal gets no plan and scores `no_plan` |
 | `Unknown zone: base` in the control task | Re-run `seed_memory.py` (zone lives in `data/zones.db`) |
 | Landmarks empty after relaunch | `data/chroma_db` was deleted — re-run seeding |
 | Code changes not taking effect | `rm -rf build/<pkg> install/<pkg>` and rebuild (stale symlink-install copies) |
