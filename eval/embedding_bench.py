@@ -83,6 +83,7 @@ QUERIES = {
 
 
 def cosine(a, b):
+    """Cosine similarity between two embedding vectors."""
     a, b = np.asarray(a), np.asarray(b)
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 

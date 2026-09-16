@@ -2,7 +2,8 @@
 
 **Date:** 2026-07-17
 **Status:** Accepted — extended by
-[ADR-025](ADR-025-scene-memory-merging.md) (re-observations of a place merge into one memory)
+[ADR-025](ADR-025-scene-memory-merging.md) (re-observations of a place merge into one memory) and
+[ADR-027](ADR-027-exploration-frontier-clusters.md) (explore targets frontier clusters)
 
 ## Context
 

@@ -3,7 +3,8 @@
 **Date:** 2026-07-14
 **Status:** Accepted — extended by
 [ADR-023](ADR-023-browser-teleop.md) (manual driving) and
-[ADR-024](ADR-024-memory-inspection-service.md) (memory viewer)
+[ADR-024](ADR-024-memory-inspection-service.md) (memory viewer) and
+[ADR-030](ADR-030-dashboard-redesign-and-browser-tests.md) (redesign, browser tests)
 
 ## Context
 

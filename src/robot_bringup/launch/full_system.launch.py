@@ -4,9 +4,38 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+
+from robot_bringup.saved_maps import (
+    DEFAULT_SPAWN_X,
+    DEFAULT_SPAWN_Y,
+    DEFAULT_WORLD,
+    memory_session_for_launch,
+)
+
+
+def _agent(context, bringup_dir: str) -> list:
+    """Includes the agent with its memory session pinned to this launch's map frame.
+
+    A saved map pins its own id; a map built from scratch pins the id of its
+    frame — world plus spawn pose — so memories carry over between fresh maps
+    of the same frame and never leak into another (ADR-028).
+    """
+    session = memory_session_for_launch(
+        LaunchConfiguration('saved_map').perform(context),
+        DEFAULT_WORLD,
+        float(LaunchConfiguration('x_pose', default=str(DEFAULT_SPAWN_X)).perform(context)),
+        float(LaunchConfiguration('y_pose', default=str(DEFAULT_SPAWN_Y)).perform(context)),
+    )
+    return [
+        LogInfo(msg=f'Memory session: {session}'),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(bringup_dir, 'launch', 'agent.launch.py')),
+            launch_arguments={'memory_session': session}.items(),
+        ),
+    ]
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -36,12 +65,7 @@ def generate_launch_description() -> LaunchDescription:
         }.items(),
     )
 
-    agent_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(bringup_dir, 'launch', 'agent.launch.py'),
-        ),
-        launch_arguments={'saved_map': saved_map}.items(),
-    )
+    agent_launch = OpaqueFunction(function=_agent, args=[bringup_dir])
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -54,7 +78,7 @@ def generate_launch_description() -> LaunchDescription:
         ),
         DeclareLaunchArgument(
             'use_gz_gui', default_value='false',
-            description='Open the Gazebo GUI (drops sim real-time factor to ~0.15 on WSL2)',
+            description='Open the Gazebo GUI (costs real-time factor on WSL2; ~0.68 -> ~0.59 measured)',
         ),
         DeclareLaunchArgument(
             'saved_map', default_value='',

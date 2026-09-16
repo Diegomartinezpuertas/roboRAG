@@ -67,6 +67,7 @@ def set_param(name: str, value: str) -> None:
 
 
 def load_zone_centers():
+    """Returns {zone name: (x, y) centre} for every zone in the zones database."""
     zones = ZoneStore(ZONES_DB).load_all()
     return {n: ((a['x_min'] + a['x_max']) / 2.0, (a['y_min'] + a['y_max']) / 2.0)
             for n, a in zones.items()}

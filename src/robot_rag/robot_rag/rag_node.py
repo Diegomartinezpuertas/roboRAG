@@ -8,7 +8,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 
-from robot_interfaces.srv import InspectMemory, QueryRAG, UpdateMap
+from robot_interfaces.srv import DeleteMemory, InspectMemory, QueryRAG, UpdateMap
 
 from robot_rag.chroma_manager import ChromaManager
 from robot_rag.embedder import OllamaEmbedder
@@ -31,6 +31,10 @@ INSPECT_MAX_LIMIT = 200
 # similar to, and 0.0 would read as "completely irrelevant" in the UI.
 BROWSE_SCORE = -1.0
 
+# Collections a user may delete from. The others are rebuilt from files on
+# disk, so a deletion would either not stick or not be undoable (ADR-030).
+DELETABLE_COLLECTIONS = {'semantic_map'}
+
 
 class RagNode(Node):
     """ROS 2 node that exposes ChromaDB-backed semantic memory over services.
@@ -40,6 +44,8 @@ class RagNode(Node):
         /rag/inspect (InspectMemory): Browse or search a collection with ids,
             metadata and scores — what the dashboard's memory viewer reads
             (ADR-024).
+        /rag/delete (DeleteMemory): Delete semantic_map memories by id — the
+            dashboard's per-card delete (ADR-030).
         /rag/update_map (UpdateMap): Insert or update a semantic object, folding a
             re-observed place into its existing memory (ADR-025).
 
@@ -125,6 +131,9 @@ class RagNode(Node):
         self._inspect_srv = self.create_service(
             InspectMemory, '/rag/inspect', self._handle_inspect,
         )
+        self._delete_srv = self.create_service(
+            DeleteMemory, '/rag/delete', self._handle_delete,
+        )
 
         self.get_logger().info('rag_node ready')
 
@@ -203,6 +212,35 @@ class RagNode(Node):
             return response
 
         response.items_json = json.dumps(items, ensure_ascii=False)
+        response.success = True
+        response.error_msg = ''
+        return response
+
+    def _handle_delete(self, request: DeleteMemory.Request, response: DeleteMemory.Response):
+        # Only semantic_map is deletable. knowledge_base is re-ingested from its
+        # Markdown only when empty, so a deleted chunk would silently stay gone
+        # until the whole collection is reset; task_history is re-ingested from
+        # data/logs on every start, so a deletion would silently come back. A
+        # delete that does not stick is worse than no delete (ADR-030).
+        if request.collection_name not in DELETABLE_COLLECTIONS:
+            response.deleted = 0
+            response.success = False
+            response.error_msg = (
+                f'{request.collection_name} is rebuilt from files on disk; '
+                'only semantic_map memories can be deleted'
+            )
+            return response
+        try:
+            existing = self._chroma.existing_ids(request.collection_name, list(request.ids))
+            self._chroma.delete(request.collection_name, existing)
+        except Exception as exc:
+            response.deleted = 0
+            response.success = False
+            response.error_msg = str(exc)
+            return response
+        if existing:
+            self.get_logger().info(f'Deleted {len(existing)} memory(ies): {", ".join(existing)}')
+        response.deleted = len(existing)
         response.success = True
         response.error_msg = ''
         return response

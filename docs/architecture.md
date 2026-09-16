@@ -19,7 +19,7 @@ robot_bringup     → launch files and system integration
 
 ### `rag_node` (robot_rag)
 
-Exposes `/rag/query`, `/rag/inspect` and `/rag/update_map`. Maintains three ChromaDB
+Exposes `/rag/query`, `/rag/inspect`, `/rag/delete` and `/rag/update_map`. Maintains three ChromaDB
 collections (`semantic_map`, `knowledge_base`, `task_history`), each with
 `hnsw:space: cosine`. On startup it ingests `data/knowledge/*.md` into
 `knowledge_base` (Markdown-section chunking — headers grouped with their
@@ -36,6 +36,14 @@ than the planner: it browses a collection as stored (no embedding call) or
 searches it, and returns ids, metadata and scores so the dashboard can render
 memories as structured cards instead of prose
 ([ADR-024](decisions/ADR-024-memory-inspection-service.md)).
+
+Coordinate memories are scoped to a **map session**
+([ADR-019](decisions/ADR-019-map-session-memory-versioning.md)): writes are
+tagged with it and retrieval of `semantic_map`/`task_history` is filtered to it.
+The launch pins the session — a saved map's id, or for a map built from scratch
+the id of its frame, `fresh_<world>_x<spawn x>_y<spawn y>`, so fresh maps of the
+same frame share memories and another world or spawn pose never sees them
+([ADR-028](decisions/ADR-028-memory-session-per-map-frame.md)).
 
 Scene observations are **merged on write**: a re-observed place of the same
 look (colour set + clutter class), zone and map session within 2 m updates the
@@ -74,10 +82,15 @@ implementations:
 - **navigate** (`nav_skill.py`): Nav2 `BasicNavigator` (SimpleCommander API).
   Takes explicit `(x, y, theta)`; named zones are resolved to coordinates
   upstream against the SQLite store (no hardcoded fallbacks).
-- **explore** (`explore_skill.py`): basic frontier exploration — nearest free
-  cell adjacent to unknown space in the `/map` grid, skipping frontiers near
-  the robot and previously attempted ones; optional zone bounds restrict the
-  search area.
+- **explore** (`explore_skill.py`): frontier exploration. Frontier cells (free
+  cells touching unknown space in `/map`) are grouped into clusters; the robot
+  heads for the cluster with the most unexplored edge per metre of travel,
+  aiming at the member cell with the most clearance from walls. Measured: ~40%
+  more area than the original nearest-cell rule in the same time, and no goals
+  left unplannable against a wall
+  ([ADR-027](decisions/ADR-027-exploration-frontier-clusters.md)). Frontiers
+  near the robot or already attempted are skipped; optional zone bounds
+  restrict the search.
 - **perceive** (`perceive_skill.py` + `scene_descriptor.py`): classical
   scene description — dominant camera colors + LIDAR clutter metrics, no ML
   ([ADR-014](decisions/ADR-014-classical-scene-descriptor.md)) — stored in
@@ -96,6 +109,18 @@ implementations:
 
 Robot pose comes from TF (`map -> base_link`), not AMCL — see
 [ADR-004](decisions/ADR-004-slam-toolbox-no-amcl.md).
+
+### `cmd_vel_mux_node` (robot_skills)
+
+The only publisher the robot base listens to. Manual driving
+(`/robot/cmd_vel_manual`, priority 2) and Nav2 (`/cmd_vel_nav_out`, the
+collision monitor's output, priority 1) each publish to their own topic; the
+highest-priority source that spoke within 0.5 s reaches `/cmd_vel`, and the
+active one is published on `/robot/cmd_vel_source`. A key pressed mid-goal takes
+over; letting go hands control back — verified live
+([ADR-029](decisions/ADR-029-cmd-vel-mux.md)). Launched by `simulation.launch.py`
+with or without Nav2. Nav2's `docking_server` still publishes `/cmd_vel` directly,
+only while docking, which this project never requests.
 
 ### `llm_planner_node` (robot_brain)
 
@@ -120,38 +145,56 @@ live with `ros2 param set`.
 ### `dashboard_node` (robot_dashboard)
 
 Serves a web dashboard at `http://localhost:8080` (FastAPI + uvicorn on a
-thread inside the node). Live planning timeline (`/robot/goal`,
-`/robot/status`, `/robot/response`), filterable `/rosout` viewer, and an
-interactive SLAM map: robot pose, named zones drawn as overlays, and
-drag-to-select area creation (saved to SQLite and indexed into semantic
-memory). Goals can be typed or spoken (browser Web Speech API). See
-[ADR-005](decisions/ADR-005-dashboard-fastapi.md).
+thread inside the node), laid out as a live floor plan
+([ADR-030](decisions/ADR-030-dashboard-redesign-and-browser-tests.md)): the SLAM
+map drawn as a blueprint fills the left of the screen — robot with heading and
+trail, rooms hatched, memories as markers, drag-to-select to name a room (saved
+to SQLite and indexed into semantic memory) — with the drive controls and a
+title block (connection, simulation speed, map size, pose) framing it. The right
+column holds the order box (typed or spoken, browser Web Speech API), the
+agent's reasoning as a thread (order, reasoning, steps, answer; `/rosout` one
+tab away) and the memory. See [ADR-005](decisions/ADR-005-dashboard-fastapi.md).
 
-Two further panels make the system legible and drivable from the same window:
+At start, once `/rag/update_map` answers, every stored zone is indexed again
+into the active memory session, so zones survive a change of session
+([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)). Map images are
+versioned per server process, never by the grid stamp alone — simulation time
+restarts every launch.
 
-- **Memory viewer.** Cards per memory — title, similarity bar, coordinates,
-  zone, provenance — over `/rag/inspect`, with each coordinate memory drawn on
-  the map at the pose it was learned at, and memories from a dead map session
-  greyed out and labelled (ADR-019 made visible). Browsing costs no embedding
-  call; searching costs one ([ADR-024](decisions/ADR-024-memory-inspection-service.md)).
-- **Manual driving.** WASD publishes to `/cmd_vel` so a person can map the house
-  by hand before the agent is involved, name the room the robot is standing in,
-  and save the resulting map. The browser sends *keys*, the node owns the
-  speeds, and a deadman stops the robot if the refreshes stop arriving; while
-  nobody drives, nothing is published and the topic stays Nav2's
-  ([ADR-023](decisions/ADR-023-browser-teleop.md)).
+Two panels make the system legible and drivable from the same window:
+
+- **Memory viewer.** Cards per memory — name, what kind of memory it is,
+  similarity bar, coordinates, how many observations it stands for — over
+  `/rag/inspect`, with each coordinate memory drawn on the map where it was
+  learned, memories from another map session greyed out (ADR-019 made visible),
+  and a delete button for `semantic_map` memories (`/rag/delete`). Browsing costs
+  no embedding call; searching costs one
+  ([ADR-024](decisions/ADR-024-memory-inspection-service.md)).
+- **Manual driving.** WASD publishes to `/robot/cmd_vel_manual`, which the mux
+  puts ahead of Nav2 (ADR-029), so a person can map the house by hand, take over
+  mid-goal, name the room the robot is standing in, and save the map. The
+  browser sends *keys*, the node owns the speeds, and a deadman stops the robot
+  if the refreshes stop arriving ([ADR-023](decisions/ADR-023-browser-teleop.md)).
+  The panel says who holds `/cmd_vel`, whether the keyboard reaches the page, and
+  the simulation's real-time factor (estimated from `/clock`) — the three reasons
+  a robot can look like it is not moving.
 
 The HTTP layer (`web_api.py`) holds no `rclpy` import and is built against a
 node *interface*, so every endpoint is exercised in the pure-logic suite; the
-velocity and deadman logic lives in `teleop.py` for the same reason
-([ADR-018](decisions/ADR-018-test-strategy.md)).
+velocity and deadman logic lives in `teleop.py`, and the real-time-factor
+estimate in `sim_clock.py`, for the same reason
+([ADR-018](decisions/ADR-018-test-strategy.md)). The page itself is tested in
+headless Chromium (`tests/test_dashboard_ui.py`): a held W reaches
+`/api/teleop`, typing an order never drives, cards delete what they stand for.
 
 ## Data flow
 
 ```
-/robot/goal (String)                      dashboard_node ──/rag/inspect──► rag_node
-    │                                         │  (memory viewer, read-only)
-    │                                         └──/cmd_vel──► robot (manual driving)
+/robot/goal (String)                      dashboard_node ──/rag/inspect, /rag/delete──► rag_node
+    │                                         │  (memory viewer)
+    │                                         └──/robot/cmd_vel_manual──┐
+    │                                                                   ▼
+    │                                Nav2 ──/cmd_vel_nav_out──► cmd_vel_mux_node ──/cmd_vel──► robot
     ▼
 llm_planner_node ──/rag/query──► rag_node ──► ChromaDB
     │
@@ -162,7 +205,7 @@ Qwen2.5-7B (Ollama) → plan JSON {reasoning, steps[]}  ──► /robot/plan
 /skills/execute ──► skills_executor_node
     │                     │
     ├─ navigate ─► Nav2   ├─ perceive ──► scene descriptor ─► /rag/update_map
-    ├─ explore ──► Nav2 + frontier search  (each frontier also perceives+stores)
+    ├─ explore ──► Nav2 + frontier clusters  (each frontier also perceives+stores)
     └─ scan_360 ─► Nav2 spin (in place) ─► scene descriptor ─► /rag/update_map
     │
     ▼ (real step results)
@@ -244,10 +287,12 @@ careful to call unreliable.
   house mapped once — by hand with WASD, saved from the dashboard — can be
   loaded with `saved_map:=<id>` so a run starts with the whole map
   ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)).
-- **Doorways and inflation:** with `inflation_radius: 0.5` around a 0.15 m
-  robot, a 0.8 m door leaves the global planner no cost-free path — observed
-  live while mapping. Likely part of the end-to-end navigation unreliability;
-  left unchanged so the published results keep their conditions.
+- **Goals against walls:** a navigation goal placed inside a wall's inflated
+  cost (`inflation_radius: 0.5`) can fail to plan even where the robot drives
+  past freely — measured: it crosses a 0.7 m doorway both ways at 0.5 m. The
+  explorer used to place frontier goals exactly there; it now picks the
+  frontier cell with the most clearance
+  ([ADR-027](decisions/ADR-027-exploration-frontier-clusters.md)).
 - **High-resolution camera = silently dropped messages.** The stock
   TurtleBot3 model publishes 1920×1080 (~55 MB/s); BEST_EFFORT subscribers in
   a busy process lost every frame at the DDS layer with no visible error. Our

@@ -52,6 +52,10 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir --ignore-insta
     && python3 -m pip install --break-system-packages --no-cache-dir -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
+# Headless Chromium and its system libraries for the dashboard browser tests
+# (tests/test_dashboard_ui.py, ADR-030), so layer 1 here runs exactly what CI runs.
+RUN python3 -m playwright install --with-deps chromium && rm -rf /var/lib/apt/lists/*
+
 # ROBOT_WS is load-bearing (ADR-015): every node derives its data paths from it.
 # Setting it here is what lets the image live at a path that is not the
 # author's home directory without a single code change.

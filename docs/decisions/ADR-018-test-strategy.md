@@ -1,7 +1,8 @@
 # ADR-018: Three-layer test strategy, and testing the nodes
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Accepted — extended by
+[ADR-030](ADR-030-dashboard-redesign-and-browser-tests.md) (browser tests for the dashboard page, in layer 1)
 
 ## Context
 

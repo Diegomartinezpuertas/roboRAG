@@ -49,11 +49,13 @@ PHRASING_LABELS = {
 
 
 def load(suite, cond):
+    """Loads one condition's run records (e.g. results/full/rag.json), [] if absent."""
     path = RESULTS / suite / f'{cond}.json'
     return json.loads(path.read_text(encoding='utf-8')) if path.exists() else []
 
 
 def style_axes(ax):
+    """Applies the shared chart style: surface fill, recessive spines and grid."""
     ax.set_facecolor(SURFACE)
     for side in ('top', 'right'):
         ax.spines[side].set_visible(False)
@@ -97,6 +99,7 @@ def grouped_bars(ax, categories, series, ylabel, ymax=1.12, as_pct=True, counts=
 
 
 def success_rate(runs, ttype):
+    """Share of successful runs of one task type (0.0 when it has none)."""
     subset = [r for r in runs if r.get('type', 'object_nav') == ttype]
     return sum(r['success'] for r in subset) / len(subset) if subset else 0.0
 
@@ -107,6 +110,7 @@ def sample_size(runs, ttype):
 
 
 def fig_benchmark():
+    """Renders results/benchmark.png: success by task type and planning latency."""
     rag, norag = load('full', 'rag'), load('full', 'norag')
     types = ['object_nav', 'attribute_nav', 'zone_nav', 'negative']
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.2), facecolor=SURFACE,
@@ -163,10 +167,12 @@ def fig_benchmark():
 
 
 def phrasing_group(task_id):
+    """Maps a phrasing task id to its phrasing group, e.g. a_es_imperative -> es_imperative."""
     return task_id.split('_', 1)[1]  # a_es_imperative -> es_imperative
 
 
 def fig_phrasing():
+    """Renders results/phrasing.png: direct-nav success per phrasing and language."""
     rag, norag = load('phrasing', 'rag'), load('phrasing', 'norag')
     if not rag:
         print('No phrasing results yet, skipping phrasing.png')
@@ -200,6 +206,7 @@ def fig_phrasing():
 
 
 def fig_embeddings():
+    """Renders results/embeddings.png: top-1 accuracy and margin per embedding model."""
     path = RESULTS / 'embeddings.json'
     if not path.exists():
         print('No embeddings.json yet, skipping embeddings.png')

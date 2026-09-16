@@ -20,6 +20,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+# The simulated world and spawn pose. A SLAM map built from scratch has its
+# origin where the robot spawned, so (world, spawn) *is* its coordinate frame —
+# and the memory session id of every map built from scratch (ADR-028).
+DEFAULT_WORLD = 'turtlebot3_house'
+DEFAULT_SPAWN_X = -2.0
+DEFAULT_SPAWN_Y = -0.5
+
 # Same alphabet the dashboard's name normalization produces, minus anything
 # that could walk out of the maps directory.
 _VALID_MAP_ID = re.compile(r'^[\w.-]+$')
@@ -90,3 +97,42 @@ def slam_params_for_saved_map(params: dict, map_base: Path) -> dict:
     ros_params.pop('map_start_pose', None)   # mutually exclusive with the dock start
     node['ros__parameters'] = ros_params
     return {**params, 'slam_toolbox': node}
+
+
+def fresh_map_session_id(world: str, spawn_x: float, spawn_y: float) -> str:
+    """Memory session id for a SLAM map built from scratch.
+
+    A fresh map's frame is fixed by where the robot spawned in which world, so
+    two fresh maps from the same spawn share coordinates and may share memories,
+    while a different world or spawn pose must not see them (ADR-019). The id
+    is deterministic for that reason: the old "continue whatever session was
+    persisted last" kept memories across a change of spawn pose, and minting a
+    new id on every launch would throw away memories that are still valid.
+
+    Args:
+        world: World name, e.g. "turtlebot3_house".
+        spawn_x: Spawn x in world meters.
+        spawn_y: Spawn y in world meters.
+
+    Returns:
+        An id such as "fresh_turtlebot3_house_x-2.00_y-0.50" — valid as a saved
+        map id too, since `save_map` without a name saves under the session id.
+    """
+    safe_world = re.sub(r'[^\w.-]', '_', world) or 'world'
+    return f'fresh_{safe_world}_x{float(spawn_x):.2f}_y{float(spawn_y):.2f}'
+
+
+def memory_session_for_launch(saved_map: str, world: str, spawn_x: float, spawn_y: float) -> str:
+    """The memory session a launch should pin: the saved map's id, else the fresh frame's.
+
+    Args:
+        saved_map: The saved_map launch argument ('' when mapping from scratch).
+        world: World name.
+        spawn_x: Spawn x in world meters.
+        spawn_y: Spawn y in world meters.
+
+    Returns:
+        The session id to pass to rag_node as map_session_id.
+    """
+    saved_map = saved_map.strip()
+    return saved_map if saved_map else fresh_map_session_id(world, spawn_x, spawn_y)

@@ -102,17 +102,20 @@ class BenchNode(Node):
     # --- odometry distance ---
 
     def reset_odom_distance(self) -> None:
+        """Starts a new odometry distance count (called before each run)."""
         with self._odom_lock:
             self._odom_distance = 0.0
             self._last_odom = None
 
     def get_odom_distance(self) -> float:
+        """Returns the distance travelled, in meters, since the last reset."""
         with self._odom_lock:
             return self._odom_distance
 
     # --- goals / skills ---
 
     def publish_goal(self, text: str) -> None:
+        """Publishes a natural language goal on /robot/goal."""
         self._goal_pub.publish(String(data=text))
 
     def wait_for_response(self, timeout_sec: float) -> str | None:

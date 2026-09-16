@@ -116,3 +116,10 @@ def test_delete_removes_entries_and_ignores_unknown_ids(tmp_path):
     mgr = _populated(tmp_path)
     mgr.delete('memory', ['corridor', 'does-not-exist'])
     assert [e['id'] for e in mgr.list_documents('memory', 10)] == ['kitchen']
+
+
+def test_existing_ids_reports_only_what_is_stored(tmp_path):
+    mgr = _populated(tmp_path)
+    found = mgr.existing_ids('memory', ['kitchen', 'ghost', 'corridor'])
+    assert sorted(found) == ['corridor', 'kitchen']
+    assert mgr.existing_ids('memory', []) == []

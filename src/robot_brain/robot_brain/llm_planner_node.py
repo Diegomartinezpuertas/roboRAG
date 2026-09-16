@@ -37,6 +37,8 @@ class LLMPlannerNode(Node):
 
     Publishes:
         /robot/status (std_msgs/String): Current execution status.
+        /robot/plan (std_msgs/String): The raw plan JSON of every goal — what the
+            planning benchmark scores (ADR-013).
 
     Services (client):
         /rag/query (QueryRAG): Retrieve context from ChromaDB.
@@ -56,6 +58,8 @@ class LLMPlannerNode(Node):
             This is the ablation switch for the A/B navigation benchmark. Default: True
         zones_in_prompt (bool): When False, known zone names are withheld from the
             prompt (the "blind" control condition). Default: True
+        dry_run (bool): When True, the plan is produced and published but not
+            executed — the benchmark's mode (ADR-013). Default: False
         zones_db (str): SQLite file with user-defined navigation zones.
     """
 

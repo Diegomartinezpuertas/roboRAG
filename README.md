@@ -88,13 +88,15 @@ and how it retrieves.
 flowchart TD
     user["User (text / voice)"] -->|/robot/goal| planner
     dash["robot_dashboard<br/>(FastAPI @ :8080)"] -->|/robot/goal| planner
-    dash -->|/rag/inspect| rag
-    dash -->|/cmd_vel (WASD)| nav2
+    dash -->|/rag/inspect · /rag/delete| rag
+    dash -->|/robot/cmd_vel_manual (WASD)| mux["cmd_vel_mux_node<br/>manual over Nav2"]
+    mux -->|/cmd_vel| nav2
     planner["robot_brain<br/>llm_planner_node"] -->|/rag/query| rag
     planner -->|prompt| ollama["Qwen2.5-7B<br/>(Ollama)"]
     rag["robot_rag<br/>rag_node"] --> chroma[("ChromaDB<br/>semantic_map · knowledge_base · task_history")]
     planner -->|/skills/execute| skills["robot_skills<br/>skills_executor_node"]
     skills -->|navigate / explore| nav2["Nav2 + SLAM Toolbox<br/>Gazebo (TurtleBot3)"]
+    nav2 -->|/cmd_vel_nav_out| mux
     skills -->|/rag/update_map| rag
     skills -->|/robot/response| dash
     zones[("robot_zones<br/>SQLite zones.db")] --- planner
@@ -104,13 +106,13 @@ flowchart TD
 
 | Package | Role |
 |---------|------|
-| `robot_interfaces` | Custom messages/services (`QueryRAG`, `InspectMemory`, `ExecuteSkill`, `UpdateMap`, `SemanticObject`) |
-| `robot_rag` | ChromaDB-backed semantic memory + RAG query service |
-| `robot_skills` | Executable skills: navigate (Nav2), explore (frontier, self-building memory), perceive (scene descriptor), scan_360 (in-place panoramic sweep), report |
+| `robot_interfaces` | Custom messages/services (`QueryRAG`, `InspectMemory`, `DeleteMemory`, `ExecuteSkill`, `UpdateMap`, `SemanticObject`) |
+| `robot_rag` | ChromaDB-backed semantic memory: query, inspection, deletion, merge-on-write, map sessions, `compact_memory` tool |
+| `robot_skills` | Executable skills: navigate (Nav2), explore (frontier clusters, self-building memory), perceive (scene descriptor), scan_360 (in-place panoramic sweep), report; plus `cmd_vel_mux_node`, the single owner of `/cmd_vel` |
 | `robot_brain` | LLM planner: RAG retrieval → Qwen plan → skill dispatch → post-execution report |
 | `robot_zones` | Shared SQLite store of user-defined named zones, and what each kind of room is *for* ([ADR-022](docs/decisions/ADR-022-room-semantics.md)) |
-| `robot_dashboard` | Web dashboard: observability, interactive SLAM map, text/voice goals, RAG memory viewer, WASD manual driving |
-| `robot_bringup` | Launch files and configuration for the whole system |
+| `robot_dashboard` | Web dashboard laid out as a live floor plan: SLAM map, text/voice goals, the agent's reasoning, RAG memory viewer, WASD driving with sim-speed and focus diagnostics |
+| `robot_bringup` | Launch files (full system, demo, saved maps, memory session per map frame) and configuration |
 
 ---
 
@@ -154,7 +156,7 @@ docker build -t robot-rag-agent .
 docker run --rm robot-rag-agent
 ```
 
-Expected: `ruff` clean, **279** + **26** tests, exit `0`. The image sources the
+Expected: `ruff` clean, **319** + **28** tests, exit `0`. The image sources the
 project's own `setup_env.sh` and runs at `/robot_ws`, which also exercises the
 path-portability fix ([ADR-015](docs/decisions/ADR-015-workspace-relative-paths.md)).
 
@@ -183,16 +185,16 @@ cd "$ROBOT_WS" && colcon build --symlink-install
 # Launch everything: Gazebo + Nav2 + SLAM + agent + dashboard + RViz
 ros2 launch robot_bringup full_system.launch.py
 
-# ...or map the house by hand first (SLAM + dashboard, no autonomous
-# navigation competing for /cmd_vel): drive with WASD, name each room with
-# "Marcar zona aquí", then "Guardar mapa" as `house` — ADR-023
+# ...or map the house by hand first: drive with WASD, name each room with
+# "Nombrar esta habitación", then "Guardar mapa" as `house` — ADR-023. Manual
+# driving outranks Nav2 (ADR-029); use_nav2:=false keeps Nav2 out of a mapping run
 ros2 launch robot_bringup full_system.launch.py use_nav2:=false
 
 # ...then start from that map instead of an empty one — ADR-026
 ros2 launch robot_bringup full_system.launch.py saved_map:=house
 
 # The demo setup: Gazebo window + RViz + dashboard, starting from map `house`
-# (the Gazebo window costs real-time factor on WSL2: ~1.0 -> ~0.15)
+# (the Gazebo window costs some real-time factor on WSL2: measured ~0.68 -> ~0.59)
 ros2 launch robot_bringup demo.launch.py
 
 # Send a goal
@@ -212,8 +214,8 @@ Three layers, split by what each needs to run
 
 | Layer | Covers | Needs | Tests | Run |
 |---|---|---|---|---|
-| Pure logic | chunking, plan parsing, prompts, frontier selection, scene descriptor, scene merging, zone store, room semantics, teleop deadman, HTTP layer, benchmark scorer | nothing | 279 | `pytest tests/` |
-| Node level | real services on real executors, the HTTP↔ROS bridge (goals, driving, memory), the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 26 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
+| Pure logic | chunking, plan parsing, prompts, frontier clusters, scene descriptor, scene merging, zone store, room semantics, teleop deadman, cmd_vel mux, sim speed, saved maps and sessions, HTTP layer, the dashboard page in headless Chromium, benchmark scorer | nothing (Chromium for the page tests) | 319 | `pytest tests/` |
+| Node level | real services on real executors, the HTTP↔ROS bridge (goals, driving, memory), the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 28 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
 | Manual | navigation, exploration, perception, the LLM calls | Gazebo + Ollama | — | see [Limitations](#limitations) |
 
 The env var is required: Jazzy's `launch_testing` pytest plugin breaks
@@ -236,7 +238,7 @@ a plain runner and layer 2 in `ros:jazzy-ros-base`, on every push.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [26 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [30 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
@@ -272,10 +274,13 @@ they are for, measured 55% → 100%).
   *recognise* a kitchen it was never told about, and a zone named
   `laboratorio` gets no functional retrieval (the vocabulary is a documented
   table of eleven room types, [ADR-022](docs/decisions/ADR-022-room-semantics.md)).
-- **Manual driving is not arbitrated against Nav2.** Both publish to
-  `/cmd_vel`; teleop is meant for mapping runs (`use_nav2:=false`), and a
-  `twist_mux` is the fix if they ever need to coexist
-  ([ADR-023](docs/decisions/ADR-023-browser-teleop.md)).
+- **Exploration covers rooms, not whole houses.** Frontier clusters map ~40%
+  more area than the old nearest-cell rule, but the LIDAR reaches 3.5 m, so the
+  middle of large rooms stays unknown; a person with WASD still maps a house
+  best ([ADR-027](docs/decisions/ADR-027-exploration-frontier-clusters.md)).
+- **One velocity bypass remains.** Everything reaches `/cmd_vel` through the mux
+  except Nav2's `docking_server`, which only publishes while docking — never
+  requested here ([ADR-029](docs/decisions/ADR-029-cmd-vel-mux.md)).
 - **Cross-lingual retrieval depends on the embedder.** nomic-embed-text: 43%
   top-1 for Spanish queries over English memories; bge-m3: 86%, and it is the
   default ([rag-analysis §2.4](docs/rag-analysis.md)).

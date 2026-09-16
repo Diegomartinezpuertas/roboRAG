@@ -2,7 +2,8 @@
 
 **Date:** 2026-07-21
 **Status:** Accepted — extended by
-[ADR-026](ADR-026-shipped-map-and-demo-launch.md) (the `saved_map:=<id>` launch argument this ADR left as follow-up)
+[ADR-026](ADR-026-shipped-map-and-demo-launch.md) (the `saved_map:=<id>` launch argument this ADR left as follow-up) and
+[ADR-028](ADR-028-memory-session-per-map-frame.md) (a fresh map's session is named after its frame; `rotate()` was never called)
 
 ## Context
 

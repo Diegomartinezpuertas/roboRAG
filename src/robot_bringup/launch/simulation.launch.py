@@ -1,9 +1,10 @@
 """Launches Gazebo (headless) + TurtleBot3 Waffle + SLAM Toolbox + Nav2 + RViz.
 
 The Gazebo GUI is disabled by default: under WSL2 it renders on llvmpipe and
-drags the real-time factor down to ~0.15. RViz (use_rviz, default true) is the
-intended visualization — map, lidar scan, costmaps — and keeps RTF at ~1.0.
-Pass use_gz_gui:=true to get the Gazebo window back.
+costs real-time factor — ~0.15 on the setup this was first measured on; on the
+current one the cost is small (measured 2026-09-16: ~0.68 headless, ~0.59 with
+the window open). RViz (use_rviz, default true) is the intended visualization —
+map, lidar scan, costmaps. Pass use_gz_gui:=true to get the Gazebo window back.
 
 saved_map:=<id> starts SLAM from a saved pose graph instead of an empty map —
 one saved from the dashboard (data/maps/<id>) or shipped with the repository
@@ -29,7 +30,13 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import AndSubstitution, LaunchConfiguration, NotSubstitution
 from launch_ros.actions import Node
 
-from robot_bringup.saved_maps import resolve_saved_map, slam_params_for_saved_map
+from robot_bringup.saved_maps import (
+    DEFAULT_SPAWN_X,
+    DEFAULT_SPAWN_Y,
+    DEFAULT_WORLD,
+    resolve_saved_map,
+    slam_params_for_saved_map,
+)
 
 WS_ROOT = os.environ.get('ROBOT_WS', os.path.join(os.path.expanduser('~'), 'robot_ws'))
 
@@ -78,15 +85,15 @@ def generate_launch_description() -> LaunchDescription:
     use_nav2 = LaunchConfiguration('use_nav2', default='true')
     use_rviz = LaunchConfiguration('use_rviz', default='true')
     use_gz_gui = LaunchConfiguration('use_gz_gui', default='false')
-    x_pose = LaunchConfiguration('x_pose', default='-2.0')
-    y_pose = LaunchConfiguration('y_pose', default='-0.5')
+    x_pose = LaunchConfiguration('x_pose', default=str(DEFAULT_SPAWN_X))
+    y_pose = LaunchConfiguration('y_pose', default=str(DEFAULT_SPAWN_Y))
 
     bringup_dir = get_package_share_directory('robot_bringup')
     tb3_gazebo_dir = get_package_share_directory('turtlebot3_gazebo')
     ros_gz_sim_dir = get_package_share_directory('ros_gz_sim')
     slam_params_file = os.path.join(bringup_dir, 'config', 'slam_params.yaml')
     nav2_params_file = os.path.join(bringup_dir, 'config', 'nav2_params.yaml')
-    world_file = os.path.join(tb3_gazebo_dir, 'worlds', 'turtlebot3_house.world')
+    world_file = os.path.join(tb3_gazebo_dir, 'worlds', f'{DEFAULT_WORLD}.world')
     rviz_config = os.path.join(
         get_package_share_directory('nav2_bringup'), 'rviz', 'nav2_default_view.rviz',
     )
@@ -172,6 +179,18 @@ def generate_launch_description() -> LaunchDescription:
         condition=IfCondition(use_nav2),
     )
 
+    # The single owner of /cmd_vel: manual driving (/robot/cmd_vel_manual) outranks
+    # Nav2 (/cmd_vel_nav_out). Runs with or without Nav2 (ADR-029).
+    cmd_vel_mux = Node(
+        package='robot_skills',
+        executable='cmd_vel_mux_node',
+        name='cmd_vel_mux_node',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
+        respawn=True,
+        respawn_delay=1.0,
+    )
+
     rviz = Node(
         package='rviz2',
         executable='rviz2',
@@ -204,7 +223,7 @@ def generate_launch_description() -> LaunchDescription:
         ),
         DeclareLaunchArgument(
             'use_gz_gui', default_value='false',
-            description='Open the Gazebo GUI (drops sim real-time factor to ~0.15 on WSL2)',
+            description='Open the Gazebo GUI (costs real-time factor on WSL2; ~0.68 -> ~0.59 measured)',
         ),
         DeclareLaunchArgument(
             'saved_map', default_value='',
@@ -219,6 +238,7 @@ def generate_launch_description() -> LaunchDescription:
         ros_gz_bridge,
         ros_gz_image_bridge,
         slam_launch,
+        cmd_vel_mux,
         nav2_launch,
         rviz,
         rviz_mapping,

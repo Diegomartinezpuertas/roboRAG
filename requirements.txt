@@ -23,3 +23,5 @@ httpx                    # FastAPI TestClient transport
 ruff                     # Linter (see ruff.toml)
 pyyaml                   # Benchmark task suites (eval/tasks_*.yaml)
 matplotlib               # Benchmark charts (eval/plot_results.py)
+playwright               # Dashboard browser tests (tests/test_dashboard_ui.py); then:
+                         #   python3 -m playwright install chromium

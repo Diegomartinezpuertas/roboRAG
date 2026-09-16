@@ -18,7 +18,7 @@ Keep `demo.gif` under ~10 MB or GitHub will be slow to render it.
 **Getting a map to film on:** map the house once by hand — launch with
 `use_nav2:=false`, turn on manual driving in the dashboard, drive with WASD
 ([ADR-023](../decisions/ADR-023-browser-teleop.md)), name each room with
-"Marcar zona aquí" (that is what makes the functional goal in `demo.gif`
+"Nombrar esta habitación" (that is what makes the functional goal in `demo.gif`
 resolve) and save it with "Guardar mapa" as **`house`**. From then on every take
 starts from it: `ros2 launch robot_bringup demo.launch.py` opens Gazebo, RViz and
 the dashboard on that map, with the memory session pinned to it

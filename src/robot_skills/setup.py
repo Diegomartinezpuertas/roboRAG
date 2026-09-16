@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'skills_executor_node = robot_skills.skills_executor_node:main',
+            'cmd_vel_mux_node = robot_skills.cmd_vel_mux_node:main',
         ],
     },
 )

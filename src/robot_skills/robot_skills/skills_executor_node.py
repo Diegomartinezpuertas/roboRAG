@@ -26,7 +26,7 @@ from robot_rag.scene_merge import scene_group_key
 from robot_zones.room_semantics import classify_room, scene_context
 from robot_zones.zone_store import ZoneStore
 
-from robot_skills.explore_skill import find_nearest_frontier
+from robot_skills.explore_skill import find_best_frontier, find_nearest_frontier
 from robot_skills.nav_skill import NavSkill
 from robot_skills.perceive_skill import PerceiveSkill
 from robot_skills.report_skill import ReportSkill
@@ -67,6 +67,9 @@ class SkillsExecutorNode(Node):
     Parameters:
         logs_dir (str): Directory for task history logs.
         zones_db (str): SQLite file with user-defined navigation zones.
+        explore_strategy (str): How explore picks its next frontier: "clusters"
+            (largest unexplored edge per metre, ADR-027) or "nearest" (the original
+            nearest-cell rule, kept for comparison). Default: clusters
         maps_dir (str): Directory holding the map session (see ADR-019); its
             active id is stamped into each task log so the memory it becomes
             is scoped to the map the task actually ran on.
@@ -78,6 +81,7 @@ class SkillsExecutorNode(Node):
         self.declare_parameter('logs_dir', str(WS_ROOT / 'data' / 'logs'))
         self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
         self.declare_parameter('maps_dir', str(WS_ROOT / 'data' / 'maps'))
+        self.declare_parameter('explore_strategy', 'clusters')
 
         logs_dir = self.get_parameter('logs_dir').value
         self._maps_dir = self.get_parameter('maps_dir').value
@@ -264,7 +268,11 @@ class SkillsExecutorNode(Node):
             if self._latest_map is None:
                 continue
             robot_x, robot_y = self._get_robot_pose()
-            frontier = find_nearest_frontier(
+            # Largest unexplored edge per metre, not the nearest cell: the
+            # nearest rule crept along one wall (ADR-027). Re-read per step so
+            # the two can be compared live with `ros2 param set`.
+            nearest = self.get_parameter('explore_strategy').value == 'nearest'
+            frontier = (find_nearest_frontier if nearest else find_best_frontier)(
                 self._latest_map, robot_x, robot_y, excluded=attempted, bounds=bounds,
             )
             if frontier is None:

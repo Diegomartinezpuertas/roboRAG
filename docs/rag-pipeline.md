@@ -286,8 +286,12 @@ clone does not hit it; a development machine that has run real tasks does.
 Every coordinate memory is now tagged with a **map-session id** (the map it was
 written against), and retrieval of `semantic_map` and `task_history` is filtered
 to the active session — so a pose from a dead map is simply not returned. A
-scene written under one map is invisible once a fresh map is started, even
-though ChromaDB still physically holds it. Saving the SLAM map (the `save_map`
+scene written under one map is invisible under any other, even though ChromaDB
+still physically holds it. Which session is active is set by the launch: a map
+built from scratch gets the id of its frame, `fresh_<world>_x<spawn x>_y<spawn y>`,
+so fresh maps from the same spawn pose share memories — their coordinates
+coincide — while another world or spawn pose starts empty
+([ADR-028](decisions/ADR-028-memory-session-per-map-frame.md)). Saving the SLAM map (the `save_map`
 skill, or "Guardar mapa" in the dashboard) and relaunching with `saved_map:=<id>`
 preserves the pairing — SLAM loads the map and the memory session is pinned to
 the same id — so a map's memories come back on purpose

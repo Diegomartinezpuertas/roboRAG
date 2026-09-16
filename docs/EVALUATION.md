@@ -176,6 +176,25 @@ descriptions sent to the wrong room. Expected: 55% → 100% top-1
 ([ADR-022](decisions/ADR-022-room-semantics.md), analysed in
 [rag-analysis §2.7](rag-analysis.md)). Needs only bge-m3 in Ollama.
 
+## 4c. Exploration strategies (needs the simulator)
+
+The numbers in [ADR-027](decisions/ADR-027-exploration-frontier-clusters.md)
+(nearest 9.1 m² vs clusters 12.6–13.2 m² in 240 s) come from this procedure,
+**one fresh launch per strategy** — the SLAM map must start empty each time:
+
+```bash
+ros2 launch robot_bringup full_system.launch.py use_rviz:=false     # terminal 1
+ros2 param set /skills_executor_node explore_strategy nearest       # or: clusters
+python3 exploration_coverage.py                                     # before
+ros2 service call /skills/execute robot_interfaces/srv/ExecuteSkill \
+  "{skill_name: 'explore', params_json: '{\"duration_sec\": 240}'}"
+python3 exploration_coverage.py                                     # after
+```
+
+`exploration_coverage.py` reads the map the dashboard renders and counts every
+cell that is not unexplored. Planning failures are counted from the launch log:
+`grep -c "failed to plan" <log>`. These are single runs; the ADR says so.
+
 ## 5. Tables and charts
 
 ```bash
@@ -195,7 +214,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 279 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 319 tests
 ruff check .
 ```
 
@@ -203,7 +222,7 @@ Node level — needs a sourced workspace:
 
 ```bash
 source ~/robot_ws/setup_env.sh
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 26 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all   # 28 tests
 ```
 
 (`PYTEST_DISABLE_PLUGIN_AUTOLOAD` avoids the ROS-installed `launch_testing`

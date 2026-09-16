@@ -3,13 +3,16 @@
 `full_system.launch.py` with three defaults changed:
 
 - **use_gz_gui:=true** — the Gazebo window, so the simulated house is on screen
-  next to RViz and the dashboard. On WSL2 it renders on llvmpipe and drops the
-  real-time factor to roughly 0.15: navigation visibly slows. That is the price
-  of the shot; pass use_gz_gui:=false to get the speed back.
+  next to RViz and the dashboard. On WSL2 it renders on llvmpipe and costs
+  real-time factor (measured 2026-09-16: ~0.68 headless, ~0.59 with the window;
+  ~0.15 on the setup first measured). The dashboard shows the live factor next
+  to the drive controls; pass use_gz_gui:=false to get the speed back.
 - **use_rviz:=true** — map, LIDAR and Nav2 costmaps.
-- **saved_map:=house** — SLAM starts from the map shipped in
-  robot_bringup/maps/house, so there is no mapping phase before recording, and
-  the memory session is pinned to it.
+- **saved_map:=house** — SLAM starts from the map saved as `house`: yours in
+  data/maps/house (save it from the dashboard), or one shipped in
+  robot_bringup/maps/house. No mapping phase before recording, and the memory
+  session is pinned to it. With no `house` map anywhere, the launch fails and
+  says where it looked.
 
 Every argument can still be overridden, e.g. `saved_map:=casa` for a map you
 saved yourself. See docs/decisions/ADR-026-shipped-map-and-demo-launch.md.
@@ -30,7 +33,7 @@ def generate_launch_description() -> LaunchDescription:
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_gz_gui', default_value='true',
-            description='Gazebo window (on WSL2 costs real-time factor: ~1.0 -> ~0.15)',
+            description='Gazebo window (costs real-time factor on WSL2; ~0.68 -> ~0.59 measured)',
         ),
         DeclareLaunchArgument(
             'use_rviz', default_value='true', description='RViz with map, LIDAR and costmaps',

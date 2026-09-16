@@ -1,0 +1,7 @@
+# DeleteMemory.srv
+string   collection_name  # Collection to delete from; only semantic_map accepts deletions
+string[] ids              # Entry ids to delete; ids that do not exist are ignored
+---
+int32  deleted            # Number of entries that existed and were removed
+bool   success            # False if the collection refuses deletions or the store failed
+string error_msg          # Empty string if success=True

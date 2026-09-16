@@ -80,3 +80,24 @@ def test_running_it_twice_changes_nothing_the_second_time(tmp_path):
     compact(path, apply=True, is_rag_running=not_running)
     second = compact(path, apply=True, is_rag_running=not_running)
     assert second['groups'] == [] and second['applied'] is False
+
+
+def test_retagging_moves_one_sessions_memories_and_nothing_else(tmp_path):
+    path = str(tmp_path / 'chroma')
+    seed_store(path)
+    report = compact(path, apply=True, retag=('saved-map', 'house'), is_rag_running=not_running)
+    assert report['retagged'] == ['scene-other']
+    by_id = {e['id']: e['metadata'] for e in
+             ChromaManager(path, COLLECTIONS).list_documents('semantic_map', 100)}
+    assert by_id['scene-other']['map_id'] == 'house'
+    assert by_id['zone-cocina']['map_id'] == 'live'
+
+
+def test_a_retag_dry_run_writes_nothing(tmp_path):
+    path = str(tmp_path / 'chroma')
+    seed_store(path)
+    report = compact(path, apply=False, retag=('live', 'house'), is_rag_running=not_running)
+    assert len(report['retagged']) == 4
+    maps = {e['metadata'].get('map_id') for e in
+            ChromaManager(path, COLLECTIONS).list_documents('semantic_map', 100)}
+    assert 'house' not in maps

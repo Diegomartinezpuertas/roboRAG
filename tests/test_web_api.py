@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 
 from robot_dashboard.teleop import twist_from_keys
 from robot_dashboard.web_api import (
+    COLOR_OCCUPIED,
+    COLOR_UNKNOWN,
     MAX_MEMORY_ENTRIES,
     box_around,
     build_app,
@@ -82,6 +84,9 @@ class FakeNode:
             'ok': True, 'items': [], 'stats': {}, 'map_id': '', 'error': '',
         }
         self.drive_calls = []
+        self.sim_status = {'rtf': None, 'driver': None}
+        self.delete_calls = []
+        self.delete_result = {'ok': True, 'deleted': 2, 'error': ''}
         self.stop_calls = 0
         self.saved_maps = []
         self.save_map_result = {
@@ -121,6 +126,13 @@ class FakeNode:
     def stop_driving(self):
         self.stop_calls += 1
         return {'linear': 0.0, 'angular': 0.0, 'driving': False}
+
+    def get_sim_status(self):
+        return self.sim_status
+
+    def delete_memory(self, collection, ids):
+        self.delete_calls.append((collection, list(ids)))
+        return self.delete_result
 
 
 @pytest.fixture
@@ -243,7 +255,18 @@ def test_deleting_an_unknown_zone_is_a_404(client):
 
 def test_map_endpoint_reports_nulls_before_slam_publishes(client):
     """Every field is optional: the UI must cope with a stack that is still coming up."""
-    assert client.get('/api/map').json() == {'map': None, 'robot': None, 'zones': {}}
+    assert client.get('/api/map').json() == {
+        'map': None, 'robot': None, 'zones': {}, 'sim': {'rtf': None, 'driver': None},
+    }
+
+
+def test_map_endpoint_carries_sim_speed_and_who_drives():
+    """What the drive panel needs to explain a robot that does not seem to move."""
+    node = FakeNode(pose={'x': 1.0, 'y': 2.0, 'yaw': 1.57})
+    node.sim_status = {'rtf': 0.62, 'driver': 'teleop'}
+    body = TestClient(build_app(node)).get('/api/map').json()
+    assert body['sim'] == {'rtf': 0.62, 'driver': 'teleop'}
+    assert body['robot']['yaw'] == 1.57
 
 
 def test_map_endpoint_returns_geometry_pose_and_zones_but_not_the_png():
@@ -256,7 +279,9 @@ def test_map_endpoint_returns_geometry_pose_and_zones_but_not_the_png():
     )
     body = TestClient(build_app(node)).get('/api/map').json()
     # The image goes through /api/map/png (with an ETag); this poll stays light.
+    version = body['map'].pop('version')
     assert body['map'] == {k: v for k, v in snapshot.items() if k != 'png_b64'}
+    assert version.endswith('-3')
     assert body['robot'] == {'x': 0.5, 'y': 1.5}
     assert 'base' in body['zones']
 
@@ -269,7 +294,7 @@ def test_map_png_endpoint_returns_an_image_with_an_etag():
     assert response.status_code == 200
     assert response.headers['content-type'] == 'image/png'
     assert response.content == b'\x00\x00\x00'   # 'AAAA' decoded
-    assert response.headers['etag'] == '"1234"'
+    assert response.headers['etag'].endswith('-1234"')
     assert response.headers['cache-control'] == 'no-cache'
 
 
@@ -293,7 +318,22 @@ def test_map_png_endpoint_sends_the_image_again_once_the_map_changes():
     node._map_snapshot = {**snapshot, 'stamp': 5678}   # SLAM published a newer grid
     response = client.get('/api/map/png', headers={'If-None-Match': old_etag})
     assert response.status_code == 200
-    assert response.headers['etag'] == '"5678"'
+    assert response.headers['etag'].endswith('-5678"')
+
+
+def test_a_relaunched_dashboard_never_serves_a_previous_runs_image_as_current():
+    """Regression: the ETag was the grid stamp, which is simulation time and
+    restarts at zero every launch. A browser holding a previous run's image
+    with the same stamp got 304 and kept showing the old map — the "sometimes
+    the map is red and grey" report, after the rendering changed colours."""
+    snapshot = {'png_b64': 'AAAA', 'resolution': 0.05, 'origin_x': 0.0,
+                'origin_y': 0.0, 'width': 4, 'height': 4, 'stamp': 1234}
+    first_run = TestClient(build_app(FakeNode(map_snapshot=snapshot)))
+    old_etag = first_run.get('/api/map/png').headers['etag']
+    second_run = TestClient(build_app(FakeNode(map_snapshot=snapshot)))   # same stamp
+    response = second_run.get('/api/map/png', headers={'If-None-Match': old_etag})
+    assert response.status_code == 200
+    assert second_run.get('/api/map').json()['map']['version'] != old_etag.strip('"')
 
 
 def test_map_png_endpoint_is_404_before_slam_publishes(client):
@@ -384,6 +424,35 @@ def test_memory_reports_a_down_service_without_failing_the_request():
     assert body['ok'] is False
     assert body['error'] == '/rag/inspect unavailable'
     assert body['entries'] == []
+
+
+# --- /api/memory/delete (ADR-030) ------------------------------------------
+
+def test_deleting_a_card_deletes_every_id_it_stands_for(client, node):
+    response = client.post('/api/memory/delete', json={
+        'collection': 'semantic_map', 'ids': ['landmark-estacion_a', 'scene-seed-estacion_a'],
+    })
+    assert response.status_code == 200
+    assert response.json() == {'ok': True, 'deleted': 2}
+    assert node.delete_calls == [
+        ('semantic_map', ['landmark-estacion_a', 'scene-seed-estacion_a']),
+    ]
+
+
+def test_a_delete_without_ids_is_rejected_before_reaching_the_node(client, node):
+    assert client.post('/api/memory/delete', json={'ids': ['', '  ']}).status_code == 400
+    assert node.delete_calls == []
+
+
+def test_a_refused_delete_reports_the_reason(client, node):
+    node.delete_result = {
+        'ok': False, 'deleted': 0,
+        'error': 'task_history is rebuilt from files on disk; '
+                 'only semantic_map memories can be deleted',
+    }
+    response = client.post('/api/memory/delete', json={'collection': 'task_history', 'ids': ['t']})
+    assert response.status_code == 400
+    assert 'only semantic_map' in response.json()['error']
 
 
 # --- /api/teleop -----------------------------------------------------------
@@ -608,14 +677,14 @@ def test_render_map_png_flips_rows_so_the_top_of_the_image_is_y_max():
     top, bottom = image.getpixel((0, 0)), image.getpixel((0, 1))
     assert top != bottom
     # The unknown cell (grid row 1 = y_max) must be the TOP pixel.
-    assert top == (43, 48, 62)
+    assert top == COLOR_UNKNOWN
 
 
 def test_render_map_png_dilates_occupied_cells():
     """Walls are 1px at 0.05 m/px and vanish when scaled, so they are dilated."""
     grid = FakeGrid(3, 3, [0, 0, 0, 0, 100, 0, 0, 0, 0])
     image = _decode(render_map_png(grid)).convert('RGB')
-    occupied = (226, 76, 61)
+    occupied = COLOR_OCCUPIED
     # The single occupied centre cell paints all 9 pixels.
     assert all(image.getpixel((x, y)) == occupied for x in range(3) for y in range(3))
 

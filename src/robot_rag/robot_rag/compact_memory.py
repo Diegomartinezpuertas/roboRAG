@@ -15,12 +15,20 @@ Usage:
     ros2 run robot_rag compact_memory                  # show what would change
     ros2 run robot_rag compact_memory --apply          # do it (backup first)
     ros2 run robot_rag compact_memory --apply --prune-untagged
+    ros2 run robot_rag compact_memory --apply --retag-session OLD NEW
 
 `--prune-untagged` also deletes semantic_map memories with no map session at
 all — written before ADR-019, invisible to every session's retrieval, and
 unable to become valid again. Memories tagged with *another* session are never
 touched: reloading that saved map brings them back (ADR-019). task_history is
 left alone either way: it is re-ingested from data/logs on every start.
+
+`--retag-session OLD NEW` moves semantic_map memories from one map session to
+another. Its one legitimate use: memories written under a session id that
+turned out to name the same coordinate frame as NEW — for instance the ids the
+agent persisted before sessions were tied to world + spawn pose (ADR-028).
+Retagging memories into a frame they were not recorded in would make their
+coordinates lie, so it is never done implicitly.
 
 This is a command-line tool, not a ROS node, so it reports with print().
 """
@@ -60,6 +68,7 @@ def compact(
     apply: bool = False,
     prune_untagged: bool = False,
     is_rag_running: Callable[[], bool] = rag_node_running,
+    retag: tuple[str, str] | None = None,
 ) -> dict:
     """Plans, and optionally applies, the compaction of semantic_map.
 
@@ -69,10 +78,12 @@ def compact(
         apply: Write the changes; otherwise only report them.
         prune_untagged: Also delete semantic_map memories with no map session.
         is_rag_running: Liveness check for rag_node, injectable for tests.
+        retag: Optional (old_session, new_session): semantic_map memories tagged
+            old_session are moved to new_session before compacting.
 
     Returns:
         Dict with "before" and "after" entry counts, the "groups" planned, the
-        "pruned" ids, "applied" and the "backup" path (empty if none).
+        "pruned" ids, the "retagged" ids, "applied" and the "backup" path.
 
     Raises:
         RuntimeError: If applying while rag_node is running.
@@ -83,6 +94,13 @@ def compact(
     chroma = ChromaManager(chroma_db_path, COLLECTIONS)
     before = chroma.count(COLLECTION_NAME)
     entries = chroma.list_documents(COLLECTION_NAME, max(1, before))
+    retagged: list[str] = []
+    if retag is not None:
+        old_session, new_session = retag
+        for entry in entries:
+            if (entry['metadata'] or {}).get('map_id') == old_session:
+                entry['metadata'] = {**entry['metadata'], 'map_id': new_session}
+                retagged.append(entry['id'])
     groups = plan_compaction(entries, radius)
     pruned: list[str] = []
     if prune_untagged:
@@ -97,15 +115,20 @@ def compact(
     dropped = {entry_id for group in groups for entry_id in group.drop_ids}
 
     report = {
-        'before': before, 'groups': groups, 'pruned': pruned,
+        'before': before, 'groups': groups, 'pruned': pruned, 'retagged': sorted(retagged),
         'after': before - len(dropped) - len(pruned), 'applied': False, 'backup': '',
     }
-    if not apply or (not groups and not pruned):
+    if not apply or (not groups and not pruned and not retagged):
         return report
 
     backup = f'{chroma_db_path.rstrip("/")}.bak-{time.strftime("%Y%m%d-%H%M%S")}'
     shutil.copytree(chroma_db_path, backup)
     by_id = {e['id']: e for e in entries}
+    if retagged:
+        chroma.update_metadata(
+            COLLECTION_NAME, sorted(retagged),
+            [{'map_id': by_id[i]['metadata']['map_id']} for i in sorted(retagged)],
+        )
     chroma.update_metadata(
         COLLECTION_NAME,
         [g.keep_id for g in groups],
@@ -128,23 +151,30 @@ def main(args: list[str] | None = None) -> None:
     parser.add_argument('--apply', action='store_true', help='write the changes')
     parser.add_argument('--prune-untagged', action='store_true',
                         help='also delete semantic_map memories with no map session')
+    parser.add_argument('--retag-session', nargs=2, metavar=('OLD', 'NEW'),
+                        help='move semantic_map memories from session OLD to NEW first')
     opts = parser.parse_args(args)
 
     try:
-        report = compact(opts.chroma_db_path, opts.radius, opts.apply, opts.prune_untagged)
+        report = compact(
+            opts.chroma_db_path, opts.radius, opts.apply, opts.prune_untagged,
+            retag=tuple(opts.retag_session) if opts.retag_session else None,
+        )
     except RuntimeError as exc:
         raise SystemExit(f'✗ {exc}') from exc
 
     for group in report['groups']:
         print(f'  keep {group.keep_id:22} ← fold {", ".join(group.drop_ids)}')
         print(f'       {group.group_key}  ({group.observations} observations)')
+    if report['retagged']:
+        print(f'  retag → {opts.retag_session[1]}: {len(report["retagged"])} memories')
     if report['pruned']:
         print(f'  prune (no map session): {", ".join(report["pruned"])}')
     verb = 'now' if report['applied'] else 'would become'
     print(f'semantic_map: {report["before"]} memories {verb} {report["after"]}')
     if report['applied']:
         print(f'backup: {report["backup"]}')
-    elif report['groups'] or report['pruned']:
+    elif report['groups'] or report['pruned'] or report['retagged']:
         print('dry run — nothing written. Re-run with --apply (stack stopped).')
 
 

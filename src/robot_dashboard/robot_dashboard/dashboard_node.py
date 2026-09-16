@@ -1,6 +1,7 @@
 """ROS 2 node serving a web dashboard: observability, goals, zones, memory, manual driving."""
 
 import json
+import math
 import os
 import threading
 import time
@@ -12,6 +13,7 @@ import rclpy
 from geometry_msgs.msg import Twist, TwistStamped
 from nav_msgs.msg import OccupancyGrid
 from rcl_interfaces.msg import Log
+from rosgraph_msgs.msg import Clock as ClockMsg
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
@@ -28,10 +30,11 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
 from robot_interfaces.msg import SemanticObject
-from robot_interfaces.srv import ExecuteSkill, InspectMemory, UpdateMap
+from robot_interfaces.srv import DeleteMemory, ExecuteSkill, InspectMemory, UpdateMap
 from robot_zones.room_semantics import describe_zone, room_label
 from robot_zones.zone_store import ZoneStore
 
+from robot_dashboard.sim_clock import RtfEstimator
 from robot_dashboard.teleop import TeleopState, twist_from_keys
 from robot_dashboard.web_api import build_app, render_map_png
 
@@ -106,16 +109,20 @@ class DashboardNode(Node):
         /robot/response (std_msgs/String): Final responses to the user.
         /rosout (rcl_interfaces/Log): Aggregated logs from every node.
         /map (nav_msgs/OccupancyGrid): SLAM map, rendered in the UI.
+        /clock (rosgraph_msgs/Clock): Simulation time, for the sim-speed readout.
+        /robot/cmd_vel_source (std_msgs/String): Who holds /cmd_vel (cmd_vel_mux_node).
 
     Publishes:
         /robot/goal (std_msgs/String): Goals submitted through the web UI.
-        /cmd_vel (geometry_msgs/TwistStamped): Manual driving commands, published
-            only while someone is actually driving (see teleop.py).
+        /robot/cmd_vel_manual (geometry_msgs/TwistStamped): Manual driving commands,
+            published only while someone is actually driving (see teleop.py);
+            cmd_vel_mux_node forwards them to /cmd_vel over Nav2's (ADR-029).
 
     Services (client):
         /rag/update_map (UpdateMap): Indexes named zones into semantic memory — each
             one on save, and all of them once per start, into the active session.
         /rag/inspect (InspectMemory): Browses/searches memory for the UI's viewer.
+        /rag/delete (DeleteMemory): Deletes semantic_map memories from the viewer.
         /skills/execute (ExecuteSkill): Saves the SLAM map after a manual mapping run.
 
     Parameters:
@@ -124,7 +131,7 @@ class DashboardNode(Node):
             config/agent_params.yaml to expose it on the network).
         http_port (int): Port for the HTTP server. Default: 8080
         zones_db (str): SQLite file where named zones are persisted.
-        cmd_vel_topic (str): Topic for manual driving commands. Default: /cmd_vel
+        cmd_vel_topic (str): Topic for manual driving commands. Default: /robot/cmd_vel_manual
         cmd_vel_stamped (bool): Publish geometry_msgs/TwistStamped instead of Twist.
             Default: True — this stack's Gazebo bridge and Nav2 (enable_stamped_cmd_vel)
             both speak the stamped form; set False for a plain-Twist base.
@@ -140,7 +147,9 @@ class DashboardNode(Node):
         self.declare_parameter('http_host', '127.0.0.1')
         self.declare_parameter('http_port', 8080)
         self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
-        self.declare_parameter('cmd_vel_topic', '/cmd_vel')
+        # Not /cmd_vel itself: cmd_vel_mux_node owns that and lets manual
+        # driving take over from Nav2 (ADR-029).
+        self.declare_parameter('cmd_vel_topic', '/robot/cmd_vel_manual')
         self.declare_parameter('cmd_vel_stamped', True)
         # Comfortably below the TurtleBot3 Waffle's maxima (0.26 m/s,
         # 1.82 rad/s) — and low enough that even a boosted command (x1.4) stays
@@ -179,8 +188,8 @@ class DashboardNode(Node):
         # while the map subscription or a service response occupies the others.
         # And explicitly on SYSTEM_TIME, not the node's clock: with
         # use_sim_time=true this timer would otherwise run on Gazebo's clock,
-        # so a paused or slow simulation (RTF drops to ~0.15 with the Gazebo
-        # GUI open) would stretch the interval a human and their browser
+        # so a paused or slow simulation (software rendering on WSL2 runs it
+        # below real time) would stretch the interval a human and their browser
         # measure in wall seconds — and with no /clock at all it would never
         # fire. The deadman is a safety property of the person driving, so it
         # is timed like one; only the message stamp uses the node's clock.
@@ -207,6 +216,9 @@ class DashboardNode(Node):
         self._inspect_client = self.create_client(
             InspectMemory, '/rag/inspect', callback_group=self._request_group,
         )
+        self._delete_client = self.create_client(
+            DeleteMemory, '/rag/delete', callback_group=self._request_group,
+        )
         self._skills_client = self.create_client(
             ExecuteSkill, '/skills/execute', callback_group=self._request_group,
         )
@@ -226,6 +238,15 @@ class DashboardNode(Node):
         self.create_subscription(String, '/robot/response', self._on_response, 10)
         self.create_subscription(Log, '/rosout', self._on_rosout, 50)
         self.create_subscription(OccupancyGrid, '/map', self._on_map, MAP_QOS)
+        # What the drive panel needs to explain a robot that "doesn't move":
+        # how fast the simulation runs, and who holds /cmd_vel (ADR-029/030).
+        self._rtf = RtfEstimator()
+        self._driver: str | None = None
+        self.create_subscription(ClockMsg, '/clock', self._on_clock, 10)
+        self.create_subscription(
+            String, '/robot/cmd_vel_source', self._on_driver,
+            QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL),
+        )
 
         host = self.get_parameter('http_host').value
         port = self.get_parameter('http_port').value
@@ -244,13 +265,51 @@ class DashboardNode(Node):
         self._goal_pub.publish(String(data=text))
 
     def get_robot_pose(self) -> dict | None:
-        """Returns the robot's map-frame pose {x, y} via TF, or None if unavailable."""
+        """Returns the robot's map-frame pose {x, y, yaw} via TF, or None if unavailable.
+
+        yaw is the heading in radians (counter-clockwise from +x), so the map
+        can draw which way the robot faces — what a person driving needs most.
+        """
         try:
             transform = self._tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
         except (LookupException, TransformException):
             return None
         translation = transform.transform.translation
-        return {'x': translation.x, 'y': translation.y}
+        q = transform.transform.rotation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        return {'x': translation.x, 'y': translation.y, 'yaw': yaw}
+
+    def get_sim_status(self) -> dict:
+        """Returns {"rtf": sim seconds per wall second or None, "driver": who holds /cmd_vel}.
+
+        driver is "teleop", "nav2" or "idle" as reported by cmd_vel_mux_node, or
+        None when no mux is running (an agent-only launch).
+        """
+        return {'rtf': self._rtf.rtf(time.monotonic()), 'driver': self._driver}
+
+    def delete_memory(self, collection: str, ids: list[str]) -> dict:
+        """Deletes memories by id through /rag/delete.
+
+        Args:
+            collection: Collection to delete from; rag_node accepts only semantic_map.
+            ids: Entry ids to delete.
+
+        Returns:
+            Dict with "ok", "deleted" (how many existed) and "error" (empty when ok).
+        """
+        if not self._delete_client.service_is_ready():
+            return {
+                'ok': False, 'deleted': 0,
+                'error': '/rag/delete unavailable (is rag_node running?)',
+            }
+        response = self._call_service(
+            self._delete_client,
+            DeleteMemory.Request(collection_name=collection, ids=list(ids)),
+            INSPECT_TIMEOUT_SEC,
+        )
+        if response is None:
+            return {'ok': False, 'deleted': 0, 'error': 'the memory service did not answer in time'}
+        return {'ok': response.success, 'deleted': response.deleted, 'error': response.error_msg}
 
     def get_map_snapshot(self) -> dict | None:
         """Returns the rendered map PNG (base64) plus geometry metadata.
@@ -501,6 +560,12 @@ class DashboardNode(Node):
         if msg.level < 20 or msg.name == 'dashboard_node':
             return
         self.events.append('rosout', msg.msg, source=msg.name, level=msg.level)
+
+    def _on_clock(self, msg: ClockMsg) -> None:
+        self._rtf.add(msg.clock.sec + msg.clock.nanosec * 1e-9, time.monotonic())
+
+    def _on_driver(self, msg: String) -> None:
+        self._driver = msg.data
 
     def _on_map(self, msg: OccupancyGrid) -> None:
         with self._map_lock:

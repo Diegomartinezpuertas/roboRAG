@@ -11,6 +11,7 @@ See docs/decisions/ADR-018-test-strategy.md.
 
 import base64
 import io
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -29,12 +30,14 @@ MAX_MEMORY_ENTRIES = 200
 # TurtleBot3 Waffle is 0.28 m across; anything smaller is not a place.
 MIN_ZONE_SIZE = 0.4
 
-# Occupancy value -> RGB: unknown, free, occupied.
-COLOR_UNKNOWN = (43, 48, 62)
-COLOR_FREE = (222, 227, 236)
-# Strong red + 1-cell dilation: at 0.05 m/px walls are 1px thin and near-black
-# was invisible once scaled in the canvas.
-COLOR_OCCUPIED = (226, 76, 61)
+# Occupancy value -> RGB, drawn as a blueprint (ADR-030): the SLAM map *is* the
+# house's floor plan, so walls are chalk linework on blueprint ink, explored
+# floor a lighter plan blue, and unexplored space sinks into the page.
+COLOR_UNKNOWN = (15, 34, 51)
+COLOR_FREE = (29, 58, 84)
+# Walls are dilated by one cell: at 0.05 m/px they are 1px thin and vanished
+# once the canvas scaled the image.
+COLOR_OCCUPIED = (230, 237, 242)
 
 
 def render_map_png(grid) -> str:
@@ -285,6 +288,13 @@ class TeleopRequest(BaseModel):
     boost: bool = False
 
 
+class DeleteMemoryRequest(BaseModel):
+    """Body schema for POST /api/memory/delete."""
+
+    collection: str = 'semantic_map'
+    ids: list[str] = Field(default_factory=list)
+
+
 class SaveMapRequest(BaseModel):
     """Body schema for POST /api/map/save."""
 
@@ -298,14 +308,24 @@ def build_app(node) -> FastAPI:
         node: Any object providing `events.since(int)`, `get_map_snapshot()`,
             `get_robot_pose()`, `zones` (a ZoneStore), `publish_goal(str)`,
             `index_zone_in_memory(str, dict)`, `inspect_memory(str, str, int,
-            bool)`, `save_map(str)`, `drive(list[str], bool)`, `stop_driving()`
-            and `get_logger()`. In production this is a `DashboardNode`; in
+            bool)`, `delete_memory(str, list[str])`, `save_map(str)`,
+            `drive(list[str], bool)`, `stop_driving()`, `get_sim_status()` and
+            `get_logger()`. In production this is a `DashboardNode`; in
             tests, a stub.
 
     Returns:
         Configured FastAPI application.
     """
     app = FastAPI(title='Robot RAG Agent Dashboard')
+    # A map image's version is (this server process, grid stamp) — never the
+    # stamp alone. The stamp is *simulation* time, which restarts at zero with
+    # every launch: keyed on it, a relaunched dashboard answered 304 to a
+    # browser still holding an image from a previous run, which then showed
+    # that run's map (and, across a release, its old red-and-grey rendering).
+    instance = uuid.uuid4().hex[:8]
+
+    def map_version(stamp) -> str:
+        return f'{instance}-{stamp}'
 
     @app.get('/', response_class=HTMLResponse)
     def index() -> str:
@@ -322,22 +342,25 @@ def build_app(node) -> FastAPI:
         snapshot = node.get_map_snapshot()
         if snapshot is not None:
             snapshot = {k: v for k, v in snapshot.items() if k != 'png_b64'}
+            snapshot['version'] = map_version(snapshot['stamp'])
         return {
             'map': snapshot,
             'robot': node.get_robot_pose(),
             'zones': node.zones.load_all(),
+            # Sim speed and who holds /cmd_vel, for the drive panel (ADR-030).
+            'sim': node.get_sim_status(),
         }
 
     @app.get('/api/map/png')
     def map_png(request: Request) -> Response:
         # The rendered map only changes when SLAM publishes a newer grid, while
         # the UI polls every 2 s — so the PNG (tens of KB of base64) used to be
-        # resent unchanged most of the time. The grid's stamp is the version:
-        # sent as an ETag, answered with 304 when the client already has it.
+        # resent unchanged most of the time. The map version (see above) is sent
+        # as an ETag and answered with 304 when the client already has it.
         snapshot = node.get_map_snapshot()
         if snapshot is None:
             return Response(status_code=404)
-        etag = f'"{snapshot["stamp"]}"'
+        etag = f'"{map_version(snapshot["stamp"])}"'
         headers = {'ETag': etag, 'Cache-Control': 'no-cache'}
         if request.headers.get('if-none-match') == etag:
             return Response(status_code=304, headers=headers)
@@ -426,6 +449,22 @@ def build_app(node) -> FastAPI:
             ]),
             'error': result['error'],
         }
+
+    @app.post('/api/memory/delete')
+    def delete_memory(body: DeleteMemoryRequest) -> JSONResponse:
+        # One card can stand for several stored ids (grouped for display), so
+        # the whole group goes in one call. Only semantic_map is deletable —
+        # rag_node refuses the rest, and says why (ADR-030).
+        ids = [i for i in body.ids if i.strip()]
+        if not ids:
+            return JSONResponse({'ok': False, 'error': 'no ids'}, status_code=400)
+        result = node.delete_memory(body.collection, ids)
+        if not result['ok']:
+            return JSONResponse(
+                {'ok': False, 'deleted': 0, 'error': result['error']}, status_code=400,
+            )
+        node.get_logger().info(f'Memories deleted via dashboard: {ids}')
+        return JSONResponse({'ok': True, 'deleted': result['deleted']})
 
     @app.post('/api/teleop')
     def teleop(body: TeleopRequest) -> dict:

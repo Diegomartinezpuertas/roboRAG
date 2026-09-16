@@ -1,7 +1,8 @@
 # ADR-023: Driving the robot from the browser, with a deadman
 
 **Date:** 2026-09-15
-**Status:** Accepted
+**Status:** Accepted — extended by
+[ADR-029](ADR-029-cmd-vel-mux.md) (manual driving now outranks Nav2 through a mux)
 
 ## Context
 
@@ -108,4 +109,7 @@ requests on a loopback connection without the robot stuttering.
   result is whatever arrives last. This is not arbitrated: teleop is for mapping
   runs, and the UI says so. A `twist_mux` is the principled fix if the two ever
   need to coexist.
+  *(Resolved in [ADR-029](ADR-029-cmd-vel-mux.md): `cmd_vel_mux_node` now owns `/cmd_vel`,
+  manual driving over Nav2, verified live mid-goal.)*
+
 - `robot_dashboard` gains a `geometry_msgs` dependency.

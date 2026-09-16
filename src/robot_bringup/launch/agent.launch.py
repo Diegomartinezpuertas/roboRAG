@@ -12,9 +12,10 @@ from launch_ros.actions import Node
 def generate_launch_description() -> LaunchDescription:
     """Builds the launch description for the RAG, skills, and LLM planner nodes."""
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
-    # With a saved map, memory is pinned to that map's session so its coordinate
-    # memories are the ones retrieved (ADR-019). Empty keeps the current session.
-    saved_map = LaunchConfiguration('saved_map', default='')
+    # The memory session to pin (ADR-019, ADR-028). full_system passes the saved
+    # map's id, or the fresh map's frame id. Empty keeps the persisted session —
+    # what an agent-only run (offline benchmark, ADR-020) wants.
+    memory_session = LaunchConfiguration('memory_session', default='')
 
     agent_params_file = os.path.join(
         get_package_share_directory('robot_bringup'), 'config', 'agent_params.yaml',
@@ -30,7 +31,7 @@ def generate_launch_description() -> LaunchDescription:
         output='screen',
         parameters=[
             agent_params_file,
-            {'use_sim_time': use_sim_time, 'map_session_id': saved_map},
+            {'use_sim_time': use_sim_time, 'map_session_id': memory_session},
         ],
         respawn=True,
         respawn_delay=2.0,
@@ -74,8 +75,8 @@ def generate_launch_description() -> LaunchDescription:
             description='Use Gazebo simulation clock',
         ),
         DeclareLaunchArgument(
-            'saved_map', default_value='',
-            description='Pin the memory session to this saved map id (empty keeps the current one)',
+            'memory_session', default_value='',
+            description='Pin rag_node to this memory session id (empty keeps the persisted one)',
         ),
         rag_node,
         skills_executor_node,

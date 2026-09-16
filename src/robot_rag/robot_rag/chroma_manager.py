@@ -180,6 +180,23 @@ class ChromaManager:
         if ids:
             self._get_collection(collection_name).update(ids=ids, metadatas=metadatas)
 
+    def existing_ids(self, collection_name: str, ids: list[str]) -> list[str]:
+        """Returns which of the given ids are stored in a collection.
+
+        Args:
+            collection_name: Target collection name.
+            ids: Candidate ids.
+
+        Returns:
+            The subset of `ids` that exist, in ChromaDB's order.
+
+        Raises:
+            ValueError: If the collection does not exist.
+        """
+        if not ids:
+            return []
+        return list(self._get_collection(collection_name).get(ids=ids, include=[])['ids'])
+
     def delete(self, collection_name: str, ids: list[str]) -> None:
         """Deletes entries by id; ids that do not exist are ignored.
 

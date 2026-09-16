@@ -18,6 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ExecuteSkill.srv"
   "srv/UpdateMap.srv"
   "srv/InspectMemory.srv"
+  "srv/DeleteMemory.srv"
   DEPENDENCIES geometry_msgs builtin_interfaces std_msgs
 )
 

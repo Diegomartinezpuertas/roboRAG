@@ -18,11 +18,13 @@ TYPE_LABELS = {
 
 
 def load(suite, cond):
+    """Loads one condition's run records (e.g. results/full/rag.json), [] if absent."""
     path = RESULTS_ROOT / suite / f'{cond}.json'
     return json.loads(path.read_text(encoding='utf-8')) if path.exists() else []
 
 
 def rate(runs, ttype):
+    """Returns (successes, runs) for one task type, or None when it has no runs."""
     # .get with object_nav default keeps old-format results (reduced suite,
     # which predates the 'type' field) readable.
     subset = [r for r in runs if r.get('type', 'object_nav') == ttype]

@@ -52,7 +52,9 @@ Gazebo without prior confirmation.
 | Navigation | Nav2 | ros-jazzy | SimpleCommander API |
 | SLAM | SLAM Toolbox | ros-jazzy | Live mapping (no AMCL, ADR-004) |
 | Middleware | CycloneDDS | ros-jazzy | Pinned to loopback via cyclonedds.xml (ADR-006) |
-| Dashboard | FastAPI + uvicorn | pip | http://localhost:8080 — observability, goals, memory viewer (ADR-024), WASD driving (ADR-023) |
+| Velocity arbitration | cmd_vel_mux_node | robot_skills | Single owner of /cmd_vel: manual driving over Nav2 (ADR-029) |
+| Dashboard | FastAPI + uvicorn | pip | http://localhost:8080 — live floor plan, goals, memory viewer (ADR-024/030), WASD driving (ADR-023) |
+| Browser tests | Playwright + Chromium | pip | Dashboard page tested headless in layer 1 (ADR-030) |
 
 No agent framework: skills are dispatched directly (`robot_brain/toolkit.py`).
 LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
@@ -67,7 +69,7 @@ LangChain was removed as vestigial (ADR-012); a real agent loop is roadmap.
 │   ├── robot_interfaces/   # Custom ROS 2 msgs/srvs (build first)
 │   ├── robot_zones/        # Shared SQLite store of named zones + room meanings
 │   ├── robot_rag/          # ChromaDB + embeddings + semantic memory
-│   ├── robot_skills/       # Executable nodes: nav, explore, perceive, report
+│   ├── robot_skills/       # Executable nodes: nav, explore, perceive, report; cmd_vel mux
 │   ├── robot_brain/        # LLM planner (cognitive core)
 │   ├── robot_dashboard/    # Web dashboard: observability, goals, RAG viewer, teleop
 │   └── robot_bringup/      # Launch files for the whole system
@@ -243,9 +245,16 @@ ros2 service call /rag/inspect robot_interfaces/srv/InspectMemory \
 # stopped; dry run first, --apply backs data/chroma_db up before writing.
 ros2 run robot_rag compact_memory            # read what it would fold
 ros2 run robot_rag compact_memory --apply    # then do it
+# Move memories written under an old session id to the frame's id (ADR-028)
+ros2 run robot_rag compact_memory --apply --retag-session OLD fresh_turtlebot3_house_x-2.00_y-0.50
+
+# Drive from a terminal instead of the dashboard: publish to the mux input,
+# never straight to /cmd_vel (ADR-029)
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -r cmd_vel:=/robot/cmd_vel_manual
 
 # Map the house by hand first: drive with WASD in the dashboard, name each room
-# with "Marcar zona aquí", then save the map. Nav2 is optional for that run.
+# with "Nombrar esta habitación", then "Guardar mapa". Manual driving outranks
+# Nav2 through cmd_vel_mux_node (ADR-029); use_nav2:=false keeps Nav2 out of it.
 ros2 launch robot_bringup full_system.launch.py use_nav2:=false
 
 # Start from a saved map (data/maps/<id>, or shipped in robot_bringup/maps/<id>):
@@ -255,11 +264,12 @@ ros2 launch robot_bringup full_system.launch.py saved_map:=house
 # Demo setup: Gazebo window + RViz + dashboard on map `house` (GUI costs RTF)
 ros2 launch robot_bringup demo.launch.py
 
-# Layer 1 — pure logic, no ROS needed (279 tests) + lint
+# Layer 1 — pure logic, no ROS needed (319 tests, 8 of them drive the dashboard
+# page in headless Chromium — once: python3 -m playwright install chromium) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
 
-# Layer 2 — node level, needs a sourced workspace (26 tests). The env var is
+# Layer 2 — node level, needs a sourced workspace (28 tests). The env var is
 # required: Jazzy's launch_testing pytest plugin breaks collection (ADR-018).
 source ~/robot_ws/setup_env.sh
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test && colcon test-result --all
@@ -270,7 +280,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 279 + 26, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 319 + 28, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 
@@ -316,7 +326,7 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 
 | Problem | Cause | Workaround |
 |----------|-------|------------|
-| Gazebo renders on llvmpipe | Incomplete WSL2 GPU passthrough | Gazebo GUI disabled by default (RTF 0.15→~1.0); view via RViz (use_rviz:=true) or dashboard. use_gz_gui:=true if needed |
+| Gazebo renders on llvmpipe | Incomplete WSL2 GPU passthrough | Gazebo GUI off by default (it once cost RTF ~1.0→0.15; measured 2026-09-16: ~0.68 headless, ~0.59 with it — the dashboard shows the live factor). View via RViz or dashboard; use_gz_gui:=true if needed |
 | Closing the Gazebo GUI killed everything | on_exit_shutdown:true on the stock gzclient include | Own simulation.launch.py launches server/GUI separately, GUI without shutdown |
 | NPU unreachable in WSL2 | WSL2 doesn't expose the NPU device | Reserved for native Windows (voice phase: Whisper) |
 | SLAM drift on long runs | Software-rendered sim | Save the map (dashboard "Guardar mapa" / `save_map` skill) and relaunch with `saved_map:=<id>` (ADR-026) |
@@ -324,7 +334,7 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 | Gazebo window doesn't appear | Dead msrdc.exe (WSLg bridge) | `wsl --shutdown` from PowerShell and relaunch |
 | Goals outside the SLAM map | Map grows with exploration | Explore first, or start from a saved map (`saved_map:=house`); Nav2 rejects "outside bounds" goals |
 | RViz floods the terminal with "controller_server service not available … Retrying" | Nav2's RViz panels poll for servers that `use_nav2:=false` never starts | Fixed: without Nav2, RViz opens `robot_bringup/rviz/mapping.rviz` (no Nav2 panels). Harmless if seen on an old build |
-| Autonomous explore maps little of the house | Nearest-frontier hugs walls; 3.5 m LIDAR; doors blocked by 0.5 m inflation | Map by hand with WASD (`use_nav2:=false`) and save it (ADR-023, ADR-026) |
+| Autonomous explore maps little of a big house | 3.5 m LIDAR leaves large rooms unknown; the old nearest-frontier rule hugged walls | Explore now targets frontier clusters with clearance (+40% area measured, ADR-027); for a full map, drive with WASD and save it (ADR-023, ADR-026) |
 | End-to-end navigation unreliable | Narrow doorways + software physics | Benchmark measures the planning decision (ADR-013) |
 | Stale installs after edits | colcon symlink-install quirk | `rm -rf build/<pkg> install/<pkg>` then rebuild |
 

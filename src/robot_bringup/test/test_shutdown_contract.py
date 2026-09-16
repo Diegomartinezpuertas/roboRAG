@@ -34,6 +34,7 @@ NODES = [
     ('robot_dashboard', 'dashboard_node'),
     ('robot_skills', 'skills_executor_node'),
     ('robot_brain', 'llm_planner_node'),
+    ('robot_skills', 'cmd_vel_mux_node'),
 ]
 
 STARTUP_GRACE_SEC = 12.0

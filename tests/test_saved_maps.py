@@ -85,3 +85,41 @@ def test_the_original_params_are_not_modified(tmp_path):
     params = {'slam_toolbox': {'ros__parameters': {'mode': 'mapping'}}}
     slam_params_for_saved_map(params, tmp_path / 'map')
     assert params == {'slam_toolbox': {'ros__parameters': {'mode': 'mapping'}}}
+
+
+# --- which memory session a launch pins (ADR-028) --------------------------
+
+from robot_bringup.saved_maps import (  # noqa: E402
+    DEFAULT_SPAWN_X,
+    DEFAULT_SPAWN_Y,
+    DEFAULT_WORLD,
+    fresh_map_session_id,
+    memory_session_for_launch,
+)
+
+
+def test_a_fresh_map_session_is_named_after_its_frame():
+    session = fresh_map_session_id('turtlebot3_house', -2.0, -0.5)
+    assert session == 'fresh_turtlebot3_house_x-2.00_y-0.50'
+
+
+def test_fresh_maps_of_the_same_frame_share_a_session_and_other_frames_do_not():
+    same = fresh_map_session_id(DEFAULT_WORLD, DEFAULT_SPAWN_X, DEFAULT_SPAWN_Y)
+    assert same == fresh_map_session_id(DEFAULT_WORLD, -2.0, -0.5)
+    assert same != fresh_map_session_id(DEFAULT_WORLD, 1.0, -0.5)
+    assert same != fresh_map_session_id('another_world', -2.0, -0.5)
+
+
+def test_a_fresh_session_id_is_also_a_valid_saved_map_id(tmp_path):
+    """save_map without a name saves under the session id; it must be loadable."""
+    session = fresh_map_session_id('weird world/name', -2.0, -0.5)
+    folder = tmp_path / 'data' / 'maps' / session
+    folder.mkdir(parents=True)
+    (folder / 'map.posegraph').write_bytes(b'g')
+    (folder / 'map.data').write_bytes(b'd')
+    assert resolve_saved_map(session, tmp_path, tmp_path / 'share').parent == folder
+
+
+def test_a_saved_map_pins_its_own_id_and_no_map_pins_the_frame():
+    assert memory_session_for_launch('house', DEFAULT_WORLD, -2.0, -0.5) == 'house'
+    assert memory_session_for_launch('  ', DEFAULT_WORLD, -2.0, -0.5).startswith('fresh_')

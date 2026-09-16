@@ -1,7 +1,9 @@
 # ADR-026: Start from a saved map — `saved_map:=<id>`, a demo launch, and zones that follow the session
 
 **Date:** 2026-09-16
-**Status:** Accepted
+**Status:** Accepted — its doorway claim corrected by
+[ADR-027](ADR-027-exploration-frontier-clusters.md); its open session item resolved by
+[ADR-028](ADR-028-memory-session-per-map-frame.md)
 
 ## Context
 
@@ -12,9 +14,11 @@ interesting can happen — and that phase is where this stack is weakest.
 
 It was measured while trying to produce a map for the demo. Five minutes of the
 frontier explorer on the TurtleBot3 house mapped **9.7 × 4.4 m**: the nearest-
-frontier rule kept picking cells along the same wall, and the one doorway it
-reached failed to plan — with `inflation_radius: 0.5` around a 0.15 m robot, a
-0.8 m door has no cost-free path. Driving explicit waypoints helped, but large
+frontier rule kept picking cells along the same wall, and a frontier goal it
+set beside the doorway failed to plan. *(Corrected in ADR-027: this was first
+read as "0.5 m inflation makes a 0.8 m door impassable". Measured afterwards, the
+robot crosses that door both ways at 0.5 m; what fails is a goal placed against
+a wall, inside the inflated cost.)* Driving explicit waypoints helped, but large
 rooms stayed unknown: the LDS-01 reaches 3.5 m, and SLAM Toolbox does not mark
 free space along rays that hit nothing. A human with WASD (ADR-023) maps the
 house faster and better than the explorer does.
@@ -82,8 +86,9 @@ produces a demo whose memories point at a map that is not loaded, which looks
 like a RAG failure and is not one.
 
 **Why the Gazebo GUI only in the demo launch.** On WSL2 it renders on llvmpipe
-and drops the real-time factor from ~1.0 to ~0.15 (the reason it is off by
-default). A recording wants the window; everyday runs want the speed.
+and costs real-time factor — ~0.15 on the setup that decided it was off by
+default; measured on the current one (2026-09-16), ~0.68 headless and ~0.59
+with the window. A recording wants the window; everyday runs want the speed.
 
 ## Consequences
 
@@ -95,11 +100,11 @@ default). A recording wants the window; everyday runs want the speed.
   every launch did before, since nothing ever calls `MapSession.rotate()`. That
   gap predates this ADR and is recorded as an open item: rotating on every fresh
   map would be correct in principle, and would discard the memory of everyone
-  whose sim always spawns at the same pose.
+  whose sim always spawns at the same pose. *(Resolved in ADR-028: a fresh map's
+  session is named after its frame — world plus spawn pose.)*
 - `simulation.launch.py` writes one small temporary YAML per launch with a saved
   map.
-- The doorway finding — `inflation_radius: 0.5` makes a 0.8 m door impassable
-  for the planner — is a likely contributor to the documented end-to-end
-  navigation unreliability, and is listed as a follow-up rather than changed
-  here: it would alter the conditions under which the published results were
-  produced.
+- ~~The doorway finding — `inflation_radius: 0.5` makes a 0.8 m door impassable~~
+  Withdrawn: measured in ADR-027, the robot crosses the door at 0.5 m in both
+  directions. The real failure — frontier goals placed against walls — is fixed
+  there by choosing targets with clearance.

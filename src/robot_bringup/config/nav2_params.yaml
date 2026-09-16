@@ -334,7 +334,9 @@ collision_monitor:
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
     cmd_vel_in_topic: "cmd_vel_smoothed"
-    cmd_vel_out_topic: "cmd_vel"
+    # Not /cmd_vel: Nav2 is one of two drivers, and cmd_vel_mux_node decides who
+    # reaches the robot — manual driving outranks it (ADR-029).
+    cmd_vel_out_topic: "cmd_vel_nav_out"
     state_topic: "collision_monitor_state"
     transform_tolerance: 0.5
     source_timeout: 5.0

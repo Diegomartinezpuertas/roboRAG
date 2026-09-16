@@ -1,7 +1,8 @@
 # ADR-024: A read-only service for looking at the memory, not a second reader
 
 **Date:** 2026-09-15
-**Status:** Accepted
+**Status:** Accepted — extended by
+[ADR-030](ADR-030-dashboard-redesign-and-browser-tests.md) (deleting semantic_map memories from the viewer)
 
 ## Context
 
