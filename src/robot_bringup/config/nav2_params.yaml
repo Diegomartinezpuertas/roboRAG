@@ -176,7 +176,10 @@ local_costmap:
       height: 3
       resolution: 0.05
       robot_radius: 0.20
-      plugins: ["obstacle_layer", "voxel_layer", "inflation_layer"]
+      # No voxel_layer: its only observation source is the same 2D scan the
+      # obstacle_layer already marks and clears with, and maintaining the 3D
+      # grid cost real-time factor on a software-rendered sim (ADR-037).
+      plugins: ["obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         inflation_radius: 0.5
@@ -226,7 +229,7 @@ global_costmap:
       robot_radius: 0.20
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "voxel_layer", "inflation_layer"]
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true

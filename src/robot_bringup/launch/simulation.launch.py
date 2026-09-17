@@ -38,15 +38,19 @@ from launch.substitutions import AndSubstitution, LaunchConfiguration, NotSubsti
 from launch_ros.actions import Node
 
 from robot_bringup.saved_maps import (
+    DEFAULT_SAVED_MAP_MODE,
     DEFAULT_SPAWN_X,
     DEFAULT_SPAWN_Y,
-    DEFAULT_SAVED_MAP_MODE,
     DEFAULT_WORLD,
+    nav2_params_for_start_pose,
     resolve_map_image,
     resolve_saved_map,
     slam_params_for_saved_map,
+    start_pose_in_zone,
     uses_amcl,
+    world_pose_for_map_point,
 )
+from robot_zones.zone_store import ZoneStore
 from robot_bringup.sim_guard import (
     gazebo_partition,
     running_gazebo_servers,
@@ -68,6 +72,48 @@ def _refuse_second_simulation(context) -> list:
     return []
 
 
+def _start_pose(context) -> tuple[float, float] | None:
+    """The map-frame point this launch starts the robot at, or None for the map's origin.
+
+    `start_zone:=<name>` reads the zone's centre from the shared zone store, so
+    a run on a saved map can begin in a room instead of wherever mapping began
+    (ADR-035). An unknown name fails the launch with the stored names.
+    """
+    zone = LaunchConfiguration('start_zone', default='').perform(context).strip()
+    if not zone:
+        return None
+    zones = ZoneStore(os.path.join(WS_ROOT, 'data', 'zones.db')).load_all()
+    return start_pose_in_zone(zone, zones)
+
+
+def _rewritten(params: dict, prefix: str) -> str:
+    """Writes parameters to a temporary YAML file and returns its path."""
+    with tempfile.NamedTemporaryFile('w', suffix='.yaml', prefix=prefix, delete=False) as handle:
+        yaml.safe_dump(params, handle)
+        return handle.name
+
+
+def _robot(context, model_path: str) -> list:
+    """Spawns the waffle where this launch starts: the start zone, else x_pose/y_pose."""
+    start = _start_pose(context)
+    if start is None:
+        x_pose = LaunchConfiguration('x_pose', default=str(DEFAULT_SPAWN_X)).perform(context)
+        y_pose = LaunchConfiguration('y_pose', default=str(DEFAULT_SPAWN_Y)).perform(context)
+    else:
+        world_x, world_y = world_pose_for_map_point(*start)
+        x_pose, y_pose = f'{world_x:.3f}', f'{world_y:.3f}'
+    return [
+        LogInfo(msg=f'Spawning the robot at world ({x_pose}, {y_pose})'),
+        Node(
+            package='ros_gz_sim',
+            executable='create',
+            arguments=['-name', 'waffle', '-file', model_path,
+                       '-x', x_pose, '-y', y_pose, '-z', '0.01'],
+            output='screen',
+        ),
+    ]
+
+
 def _slam(context, slam_params_file: str, nav2_params_file: str, use_sim_time) -> list:
     """Includes what provides the map and localization: SLAM Toolbox, or map_server + AMCL.
 
@@ -87,6 +133,7 @@ def _slam(context, slam_params_file: str, nav2_params_file: str, use_sim_time) -
     mode = LaunchConfiguration(
         'saved_map_mode', default=DEFAULT_SAVED_MAP_MODE,
     ).perform(context).strip()
+    start_pose = _start_pose(context)
     params_file = slam_params_file
     actions = []
     if map_id:
@@ -95,6 +142,13 @@ def _slam(context, slam_params_file: str, nav2_params_file: str, use_sim_time) -
         )
         if uses_amcl(map_id, mode):
             map_yaml = resolve_map_image(map_base)
+            localization_params = nav2_params_file
+            if start_pose is not None:
+                with open(nav2_params_file, encoding='utf-8') as source:
+                    localization_params = _rewritten(
+                        nav2_params_for_start_pose(yaml.safe_load(source), start_pose),
+                        f'nav2_params_{map_id}_',
+                    )
             return [
                 LogInfo(msg=f'Saved map "{map_id}" loads read-only (map_server + AMCL): {map_yaml}'),
                 IncludeLaunchDescription(
@@ -106,7 +160,7 @@ def _slam(context, slam_params_file: str, nav2_params_file: str, use_sim_time) -
                     ),
                     launch_arguments={
                         'map': str(map_yaml),
-                        'params_file': nav2_params_file,
+                        'params_file': localization_params,
                         'use_sim_time': use_sim_time,
                         'autostart': 'true',
                         'use_composition': 'False',
@@ -114,13 +168,13 @@ def _slam(context, slam_params_file: str, nav2_params_file: str, use_sim_time) -
                 ),
             ]
         with open(slam_params_file, encoding='utf-8') as source:
-            params = slam_params_for_saved_map(yaml.safe_load(source), map_base)
-        with tempfile.NamedTemporaryFile(
-            'w', suffix='.yaml', prefix=f'slam_params_{map_id}_', delete=False,
-        ) as rewritten:
-            yaml.safe_dump(params, rewritten)
-            params_file = rewritten.name
-        actions.append(LogInfo(msg=f'SLAM continues saved map "{map_id}" (mapping): {map_base}'))
+            params = slam_params_for_saved_map(yaml.safe_load(source), map_base, start_pose)
+        params_file = _rewritten(params, f'slam_params_{map_id}_')
+        where = 'at the dock' if start_pose is None \
+            else f'at ({start_pose[0]:.2f}, {start_pose[1]:.2f})'
+        actions.append(
+            LogInfo(msg=f'SLAM continues saved map "{map_id}" (mapping), starting {where}'),
+        )
     else:
         uses_amcl(map_id, mode)   # a typo in saved_map_mode fails here too
     actions.append(IncludeLaunchDescription(
@@ -143,9 +197,6 @@ def generate_launch_description() -> LaunchDescription:
     use_nav2 = LaunchConfiguration('use_nav2', default='true')
     use_rviz = LaunchConfiguration('use_rviz', default='true')
     use_gz_gui = LaunchConfiguration('use_gz_gui', default='false')
-    x_pose = LaunchConfiguration('x_pose', default=str(DEFAULT_SPAWN_X))
-    y_pose = LaunchConfiguration('y_pose', default=str(DEFAULT_SPAWN_Y))
-
     bringup_dir = get_package_share_directory('robot_bringup')
     tb3_gazebo_dir = get_package_share_directory('turtlebot3_gazebo')
     ros_gz_sim_dir = get_package_share_directory('ros_gz_sim')
@@ -194,12 +245,7 @@ def generate_launch_description() -> LaunchDescription:
     waffle_model_path = os.path.join(
         bringup_dir, 'models', 'turtlebot3_waffle', 'model.sdf',
     )
-    spawn_robot = Node(
-        package='ros_gz_sim',
-        executable='create',
-        arguments=['-name', 'waffle', '-file', waffle_model_path, '-x', x_pose, '-y', y_pose, '-z', '0.01'],
-        output='screen',
-    )
+    spawn_robot = OpaqueFunction(function=_robot, args=[waffle_model_path])
     bridge_params = os.path.join(tb3_gazebo_dir, 'params', 'turtlebot3_waffle_bridge.yaml')
     ros_gz_bridge = Node(
         package='ros_gz_bridge',
@@ -287,6 +333,11 @@ def generate_launch_description() -> LaunchDescription:
             'saved_map', default_value='',
             description='Start SLAM from a saved map id (data/maps/<id> or robot_bringup/maps/<id>); '
                         'empty maps from scratch',
+        ),
+        DeclareLaunchArgument(
+            'start_zone', default_value='',
+            description="Start at this zone's centre instead of where the map begins: "
+                        'spawns the robot there and tells SLAM (map_start_pose) or AMCL',
         ),
         DeclareLaunchArgument(
             'saved_map_mode', default_value=DEFAULT_SAVED_MAP_MODE,

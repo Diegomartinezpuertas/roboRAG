@@ -40,6 +40,11 @@ taking down the whole Gazebo↔ROS 2 bridge (`/odom`, `/tf`, `/scan`,
 
 ## Consequences
 
+*(2026-09-17: the same camera also ran at 30 Hz, rendered on the CPU. At 5 Hz
+the simulation's real-time factor went from 0.47 to 0.90 — the skills sample one
+frame at a time, so nothing downstream noticed. See
+[ADR-037](ADR-037-pay-for-the-real-time-factor.md).)*
+
 - If the system's `turtlebot3_gazebo` is upgraded, our model copy can drift
   from upstream fixes — diff occasionally.
 - Any future high-resolution sensor must be checked with `ros2 topic bw`

@@ -309,11 +309,16 @@ careful to call unreliable.
   The planner's rules instruct it to explore when a location is unknown. A
   house mapped once — by hand with WASD, saved from the dashboard — can be
   loaded with `saved_map:=<id>` so a run starts with the whole map
-  ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)). SLAM keeps
-  mapping from it, which is what navigates on a hand-made map, at the cost of
-  redrawing walls it disagrees with; `saved_map_mode:=localization` loads it
-  read-only instead (map_server + AMCL) — measured on both, 4/4 rooms against
-  1/4 ([ADR-035](decisions/ADR-035-saved-map-loads-read-only.md)).
+  ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)). It loads
+  read-only — map_server serves it, AMCL localizes on it — so no run changes
+  it, and the run starts at a named zone (`start_zone`), without which no plan
+  could leave the spawn nook; `saved_map_mode:=mapping` keeps SLAM mapping from
+  it instead ([ADR-035](decisions/ADR-035-saved-map-loads-read-only.md)).
+- **The simulation's speed is a design constraint:** with the camera at 30 Hz
+  and a voxel layer fed the same 2D scan as the obstacle layer, the real-time
+  factor sat at 0.47 and every motion played at half speed. At 5 Hz and without
+  the voxel layers it is 0.90
+  ([ADR-037](decisions/ADR-037-pay-for-the-real-time-factor.md)).
 - **Collisions corrupt maps, so the footprint has to be right:** Nav2's
   `robot_radius` is 0.20 m — as close to the shipped `model.sdf`'s 0.237 m as
   this house can plan with. At the 0.15 m inherited from TurtleBot3's Jazzy

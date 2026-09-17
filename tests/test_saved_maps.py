@@ -85,8 +85,8 @@ def test_mapping_mode_continues_the_saved_map_from_the_dock(tmp_path):
 
 
 def test_only_a_saved_map_in_localization_mode_uses_amcl():
-    """Default is SLAM continuing the map; read-only (map_server + AMCL) is opt-in (ADR-035)."""
-    assert not uses_amcl('house')                 # default: mapping mode
+    """Read-only (map_server + AMCL) is the default for a saved map (ADR-035)."""
+    assert uses_amcl('house')                     # default: localization
     assert uses_amcl('house', ' localization ')
     assert not uses_amcl('house', 'mapping')
     assert not uses_amcl('')                      # mapping from scratch
@@ -162,3 +162,51 @@ def test_a_fresh_session_id_is_also_a_valid_saved_map_id(tmp_path):
 def test_a_saved_map_pins_its_own_id_and_no_map_pins_the_frame():
     assert memory_session_for_launch('house', DEFAULT_WORLD, -2.0, -0.5) == 'house'
     assert memory_session_for_launch('  ', DEFAULT_WORLD, -2.0, -0.5).startswith('fresh_')
+
+
+# --- starting a run somewhere other than where the map begins (ADR-035) -----
+
+from robot_bringup.saved_maps import (  # noqa: E402
+    nav2_params_for_start_pose,
+    start_pose_in_zone,
+    world_pose_for_map_point,
+)
+
+ZONES = {'entrada': {'x_min': 2.5, 'x_max': 3.7, 'y_min': 0.5, 'y_max': 1.1}}
+
+
+def test_a_start_zone_becomes_its_centre_in_the_map_frame():
+    assert start_pose_in_zone(' entrada ', ZONES) == pytest.approx((3.1, 0.8))
+
+
+@pytest.mark.parametrize('zone', ['salon', 'ENTRADA', ''])
+def test_an_unknown_start_zone_fails_listing_the_stored_ones(zone):
+    """A typo would otherwise spawn the robot inside a wall."""
+    with pytest.raises(ValueError) as error:
+        start_pose_in_zone(zone, ZONES)
+    assert 'entrada' in str(error.value)
+
+
+def test_the_world_pose_of_a_map_point_is_the_spawn_offset():
+    assert world_pose_for_map_point(3.1, 0.8) == pytest.approx((1.1, 0.3))
+    assert world_pose_for_map_point(0.0, 0.0, -2.0, -0.5) == pytest.approx((-2.0, -0.5))
+
+
+def test_slam_is_told_where_it_starts_instead_of_the_dock(tmp_path):
+    params = {'slam_toolbox': {'ros__parameters': {'mode': 'mapping', 'map_start_at_dock': True}}}
+    rewritten = slam_params_for_saved_map(params, tmp_path / 'map', (3.1, 0.8))
+    ros = rewritten['slam_toolbox']['ros__parameters']
+    assert ros['map_start_pose'] == [3.1, 0.8, 0.0]
+    assert 'map_start_at_dock' not in ros          # mutually exclusive
+
+
+def test_amcl_is_told_where_it_starts_and_keeps_its_other_parameters():
+    params = {'amcl': {'ros__parameters': {
+        'set_initial_pose': True, 'laser_max_range': 3.5,
+        'initial_pose': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'yaw': 0.0},
+    }}}
+    rewritten = nav2_params_for_start_pose(params, (3.1, 0.8))
+    ros = rewritten['amcl']['ros__parameters']
+    assert (ros['initial_pose']['x'], ros['initial_pose']['y']) == pytest.approx((3.1, 0.8))
+    assert ros['set_initial_pose'] is True and ros['laser_max_range'] == 3.5
+    assert params['amcl']['ros__parameters']['initial_pose']['x'] == 0.0   # input untouched

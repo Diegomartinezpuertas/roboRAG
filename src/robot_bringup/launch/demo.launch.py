@@ -12,9 +12,10 @@
   data/maps/house (save it from the dashboard), or one shipped in
   robot_bringup/maps/house. No mapping phase before recording, and the memory
   session is pinned to it. With no `house` map anywhere, the launch fails and
-  says where it looked. SLAM keeps mapping from it, so a take can still move
-  its walls; every launch starts from the saved file again, and
-  saved_map_mode:=localization loads it read-only instead (ADR-035).
+  says where it looked. It loads read-only (map_server + AMCL), so a take
+  cannot change the map, and the run starts in the `entrada` zone instead of
+  the spawn nook, which is what makes read-only navigation work at all
+  (ADR-035); saved_map_mode:=mapping keeps mapping from it instead.
 
 Every argument can still be overridden, e.g. `saved_map:=casa` for a map you
 saved yourself. See docs/decisions/ADR-026-shipped-map-and-demo-launch.md.
@@ -48,7 +49,12 @@ def generate_launch_description() -> LaunchDescription:
             description='Saved map id to start from (shipped: house); empty maps from scratch',
         ),
         DeclareLaunchArgument(
-            'saved_map_mode', default_value='mapping',
+            'start_zone', default_value='entrada',
+            description="Start the robot at this zone's centre — the entrance, so it begins "
+                        'somewhere it can turn around; empty starts where the map begins',
+        ),
+        DeclareLaunchArgument(
+            'saved_map_mode', default_value='localization',
             description='mapping (SLAM Toolbox) keeps adding scans; localization '
                         '(map_server + AMCL) leaves the map exactly as saved',
         ),
@@ -62,6 +68,7 @@ def generate_launch_description() -> LaunchDescription:
                 'use_nav2': LaunchConfiguration('use_nav2'),
                 'saved_map': LaunchConfiguration('saved_map'),
                 'saved_map_mode': LaunchConfiguration('saved_map_mode'),
+                'start_zone': LaunchConfiguration('start_zone'),
             }.items(),
         ),
     ])

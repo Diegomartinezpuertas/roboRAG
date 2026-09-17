@@ -52,7 +52,8 @@ def generate_launch_description() -> LaunchDescription:
     # One id, two consumers: SLAM loads the map, rag_node pins its memory
     # session to it — so the map and the memories written on it stay paired.
     saved_map = LaunchConfiguration('saved_map', default='')
-    saved_map_mode = LaunchConfiguration('saved_map_mode', default='mapping')
+    saved_map_mode = LaunchConfiguration('saved_map_mode', default='localization')
+    start_zone = LaunchConfiguration('start_zone', default='')
 
     simulation_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -64,6 +65,7 @@ def generate_launch_description() -> LaunchDescription:
             'use_gz_gui': use_gz_gui,
             'saved_map': saved_map,
             'saved_map_mode': saved_map_mode,
+            'start_zone': start_zone,
         }.items(),
     )
 
@@ -87,7 +89,11 @@ def generate_launch_description() -> LaunchDescription:
             description='Start from a saved map id (SLAM + memory session); empty maps from scratch',
         ),
         DeclareLaunchArgument(
-            'saved_map_mode', default_value='mapping',
+            'start_zone', default_value='',
+            description="Start the robot at this zone's centre instead of where the map begins",
+        ),
+        DeclareLaunchArgument(
+            'saved_map_mode', default_value='localization',
             description='With saved_map: mapping (SLAM Toolbox) keeps adding scans; '
                         'localization (map_server + AMCL) leaves the map exactly as saved',
         ),

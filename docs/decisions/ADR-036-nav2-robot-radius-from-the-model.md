@@ -112,6 +112,11 @@ not plan out of the spawn pose, so the shipped value is 0.20, between the two.
 - **Tight spots cost time.** Two legs took 109 s and 269 s at 0.24, against
   5–30 s in the open: the extra clearance narrows the routes through this
   house's doorways.
+- **The cap was the start pose, not the house.** Once runs start in a named
+  zone instead of the spawn nook ([ADR-035](ADR-035-saved-map-loads-read-only.md)),
+  the planner finds paths to every zone at 0.24 as well. The shipped value stays
+  **0.20** because a run on a *fresh* map still begins in that nook — the
+  benchmark's live seeding does — and 0.22 upwards cannot leave it.
 - **A house can be too tight for a correct footprint, and this one is.** The
   radius is set by the narrowest place the robot has to leave, not by the robot.
   The check is worth repeating on a new map or a new spawn, and the way to run

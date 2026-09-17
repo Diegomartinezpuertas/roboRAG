@@ -1,8 +1,9 @@
-# ADR-035: Loading a saved map read-only — offered, measured, not the default
+# ADR-035: A saved map loads read-only, and a run starts in a named zone
 
 **Date:** 2026-09-17
-**Status:** Accepted — `saved_map_mode` added; the default stays ADR-026's
-mapping, because read-only navigated worse on the maps this project produces
+**Status:** Accepted — changes ADR-026's load behaviour (it kept mapping).
+Read-only only became usable once runs stopped starting in the spawn nook;
+both halves are measured below
 
 ## Context
 
@@ -62,11 +63,17 @@ confirmed live on SLAM Toolbox 2.8.5:
      (`set_initial_pose: true` in `nav2_params.yaml`, `laser_max_range`
      corrected to the LDS-01's 3.5 m). Nothing writes the map.
    Without a saved map nothing changes: SLAM maps from scratch (ADR-004).
-2. **The default stays `mapping`, on the measurement below**, not on principle:
-   read-only is the better idea and the worse behaviour on a map with 0.3–0.5 m
-   of distortion, which is what mapping this house by hand produces.
-3. **An unknown mode fails the launch**, like an unknown map id.
-4. **`save_map` writes the occupancy image too** (`map.yaml` + `map.pgm`, via
+2. **`localization` is the default.** A demo or a benchmark on a saved map
+   wants the map that was saved. It reached that state in two steps: read-only
+   first navigated 0 of 4 rooms, and the cause was not the mode (below).
+3. **`start_zone:=<name>` starts the robot at a named zone's centre**, spawning
+   it there in the world and telling SLAM (`map_start_pose`) or AMCL
+   (`initial_pose`) where that is. `demo.launch.py` uses `entrada`. Without it a
+   run starts wherever mapping began — in this house a nook 0.25 m from a wall,
+   which no plan could leave once the costmap knew the robot's real size
+   (ADR-036). An unknown zone name fails the launch with the stored names.
+4. **An unknown mode fails the launch**, like an unknown map id.
+5. **`save_map` writes the occupancy image too** (`map.yaml` + `map.pgm`, via
    SLAM Toolbox's map saver) next to the pose graph, since that is what
    map_server loads, **and verifies both files were written**: it compares their
    modification stamps before and after each call
@@ -75,7 +82,7 @@ confirmed live on SLAM Toolbox 2.8.5:
    the mode; an empty map folder it created is removed. A map saved before this
    change has no image, and opening it read-only fails with the command that
    writes one.
-5. **The localizer is found by name, not assumed.** `nav_skill` looks for
+6. **The localizer is found by name, not assumed.** `nav_skill` looks for
    `amcl` or `slam_toolbox` in the graph and waits for that lifecycle node
    (`robot_skills/localization.py`). SimpleCommander's own AMCL wait is not
    used: it publishes an initial pose at the origin until AMCL answers, which
@@ -88,10 +95,14 @@ recorded twice, and the intent — "the map a run starts from is the map that wa
 saved" — is right. The parameter makes it available and makes the comparison
 repeatable; a better map is what it waits for.
 
-**Why mapping stays the default.** Measured: 4 of 4 rooms reached in mapping
-mode, 1 of 4 read-only on the same house. With the map 0.4 m out in places,
-Nav2's static costmap disagrees with the world about where the doorways are,
-while a mapping SLAM redraws them where the LIDAR sees them.
+**Why read-only is the default, after all.** The first measurements said the
+opposite — 4 of 4 rooms in mapping mode against 1 of 4 read-only — and the
+reason turned out to be the *start pose*, not the map: every run began in the
+spawn nook, where the planner could not produce a path at any robot radius
+(tested down to 0.14 m). Starting in the `entrada` zone instead, read-only
+drove all three of the demo's goals, twice. With the map frozen, a take cannot
+change the map the next take starts from, which is the property the demo
+needs.
 
 **Why AMCL and not SLAM Toolbox's localization mode** for the read-only path.
 Measured above: that mode lost the robot by 0.79 m on a tour, and reached one
@@ -115,14 +126,29 @@ Measured on 2026-09-17, on two hand-made maps of the same house, one tour each
 (navigate to the four named rooms, `scan_360` in each), ground truth read from
 Gazebo at every stop:
 
-| Load mode | Rooms reached | Localization error vs ground truth | Map after the tour |
+| Load mode, starting where the map begins | Rooms reached | Localization error vs ground truth | Map after the tour |
 |---|---|---|---|
 | `mapping` (SLAM continues the graph) | **4 / 4** | — | walls doubled where the map disagreed with the world |
 | `localization` (map_server + AMCL), first map | 0 / 4 | 0.20 m, 13° after a slip | unchanged |
 | `localization`, remapped map | 1 / 4 | 0.41–0.44 m, < 2° | unchanged |
 | SLAM Toolbox's own localization mode | 1 / 4 | 0.79 m | unchanged |
 
-- **AMCL was not the problem; the maps are.** At the pose where the tour
+Then the same map read-only, `start_zone:=entrada`, driving the three goals the
+demo records (navigate + perceive, door to door, two runs — the second after
+[ADR-037](ADR-037-pay-for-the-real-time-factor.md) sped the simulation up):
+
+| Goal | From the nook | From `entrada` | After ADR-037 |
+|---|---|---|---|
+| "Ve a estacion_b" | no plan | arrived, 70 s | arrived, **34 s** |
+| "Llévame a donde había muchos objetos" | no plan | arrived, 9 s | arrived, 9 s |
+| "Ve donde se suele cocinar" | no plan | arrived, 37 s | arrived, **27 s** |
+
+- **The spawn nook was the problem, and the map distortion is the next one.**
+  From the nook the planner refused every goal; from `entrada` the same map,
+  the same mode and the same code drove all three. The distortion below still
+  costs accuracy — the robot arrives 0.4 m from where the map says — but it no
+  longer prevents navigation.
+- **AMCL was not the problem either; the maps are.** At the pose where the tour
   stopped, the scan fitted the saved map perfectly 0.47 m away from the robot's
   true position, and AMCL was within 0.11 m of that fitting pose. Both maps
   carry that kind of offset (0.31 m and 0.47 m measured in different rooms), so

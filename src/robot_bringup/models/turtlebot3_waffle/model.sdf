@@ -374,7 +374,11 @@
       <sensor name="camera" type="camera">
         <always_on>true</always_on>
         <visualize>true</visualize>
-        <update_rate>30</update_rate>
+        <!-- 5 Hz, not 30: llvmpipe renders this camera on the CPU and it was the
+             single largest cost in the simulation (real-time factor 0.47 -> 0.60
+             measured 2026-09-17). `perceive` and `scan_360` sample one frame at a
+             time, so a 200 ms refresh is more than they need. -->
+        <update_rate>5</update_rate>
         <topic>camera/image_raw</topic>
         <gz_frame_id>camera_rgb_frame</gz_frame_id>
         <camera name="intel_realsense_r200">

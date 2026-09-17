@@ -210,7 +210,7 @@ docker build -t robot-rag-agent .
 docker run --rm robot-rag-agent
 ```
 
-Expected: `ruff` clean, **401** + **28** tests, exit `0`. The image sources the
+Expected: `ruff` clean, **408** + **28** tests, exit `0`. The image sources the
 project's own `setup_env.sh` and runs at `/robot_ws`, which also exercises the
 path-portability fix ([ADR-015](docs/decisions/ADR-015-workspace-relative-paths.md)).
 
@@ -244,11 +244,12 @@ ros2 launch robot_bringup full_system.launch.py
 # driving outranks Nav2 (ADR-029); use_nav2:=false keeps Nav2 out of a mapping run
 ros2 launch robot_bringup full_system.launch.py use_nav2:=false
 
-# ...then start from that map instead of an empty one — ADR-026. SLAM keeps
-# mapping from it; the file on disk only changes when you save again.
-# saved_map_mode:=localization loads it read-only instead (map_server + AMCL,
-# measured in ADR-035: cleaner map, worse navigation on a hand-made map)
-ros2 launch robot_bringup full_system.launch.py saved_map:=house
+# ...then start from that map instead of an empty one — ADR-026. It loads
+# read-only (map_server + AMCL), so a run cannot change it; start the robot in
+# a named room, or no plan can leave the spawn nook (ADR-035, ADR-036)
+ros2 launch robot_bringup full_system.launch.py saved_map:=house start_zone:=entrada
+# ...or keep mapping from it, to extend it and save it again
+ros2 launch robot_bringup full_system.launch.py saved_map:=house saved_map_mode:=mapping
 
 # The demo setup: Gazebo window + RViz + dashboard, starting from map `house`.
 # The repository does not ship that map yet: save yours as `house` first (above),
@@ -273,7 +274,7 @@ Three layers, split by what each needs to run
 
 | Layer | Covers | Needs | Tests | Run |
 |---|---|---|---|---|
-| Pure logic | chunking, plan parsing, prompts, frontier clusters, scene descriptor, scene merging, knowledge-base sync, plan check, SQL place memory, zone store, room semantics, teleop deadman, cmd_vel mux, sim speed, saved maps and sessions, second-simulation guard, HTTP layer, the dashboard page in headless Chromium, benchmark scorer | nothing (Chromium for the page tests) | 401 | `pytest tests/` |
+| Pure logic | chunking, plan parsing, prompts, frontier clusters, scene descriptor, scene merging, knowledge-base sync, plan check, SQL place memory, zone store, room semantics, teleop deadman, cmd_vel mux, sim speed, saved maps and sessions, second-simulation guard, HTTP layer, the dashboard page in headless Chromium, benchmark scorer | nothing (Chromium for the page tests) | 408 | `pytest tests/` |
 | Node level | real services on real executors, the HTTP↔ROS bridge (goals, driving, memory), the shutdown contract of every node ([ADR-016](docs/decisions/ADR-016-node-shutdown-contract.md)) | ROS 2 | 28 | `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test` |
 | Manual | navigation, exploration, perception, the LLM calls | Gazebo + Ollama | — | see [Limitations](#limitations) |
 
@@ -297,7 +298,7 @@ a plain runner and layer 2 in `ros:jazzy-ros-base`, on every push.
 | Vector store | ChromaDB ([ADR-001](docs/decisions/ADR-001-chromadb.md)) |
 | Dashboard | FastAPI + uvicorn, vanilla-JS SPA ([ADR-005](docs/decisions/ADR-005-dashboard-fastapi.md)) |
 
-Design decisions are logged as [36 ADRs](docs/decisions/). Highlights:
+Design decisions are logged as [37 ADRs](docs/decisions/). Highlights:
 [ADR-007](docs/decisions/ADR-007-executors-callback-groups.md) (executor/
 callback-group design behind the blocking service calls),
 [ADR-009](docs/decisions/ADR-009-camera-resolution-bridge.md) (a 1080p camera
@@ -315,10 +316,12 @@ before the robot moves — and a variant that was measured and reverted),
 an LLM writing SQL over the same memory — a tie on direct lookups, RAG ahead on
 spatial tasks),
 [ADR-035](docs/decisions/ADR-035-saved-map-loads-read-only.md) (read-only map
-loading: the better idea, measured worse on a hand-made map, and kept as an
-argument),
+loading, and the start pose that decided whether it worked at all),
 [ADR-036](docs/decisions/ADR-036-nav2-robot-radius-from-the-model.md) (a robot
-radius 9 cm smaller than the robot, and the corrupted maps it explains).
+radius 9 cm smaller than the robot, and the corrupted maps it explains),
+[ADR-037](docs/decisions/ADR-037-pay-for-the-real-time-factor.md) (a camera
+rendering 30 frames a second for a skill that reads one, and half the
+simulation's speed back).
 
 ---
 
