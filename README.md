@@ -20,19 +20,29 @@ remembers, and WASD driving to map the house by hand first.
 
 ## Does the RAG actually help? (measured)
 
-> **Short answer: memory is decisive; *vector* search is not shown to be the
-> only way to use it.** Asked for a remembered place by name or by description,
-> the planner with the robot's memory goes straight to it 15/15; without memory
-> it has nothing to go on and explores, 0/15. But an **LLM writing SQL over the
-> same places** did just as well on every lookup — names, descriptions,
-> Spanish and English, confusable names, multi-step plans — and lost only the
-> spatial comparisons (0/6 vs 3/6), 0.6 s slower. At this memory size (a dozen
-> places, a description vocabulary the SQL prompt can list), RAG is not shown to
-> beat SQL; where it should — large, open-vocabulary memories — is not measured
-> yet ([rag-analysis §2.10](docs/rag-analysis.md)). For places the zone table
-> already names, neither adds anything (3/3 in both). And memory can mislead:
-> asked for a plausible place that does not exist, the planner borrows a real
-> place's coordinates unless the plan is checked before it runs (0/6 → 6/6).
+> **Short answer: memory is what lets the robot find remembered places, and on
+> the spatial tasks RAG's way of recalling it worked best.** Asked for a
+> remembered place by name or by description, the planner with memory goes
+> straight to it 15/15; without memory it can only explore, 0/15.
+>
+> - **The LLM turns an ambiguous request into something exact** — coordinates
+>   to drive to, or, given the same places as a table, an SQL query. An LLM
+>   writing SQL matched RAG on every direct lookup: names, descriptions, Spanish
+>   and English, confusable names, multi-step plans.
+> - **When the robot had to compare places** — "the station nearest the base" —
+>   retrieving memories by similarity put the candidates in front of the
+>   planner, and in the same-session comparison it recovered the right position
+>   3/6; the SQL route filtered instead of fetching candidates and got 0/6.
+>   (Spatial results vary between sessions: 0/6 to 3/6 for RAG, §2.6.)
+> - **This is a small project and a small sample** (6 spatial runs per condition,
+>   one session, a dozen places): a signal that memory retrieval helps the harder
+>   spatial tasks, worth extending to more runs and larger memories, not a
+>   settled result ([rag-analysis §2.10](docs/rag-analysis.md)).
+>
+> For places the zone table already names, neither adds anything (3/3 in both).
+> And memory can mislead: asked for a plausible place that does not exist, the
+> planner borrows a real place's coordinates unless the plan is checked before
+> it runs (0/6 → 6/6).
 >
 > **What each condition is:** all use the same Qwen planner, prompt and SQLite
 > zone table (names and centres, resolved by exact name). *With RAG* adds
@@ -299,7 +309,8 @@ that caught a knowledge-base regression, and the claim it withdrew),
 [ADR-032](docs/decisions/ADR-032-plan-check-before-execution.md) (checking plans
 before the robot moves — and a variant that was measured and reverted),
 [ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md) (RAG measured against
-an LLM writing SQL over the same memory — a tie on every lookup).
+an LLM writing SQL over the same memory — a tie on direct lookups, RAG ahead on
+spatial tasks).
 
 ---
 
@@ -330,12 +341,12 @@ an LLM writing SQL over the same memory — a tie on every lookup).
   did not survive the re-run and was withdrawn
   ([rag-analysis §2.8](docs/rag-analysis.md),
   [ADR-031](docs/decisions/ADR-031-knowledge-base-is-planner-input.md)).
-- **RAG's value over SQL is not shown at this size.** For a handful of places a
-  SQLite lookup does the job (the known-zone control), and an LLM writing SQL
-  over the same memory matched RAG on every lookup — with 8–12 places and a
-  vocabulary its prompt lists, and one prompt example that also appears in a
-  suite goal (disclosed in [ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md)).
-  RAG should matter as the open-vocabulary memory grows; that is not measured.
+- **The RAG vs SQL comparison is small and early.** One session, 8–12 places, a
+  description vocabulary the SQL prompt lists, 6 spatial runs per condition, and
+  one prompt example that also appears in a suite goal (disclosed in
+  [ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md)). Both lookups
+  tied on direct lookups; RAG's edge on spatial tasks needs more runs, and the
+  larger, open-vocabulary memories where it should grow are not measured yet.
 - **Perception is attribute-level.** The descriptor characterises places
   (colours, clutter) but cannot name objects. The VLM was removed as
   unreliable on software-rendered frames
@@ -365,11 +376,10 @@ an LLM writing SQL over the same memory — a tie on every lookup).
    "farthest" over retrieved coordinates in code and hand the planner the
    answer, or let the agent loop check its choice. Baseline: 1/6 (0/6 and 3/6
    in other sessions) on the hard suite's spatial relations.
-3. **RAG vs LLM → SQL at scale** — the same-data comparison exists
-   ([ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md)) and ties at a
-   dozen places. Repeat it with hundreds of self-built memories and
-   open-vocabulary descriptions, where similarity ranking should separate from
-   `LIKE`.
+3. **RAG vs LLM → SQL, extended** — the first same-data comparison
+   ([ADR-033](docs/decisions/ADR-033-llm-to-sql-place-memory.md)) tied on direct
+   lookups and favoured RAG on spatial tasks. Repeat it with more runs, hundreds
+   of self-built memories and open-vocabulary descriptions.
 4. **Native voice phase** (Whisper on the Windows NPU, publishing to
    `/robot/goal`) — the NPU is unreachable from WSL2, so this runs host-side.
 5. **Object-level detection** (YOLOv8n; VLM revisit on real-camera hardware)

@@ -467,16 +467,20 @@ hard suite.
 | – of which spatial relations | 3/6 | **0/6** | 0/6 |
 | Median goal→plan | 2.4 s | 3.0 s | 1.4 s |
 
-- **On every lookup, SQL kept up.** Names, descriptions, Spanish and English
-  phrasings, confusable names and multi-step plans all matched RAG. The queries
-  were sensible — `WHERE lower(name) LIKE '%estacion_c%' AND lower(name) NOT LIKE
-  '%sur%'` for "estacion_c, no a la del sur" — and all 69 were valid and
-  filtered.
-- **SQL lost where the goal is a choice, not a lookup.** "La estación más
-  cercana a la zona base" became `WHERE description LIKE '%base%'`, which
-  returned nothing, so the planner had no stations to compare. Similarity search
-  always returns its top-k and so hands over the candidates — an advantage of
-  its mechanics, not of understanding meaning.
+- **The LLM's part is translating ambiguity into exactness, in both designs.**
+  With RAG it turns the request and the recalled memories into coordinates; with
+  SQL it first turns the request into a query — "Llévame a estacion_c, no a la
+  del sur" became `WHERE lower(name) LIKE '%estacion_c%' AND lower(name) NOT LIKE
+  '%sur%'`. All 69 queries were valid and filtered.
+- **On direct lookups the two designs tied.** Names, descriptions, Spanish and
+  English phrasings, confusable names and multi-step plans: 21/21, 18/18 and
+  18/18 for both.
+- **On the spatial tasks, recalling memories helped the robot recover the right
+  position.** "La estación más cercana a la zona base" is a choice among places.
+  Similarity retrieval brought the stations into the prompt, and the planner
+  picked the right one in 3 of 6 plans. The SQL route turned the goal into a
+  filter — `WHERE description LIKE '%base%'` — that returned nothing, so it had
+  no candidates to compare: 0 of 6.
 - **The planner invents with either lookup.** For "estacion_d" and "la estación
   central" the SQL correctly returned no rows. The planner then made up a point
   and a zone called "central", and the plan check (§2.9) caught all six.
@@ -486,14 +490,18 @@ hard suite.
   translation example in it, "despejado" → "uncluttered", also appears in a suite
   goal; that favours SQL on one task, and is disclosed in the ADR.
 
-**What this means for the central question.** Against no memory, RAG is
-decisive. Against an LLM writing SQL over the same places — at a dozen places
-with a vocabulary the query writer is told — RAG is not shown to be the better
-lookup: it tied on every lookup, won only a comparison its top-k happens to
-enable, and was faster. The cases that should separate them were not in this
-experiment: hundreds of self-built memories where `LIKE` returns an arbitrary
-five and similarity ranks them, and descriptions whose words nobody can list in
-a prompt. That is the next measurement, not a conclusion.
+**What this means for the central question.** Memory is what makes the robot
+find remembered places: without it, 0/15. For a direct lookup, the LLM can
+reach that memory either way — by similarity or by writing a query — because
+what does the work is its translation of an ambiguous request into something
+exact. For the harder, spatial tasks, recalling memories by similarity gave the
+planner what it needed to recover the right position (3/6 against 0/6), and it
+was 0.6 s faster than writing SQL. This is a small project and a small
+experiment: 6 spatial runs per condition, one session, a dozen places, and
+spatial results that vary between sessions (§2.6). It is a signal that memory
+retrieval helps the tasks that need comparison, worth extending with more runs,
+hundreds of self-built memories and descriptions whose words nobody can list in
+a prompt — not a settled result.
 
 ---
 
@@ -519,12 +527,12 @@ temperature/version; C's retrieval is deterministic given the index.)
 **Use LLM + RAG (C) when** memories are open-vocabulary and described rather
 than named: objects the camera saw ("a black mailbox on a pole"), places
 characterized by free text. §2.2 shows the recall surviving phrasings no
-*exact-match* lookup could match — but §2.10 shows an LLM writing the query
-matching them too, at this size. The argument for C is scale and open
-vocabulary: at a dozen places with a documented vocabulary B keeps up; at
-10,000 self-built memories sharing one vocabulary, or descriptions no schema can
-list, similarity ranking should be the recall that still works. That part is
-not measured.
+*exact-match* lookup could match, and §2.10 shows an LLM writing the query
+matching those too, at this size. C's measured edge is on tasks that need
+candidates to compare (§2.10). The rest of the argument is scale and open
+vocabulary: at 10,000 self-built memories sharing one vocabulary, or
+descriptions no schema can list, similarity ranking should be the recall that
+still works. That part is not measured yet.
 
 **The hybrid (D, this project) is not indecision — it is putting each store
 where it wins.** Exact things (zones) resolve through SQL and are immune to
@@ -545,9 +553,8 @@ planner's spatial comparisons.
   claim is about *decisions*, which is the mechanism RAG can influence.
 - **The RAG ablation's baseline is "LLM + SQL zones", and the memory-only facts
   are absent from it.** The 15/15 vs 0/15 says the information in vector memory
-  is used; it does not say RAG beats SQL on the same information. §2.10 is the
-  comparison that does, and it ran on 8–12 places with a vocabulary the SQL
-  prompt documents, in one session.
+  is used; it does not compare RAG with SQL on the same information. §2.10 does,
+  on 8–12 places with a vocabulary the SQL prompt documents, in one session.
 - Small task suite and corpus (207 planning runs per measurement, 28 embedding
   queries, 11 zone queries) on one LLM, **one run per condition**.
 - **`temperature=0` does not make results exact.** Repetitions inside a run
@@ -574,13 +581,12 @@ planner's spatial comparisons.
 
 ## 4. Actionable conclusions
 
-1. **Keep the hybrid, and be precise about why.** SQL for named zones and the LLM
-   as the language layer are measurably doing their jobs. That *vector* search is
-   the better lookup for perceived and described memories is not shown at this
-   size: an LLM writing SQL over the same places tied on every lookup and lost
-   only the spatial comparisons (§2.10). Vector memory stays the default for
-   scale, for vocabulary the SQL prompt does not have to spell out, and because
-   B was slower — the next measurement should be at scale.
+1. **Keep the hybrid.** SQL for named zones; the LLM as the layer that turns
+   ambiguous requests into exact actions; vector memory for perceived and
+   described places. Against an LLM writing SQL over the same places, vector
+   memory tied on direct lookups, did better on spatial tasks and was faster
+   (§2.10) — a small experiment, so the next measurement should add runs and
+   scale.
 2. **Switch to bge-m3 for multilingual use** — the single highest-leverage
    change the data supports (43%→86% Spanish top-1). *Adopted as the
    project default.*

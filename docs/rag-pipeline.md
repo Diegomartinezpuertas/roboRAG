@@ -226,8 +226,8 @@ coordinate is no longer enough on its own to send the robot somewhere.
 read-only SELECT that Qwen writes over a SQLite copy of the same places
 (`sql_memory.py`). It exists for one experiment and is not the default:
 [ADR-033](decisions/ADR-033-llm-to-sql-place-memory.md) measured it against RAG,
-and at a dozen places it tied on every lookup and lost the spatial comparisons
-([rag-analysis §2.10](rag-analysis.md)). Its prompt lists the scene
+and at a dozen places the two tied on direct lookups while vector memory did
+better on spatial tasks ([rag-analysis §2.10](rag-analysis.md)). Its prompt lists the scene
 descriptor's phrases and colour names, so a change to that vocabulary has to
 reach the prompt too.
 

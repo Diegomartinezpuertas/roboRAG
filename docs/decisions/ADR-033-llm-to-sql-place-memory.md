@@ -95,17 +95,22 @@ suites, 12 for the hard suite:
 | Spatial relation | 3/6 | **0/6** | 0/6 |
 | Plausible nonexistent place | 6/6 | 6/6 | 6/6 |
 
-- **B matched RAG on every lookup.** Names, descriptions ("la habitación blanca y
+- **Both designs show what the LLM brings: turning an ambiguous request into
+  something exact.** In the RAG condition that is coordinates to drive to; in
+  the SQL condition, first a query — "Llévame a estacion_c, no a la del sur"
+  became `WHERE lower(name) LIKE '%estacion_c%' AND lower(name) NOT LIKE '%sur%'`.
+- **B matched RAG on every direct lookup.** Names, descriptions ("la habitación blanca y
   despejada" → `LIKE '%white%' AND LIKE '%uncluttered%'`, helped by the leaked
   example above), Spanish and English
   phrasings, confusable names (`LIKE '%estacion_c%' AND NOT LIKE '%sur%'`) and
   multi-step plans. All 69 queries were valid SQL and all of them filtered; none
   dumped the table.
-- **B lost the spatial relations, 0/6 vs 3/6.** "La estación más cercana a la
-  zona base" became a filter — `WHERE description LIKE '%base%'` — that returned
-  nothing, so the planner had no stations to compare. A choice among candidates
-  is not a lookup, and similarity search, which always returns its top-k,
-  happens to hand the planner the candidates.
+- **RAG did better on the spatial relations, 3/6 vs 0/6.** "La estación más
+  cercana a la zona base" is a choice among places, not a lookup. Similarity
+  retrieval brought the stations into the prompt, and the planner recovered the
+  right position in 3 of 6 plans. The SQL route turned the goal into a filter —
+  `WHERE description LIKE '%base%'` — that returned nothing, leaving the planner
+  no candidates to compare.
 - **Nonexistent places: the SQL was right and the planner still invented.** The
   queries for "estacion_d" and "la estación central" correctly returned no rows.
   The planner then invented a point (×3) and a zone called "central" (×3), and
@@ -115,19 +120,22 @@ suites, 12 for the hard suite:
 - **Latency:** median goal→plan 3.0 s with SQL, 2.4 s with RAG, 1.4 s with no
   memory. The SQL condition pays a full LLM call to write the query; the vector
   one pays an embedding call.
-- **What this does and does not say.** At this memory size, and with a fixed,
-  documented description vocabulary, RAG is *not* shown to be a better lookup
-  than an LLM writing SQL over the same places. The one advantage measured
-  (spatial relations) comes from similarity search always returning candidates,
-  not from matching meaning, and those tasks are unreliable anyway (ADR-032).
-  Where RAG *should* win was not tested: hundreds of self-built memories sharing
-  one vocabulary, where `LIKE` returns an arbitrary five and similarity ranks
-  them, and open-vocabulary descriptions no schema documentation can list.
-- **Why the default stays `vector`.** B was not better anywhere. It was slower,
-  lost the choice-among-candidates goals, and works only because its prompt
-  spells out the descriptor's phrases and colour names. That is a coupling of the
-  same kind as ADR-031's knowledge base: change the descriptor's wording and the
-  SQL path silently stops matching. The parameter stays for the next experiment.
+- **What this says, and how firmly.** On direct lookups, an LLM writing SQL over a
+  dozen places with a documented vocabulary did as well as RAG. On the harder
+  spatial tasks, recalling memories by similarity helped the planner recover
+  the right position where the SQL route could not. The advantage comes from
+  retrieval handing over the candidates to compare. It is a signal from a small
+  experiment — 6 spatial runs per condition, one session, and spatial tasks that
+  vary between sessions (ADR-032) — worth extending, not a settled result. The
+  cases where RAG should pull further ahead were not tested: hundreds of
+  self-built memories sharing one vocabulary, where `LIKE` returns an arbitrary
+  five and similarity ranks them, and open-vocabulary descriptions no schema
+  documentation can list.
+- **Why the default stays `vector`.** It tied B on direct lookups, did better on
+  the spatial tasks, and was 0.6 s faster. B also works only because its prompt
+  spells out the descriptor's phrases and colour names — a coupling of the same
+  kind as ADR-031's knowledge base: change the descriptor's wording and the SQL
+  path silently stops matching. The parameter stays for the next experiment.
 - **Session variance, again.** The RAG condition scored 27/30 on the hard suite
   here and 23/30 in ADR-032's run A, with the same code. Only the comparison
   inside this session is evidence.

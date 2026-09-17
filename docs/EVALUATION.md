@@ -335,5 +335,5 @@ All four are re-read per goal — no restart needed.
 | Plans never arrive (`no_plan`) | Check Ollama: `ollama ps`; first call after idle takes ~4 s extra (model load). If the planner log says `Failed to parse plan`, Qwen returned JSON with a `// comment` in it — seen 3 times without RAG in one run; the goal gets no plan and scores `no_plan` |
 | `Unknown zone: base` in the control task | Re-run `seed_memory.py` (zone lives in `data/zones.db`) |
 | Landmarks empty after relaunch | `data/chroma_db` was deleted — re-run seeding |
-| Code changes not taking effect | `rm -rf build/<pkg> install/<pkg>` and rebuild (stale symlink-install copies) |
+| Code, launch or config changes not taking effect | This workspace installs copies, not links: rebuild the package (`rm -rf build/<pkg> install/<pkg>` first if in doubt) |
 | Process aborts at script exit | Fixed via `SpinHandle.stop()`; if it reappears, results are already written before teardown |

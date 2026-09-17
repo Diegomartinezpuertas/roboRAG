@@ -218,8 +218,8 @@ source ~/robot_ws/setup_env.sh
 # Build the whole workspace
 cd ~/robot_ws && colcon build --symlink-install
 
-# Build a single package. REQUIRED after every Python edit: --symlink-install
-# installs copies of Python modules here, not links (if in doubt, clean first:
+# Build a single package. REQUIRED after every Python, launch or config edit:
+# --symlink-install installs copies here, not links (if in doubt, clean first:
 # rm -rf build/<pkg> install/<pkg>)
 colcon build --symlink-install --packages-select robot_rag
 
@@ -349,9 +349,9 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 | End-to-end navigation unreliable | Narrow doorways + software physics | Benchmark measures the planning decision (ADR-013) |
 | "Ve a estacion_d" (plausible but nonexistent) drove to a *real* station | With RAG the 7B planner invents a zone or reuses retrieved coordinates for a name no memory holds (hard suite 0/6 with the check off) | Plan check before execution replaces such steps with explore: 6/6 (ADR-032). It is a model call: it wrongly rejected 2 correct spatial answers. Never "repair" a memory named as a zone into coordinates — measured, it let a borrowed place through |
 | Spatial goals ("the station nearest the base") | The planner compares coordinates unreliably, even with every coordinate and the zone's centre in the prompt | Open: right station 6/6 in one session, 0/6 in the next (rag-analysis §2.6). Candidate fixes: compute the relation in code, or the agent loop |
-| "Is RAG better than SQL?" | The same-data comparison ran on 8–12 places with a vocabulary the SQL prompt lists | It tied on every lookup and lost only spatial comparisons (ADR-033). Do not claim RAG beats SQL; claim it at scale only after measuring it there |
+| "Is RAG better than SQL?" | The same-data comparison is one session on 8–12 places, with a vocabulary the SQL prompt lists | Tied on direct lookups; RAG recovered the right position on spatial tasks 3/6 vs SQL 0/6 (ADR-033). Present it as a signal from a small experiment, not a settled result; extend before claiming more |
 | Benchmark totals move between sessions | `temperature=0` is repeatable, not exact | Claim effects only from conditions compared inside one session (the runner does rag / norag / rag_unchecked on one memory); ±2–3 runs between sessions is noise |
-| Python edits not taking effect | In this workspace `--symlink-install` installs *copies* of Python modules, not links | Rebuild after every Python edit (`colcon build --symlink-install --packages-select <pkg>`); if in doubt `rm -rf build/<pkg> install/<pkg>` first. Before a live measurement, check the installed module matches `src/` — a published run was once invalidated by this (ADR-027) |
+| Python, launch or config edits not taking effect | In this workspace `--symlink-install` installs *copies* of Python modules, launch files and config YAML, not links | Rebuild after every Python edit (`colcon build --symlink-install --packages-select <pkg>`); if in doubt `rm -rf build/<pkg> install/<pkg>` first. Before a live measurement, check the installed module matches `src/` — a published run was once invalidated by this (ADR-027) |
 
 ---
 
