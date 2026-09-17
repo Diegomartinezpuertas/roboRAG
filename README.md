@@ -25,6 +25,9 @@ remembers, and WASD driving to map the house by hand first.
 A goal in natural language, the retrieval and the plan traced step by step in
 the dashboard, and the robot executing it under Nav2 — all local, on one laptop.
 
+▶ **[Full walkthrough, 3 minutes](https://youtu.be/Cwkx4dRbKrE)** — the loop end
+to end and what the benchmark measured, graph by graph (narrated in Spanish).
+
 | Dashboard — live SLAM map, named rooms, and the planner's reasoning | RViz — LIDAR and Nav2 costmaps |
 |---|---|
 | ![The dashboard: floor plan with named rooms on the left, the agent's thread on the right showing the goal, the plan it produced, each step completing and the final answer](docs/media/dashboard.png) | ![RViz: the saved map with Nav2's inflated costmap around every wall, the LIDAR's returns and the path being followed](docs/media/rviz.png) |

@@ -5,7 +5,8 @@ Visual material referenced from the root README. Committed on purpose (unlike
 what the repository shows a reader.
 
 The four files below are in place (recorded 2026-09-17) and referenced from the
-root README's **Demo** section. What each one has to prove, for when they are
+root README's **Demo** section, which also links the full walkthrough on
+YouTube: <https://youtu.be/Cwkx4dRbKrE>. What each one has to prove, for when they are
 re-recorded:
 
 | File | Shot | What it must show |
