@@ -36,3 +36,6 @@ for a node that never starts.
 - If the project later switches to localization on a fixed map saved with
   `map_saver_cli`, `nav2_bringup/bringup_launch.py` (with AMCL) would be
   added and the TF lookup revisited.
+  *(2026-09-17: localization on a fixed map arrived without AMCL. A saved
+  pose graph loads in SLAM Toolbox's own localization mode, so
+  `localizer='slam_toolbox'` still holds — ADR-035.)*

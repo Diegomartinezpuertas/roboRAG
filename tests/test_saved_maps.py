@@ -3,9 +3,12 @@
 import pytest
 
 from robot_bringup.saved_maps import (
+    check_saved_map_mode,
     map_search_paths,
+    resolve_map_image,
     resolve_saved_map,
     slam_params_for_saved_map,
+    uses_amcl,
 )
 
 
@@ -69,16 +72,52 @@ def test_ids_that_could_escape_the_maps_directory_are_rejected(places, bad_id):
         resolve_saved_map(bad_id, ws, share)
 
 
-def test_slam_params_load_the_map_and_start_at_the_dock(tmp_path):
+def test_mapping_mode_continues_the_saved_map_from_the_dock(tmp_path):
     params = {'slam_toolbox': {'ros__parameters': {
         'mode': 'mapping', 'resolution': 0.05, 'map_start_pose': [0.0, 0.0, 0.0],
     }}}
     rewritten = slam_params_for_saved_map(params, tmp_path / 'house' / 'map')
     ros = rewritten['slam_toolbox']['ros__parameters']
     assert ros['map_file_name'] == str(tmp_path / 'house' / 'map')
+    assert ros['mode'] == 'mapping' and ros['resolution'] == 0.05
     assert ros['map_start_at_dock'] is True
     assert 'map_start_pose' not in ros            # mutually exclusive with the dock start
-    assert ros['mode'] == 'mapping' and ros['resolution'] == 0.05
+
+
+def test_only_a_saved_map_in_localization_mode_uses_amcl():
+    """Default is SLAM continuing the map; read-only (map_server + AMCL) is opt-in (ADR-035)."""
+    assert not uses_amcl('house')                 # default: mapping mode
+    assert uses_amcl('house', ' localization ')
+    assert not uses_amcl('house', 'mapping')
+    assert not uses_amcl('')                      # mapping from scratch
+    assert not uses_amcl('  ', 'localization')    # no map to serve
+
+
+@pytest.mark.parametrize('mode', ['', 'Localization', 'lifelong', 'read-only'])
+def test_an_unknown_mode_fails_instead_of_picking_one(mode):
+    with pytest.raises(ValueError):
+        check_saved_map_mode(mode)
+    with pytest.raises(ValueError):
+        uses_amcl('', mode)                       # even without a saved map
+
+
+def test_the_occupancy_image_is_found_through_its_yaml(tmp_path):
+    base = save_map(tmp_path, 'house')
+    base.with_suffix('.yaml').write_text('image: map.pgm\nresolution: 0.05\n')
+    base.with_suffix('.pgm').write_bytes(b'P5')
+    assert resolve_map_image(base) == base.with_suffix('.yaml')
+
+
+@pytest.mark.parametrize('files', [{}, {'map.yaml': 'image: map.pgm\n'}, {'map.pgm': 'P5'},
+                                   {'map.yaml': 'resolution: 0.05\n', 'map.pgm': 'P5'}])
+def test_a_map_without_its_occupancy_image_fails_saying_how_to_write_it(tmp_path, files):
+    """Maps saved before the image was written must fail loudly, not start AMCL on nothing."""
+    base = save_map(tmp_path, 'house')
+    for name, content in files.items():
+        (base.parent / name).write_text(content)
+    with pytest.raises(FileNotFoundError) as error:
+        resolve_map_image(base)
+    assert 'saved_map_mode:=mapping' in str(error.value)
 
 
 def test_the_original_params_are_not_modified(tmp_path):

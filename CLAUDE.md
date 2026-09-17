@@ -52,7 +52,7 @@ Gazebo without prior confirmation.
 | Zones store | SQLite (stdlib) | — | ~/robot_ws/data/zones.db (ADR-011) |
 | Room meaning | Static table | robot_zones | Room name → what it is for, ES+EN (ADR-022) |
 | Navigation | Nav2 | ros-jazzy | SimpleCommander API |
-| SLAM | SLAM Toolbox | ros-jazzy | Live mapping (no AMCL, ADR-004) |
+| SLAM | SLAM Toolbox | ros-jazzy | Live mapping (ADR-004), including from a saved map. `saved_map_mode:=localization` swaps it for map_server + AMCL, read-only — measured, worse on these maps (ADR-035) |
 | Middleware | CycloneDDS | ros-jazzy | Pinned to loopback via cyclonedds.xml (ADR-006) |
 | Velocity arbitration | cmd_vel_mux_node | robot_skills | Single owner of /cmd_vel: manual driving over Nav2 (ADR-029) |
 | Dashboard | FastAPI + uvicorn | pip | http://localhost:8080 — live floor plan, goals, memory viewer (ADR-024/030), WASD driving (ADR-023) |
@@ -269,13 +269,17 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true
 ros2 launch robot_bringup full_system.launch.py use_nav2:=false
 
 # Start from a saved map (data/maps/<id>, or shipped in robot_bringup/maps/<id>):
-# SLAM loads it and the memory session is pinned to the same id (ADR-026)
+# SLAM keeps mapping from it and the memory session is pinned to the same id
+# (ADR-026); the file on disk only changes when you save again
 ros2 launch robot_bringup full_system.launch.py saved_map:=house
+# Load it read-only instead — map_server + AMCL, no SLAM ("Guardar mapa" then
+# has nothing to save). Measured worse at navigating a hand-made map (ADR-035)
+ros2 launch robot_bringup full_system.launch.py saved_map:=house saved_map_mode:=localization
 
 # Demo setup: Gazebo window + RViz + dashboard on map `house` (GUI costs RTF)
 ros2 launch robot_bringup demo.launch.py
 
-# Layer 1 — pure logic, no ROS needed (363 tests, 8 of them drive the dashboard
+# Layer 1 — pure logic, no ROS needed (397 tests, 8 of them drive the dashboard
 # page in headless Chromium — once: python3 -m playwright install chromium) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
@@ -291,7 +295,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 363 + 28, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 397 + 28, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 
@@ -339,8 +343,12 @@ self.declare_parameter('zones_db', str(WS_ROOT / 'data' / 'zones.db'))
 |----------|-------|------------|
 | Gazebo renders on llvmpipe | Incomplete WSL2 GPU passthrough | Gazebo GUI off by default (it once cost RTF ~1.0→0.15; measured 2026-09-16: ~0.68 headless, ~0.59 with it — the dashboard shows the live factor). View via RViz or dashboard; use_gz_gui:=true if needed |
 | Closing the Gazebo GUI killed everything | on_exit_shutdown:true on the stock gzclient include | Own simulation.launch.py launches server/GUI separately, GUI without shutdown |
+| Map shows a second, rotated copy of the house | Two Gazebo servers: closing a launch's terminal (SIGHUP) leaves `ruby gz sim` running, and its robot's scans, odometry and clock reach the new SLAM through the bridge | `simulation.launch.py` refuses to start next to one and prints the PIDs to `kill` (ADR-034). Stop launches with Ctrl+C, not by closing the terminal |
 | NPU unreachable in WSL2 | WSL2 doesn't expose the NPU device | Reserved for native Windows (voice phase: Whisper) |
-| SLAM drift on long runs | Software-rendered sim | Save the map (dashboard "Guardar mapa" / `save_map` skill) and relaunch with `saved_map:=<id>` (ADR-026) |
+| SLAM drift on long runs | Software-rendered sim | Save the map (dashboard "Guardar mapa" / `save_map` skill) and relaunch with `saved_map:=<id>` (ADR-026): it loads read-only, so drift cannot reach the saved map (ADR-035) |
+| A loaded map's walls smeared after a room tour | Every scan of the tour goes into the graph, and the hand-made map is 0.3–0.5 m out in places, so SLAM draws the true geometry next to the saved walls | Known and accepted: the file on disk only changes on an explicit save, so each launch starts from the same map. `saved_map_mode:=localization` loads it read-only (map_server + AMCL) but navigated 1/4 rooms against 4/4 mapping, because a distorted map misplaces doorways (ADR-035). Fix the map, not the mode |
+| "Guardar mapa" said it saved and did not | SLAM Toolbox's localization mode answers `serialize_map` with `result=0` and writes nothing | `save_map` now verifies the four files (posegraph, data, yaml, pgm) by modification stamp and fails loudly (ADR-035) |
+| The robot wedges against a wall and the map goes bad | Nav2's `robot_radius` was 0.15 (TurtleBot3's Jazzy file) against the model's real 0.237 → it grazes walls, the wheels slip, odometry gains up to 99° of heading error and SLAM 0.8 m | `robot_radius: 0.20` — the largest value this house still plans with (ADR-036; on the same drive 0.24 took SLAM's error from 0.79 m to 0.06 m, but 0.22 and up cannot plan out of the spawn pose). Manual driving does not go through Nav2: do not push into furniture while mapping by hand |
 | Intermittent DDS discovery | WSL2 multi-NIC (eth0/docker0) | CycloneDDS pinned to lo — cyclonedds.xml + CYCLONEDDS_URI (ADR-006) |
 | Gazebo window doesn't appear | Dead msrdc.exe (WSLg bridge) | `wsl --shutdown` from PowerShell and relaunch |
 | Goals outside the SLAM map | Map grows with exploration | Explore first, or start from a saved map (`saved_map:=house`); Nav2 rejects "outside bounds" goals |

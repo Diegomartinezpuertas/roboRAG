@@ -135,8 +135,10 @@ class DashboardNode(Node):
         cmd_vel_stamped (bool): Publish geometry_msgs/TwistStamped instead of Twist.
             Default: True — this stack's Gazebo bridge and Nav2 (enable_stamped_cmd_vel)
             both speak the stamped form; set False for a plain-Twist base.
-        teleop_linear_speed (float): Forward/backward speed in m/s. Default: 0.18
-        teleop_angular_speed (float): Turning speed in rad/s. Default: 1.0
+        teleop_linear_speed (float): Forward/backward speed in m/s. Default: 0.26
+            (the Waffle's maximum, which also caps it — robot_dashboard.teleop)
+        teleop_angular_speed (float): Turning speed in rad/s. Default: 1.82
+            (the Waffle's maximum, which also caps it)
         teleop_timeout_sec (float): Deadman window; a command not refreshed within
             it is replaced by a stop. Default: 0.6
         teleop_rate_hz (float): Rate at which held commands are republished. Default: 20.0
@@ -156,8 +158,10 @@ class DashboardNode(Node):
         # inside them. A human driving through doorways on a software-rendered
         # simulation needs the margin, and SLAM Toolbox's scan matching degrades
         # when the robot is spun faster than it can scan.
-        self.declare_parameter('teleop_linear_speed', 0.18)
-        self.declare_parameter('teleop_angular_speed', 1.0)
+        # The Waffle's documented maxima: mapping the house by hand is faster
+        # at full speed, and teleop.py caps anything above them anyway.
+        self.declare_parameter('teleop_linear_speed', 0.26)
+        self.declare_parameter('teleop_angular_speed', 1.82)
         self.declare_parameter('teleop_timeout_sec', 0.6)
         self.declare_parameter('teleop_rate_hz', 20.0)
 

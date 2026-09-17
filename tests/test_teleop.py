@@ -7,7 +7,14 @@ only this logic prevents the last command from running forever.
 
 import pytest
 
-from robot_dashboard.teleop import BOOST_FACTOR, STOP_REPEATS, TeleopState, twist_from_keys
+from robot_dashboard.teleop import (
+    BOOST_FACTOR,
+    MAX_ANGULAR_SPEED,
+    MAX_LINEAR_SPEED,
+    STOP_REPEATS,
+    TeleopState,
+    twist_from_keys,
+)
 
 LINEAR = 0.18
 ANGULAR = 1.0
@@ -103,3 +110,21 @@ def test_refreshing_keeps_the_same_command_alive_indefinitely():
     for now in (0.0, 0.3, 0.6, 0.9):
         state.update(LINEAR, 0.0, now=now)
         assert state.tick(now + 0.1) == (LINEAR, 0.0)
+
+
+def test_speeds_are_capped_at_the_waffle_maxima():
+    """A parameter typo or a boost must not ask the base for more than it has."""
+    linear, angular = twist_from_keys(['w', 'a'], 10.0, 10.0)
+    assert linear == pytest.approx(MAX_LINEAR_SPEED)
+    assert angular == pytest.approx(MAX_ANGULAR_SPEED)
+    linear, angular = twist_from_keys(['s', 'd'], 10.0, 10.0)
+    assert linear == pytest.approx(-MAX_LINEAR_SPEED)
+    assert angular == pytest.approx(-MAX_ANGULAR_SPEED)
+
+
+def test_the_boost_cannot_exceed_the_cap_either():
+    boosted = twist_from_keys(['w'], MAX_LINEAR_SPEED, 0.0, boost=True)
+    assert boosted[0] == pytest.approx(MAX_LINEAR_SPEED)
+    # Below the cap it still boosts.
+    slow = twist_from_keys(['w'], 0.1, 0.0, boost=True)
+    assert slow[0] == pytest.approx(0.1 * BOOST_FACTOR)

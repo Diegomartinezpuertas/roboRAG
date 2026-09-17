@@ -301,7 +301,7 @@ Pure logic — no ROS needed (includes the benchmark scorer):
 ```bash
 cd ~/robot_ws
 source agent_env/bin/activate
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 363 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/    # 397 tests
 ruff check .
 ```
 
@@ -336,4 +336,6 @@ All four are re-read per goal — no restart needed.
 | `Unknown zone: base` in the control task | Re-run `seed_memory.py` (zone lives in `data/zones.db`) |
 | Landmarks empty after relaunch | `data/chroma_db` was deleted — re-run seeding |
 | Code, launch or config changes not taking effect | This workspace installs copies, not links: rebuild the package (`rm -rf build/<pkg> install/<pkg>` first if in doubt) |
+| Live map grows a second, rotated copy of the house | Two simulations are running: a closed terminal left a `gz sim` server behind. Current builds refuse to launch next to one (ADR-034); otherwise Ctrl+C, `kill` the old server's PID, relaunch. The saved map on disk is not affected |
+| The robot wedges against a wall, then nothing localizes | Wheel slip while pushing corrupts odometry (up to 99° measured) and SLAM with it. Check `robot_radius: 0.20` in `nav2_params.yaml` (ADR-036) and restart the run; a map recorded through a slip has to be mapped again |
 | Process aborts at script exit | Fixed via `SpinHandle.stop()`; if it reappears, results are already written before teardown |

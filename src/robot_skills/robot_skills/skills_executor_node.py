@@ -21,7 +21,12 @@ from tf2_ros.transform_listener import TransformListener
 
 from robot_interfaces.msg import SemanticObject
 from robot_interfaces.srv import ExecuteSkill, UpdateMap
-from robot_rag.map_session import MapSession, read_active_map_id
+from robot_rag.map_session import (
+    MapSession,
+    map_image_stamp,
+    read_active_map_id,
+    saved_map_stamp,
+)
 from robot_rag.scene_merge import scene_group_key
 from robot_zones.room_semantics import classify_room, scene_context
 from robot_zones.zone_store import ZoneStore
@@ -109,6 +114,7 @@ class SkillsExecutorNode(Node):
         # ADR-019). Created lazily-typed: the service type is imported inside
         # _run_save_map so this module stays importable without slam_toolbox.
         self._serialize_map_client = None
+        self._save_map_image_client = None
 
         self._latest_image: Image | None = None
         self._latest_scan: LaserScan | None = None
@@ -439,9 +445,11 @@ class SkillsExecutorNode(Node):
         """Serializes the current SLAM map so it (and its memories) survive a restart.
 
         Writes `<maps_dir>/<map_id>/map.{posegraph,data}` via SLAM Toolbox's
-        serialize service, under the active map-session id. Relaunching with
-        `saved_map:=<map_id>` deserializes it and re-pins the session, so the
-        coordinate memories tagged with that id become valid again (ADR-019).
+        serialize service, under the active map-session id, and the occupancy
+        image `map.{yaml,pgm}` via its map saver — what map_server loads when the
+        map is opened read-only (ADR-035). Relaunching with `saved_map:=<map_id>`
+        loads it and re-pins the session, so the coordinate memories tagged with
+        that id become valid again (ADR-019).
 
         Args:
             params: Optional {"name": str} to store under a stable name instead
@@ -451,22 +459,36 @@ class SkillsExecutorNode(Node):
             Dict with the map_id, the file path, and a message.
 
         Raises:
-            RuntimeError: If SLAM Toolbox's serialize service is unavailable.
+            RuntimeError: If SLAM is not running — as on a saved map loaded
+                read-only with map_server + AMCL (ADR-035) — or a call left its
+                files unwritten.
         """
-        from slam_toolbox.srv import SerializePoseGraph
+        from std_msgs.msg import String as StringMsg
+
+        from slam_toolbox.srv import SaveMap, SerializePoseGraph
 
         if self._serialize_map_client is None:
             self._serialize_map_client = self.create_client(
                 SerializePoseGraph, '/slam_toolbox/serialize_map',
                 callback_group=self._io_group,
             )
+        if self._save_map_image_client is None:
+            self._save_map_image_client = self.create_client(
+                SaveMap, '/slam_toolbox/save_map', callback_group=self._io_group,
+            )
         if not self._serialize_map_client.wait_for_service(timeout_sec=5.0):
-            raise RuntimeError('/slam_toolbox/serialize_map unavailable (is SLAM running?)')
+            raise RuntimeError(
+                'SLAM is not running, so there is no map to save. A saved map opened '
+                'read-only (saved_map_mode:=localization, the default) cannot be changed: '
+                'relaunch with saved_map_mode:=mapping to extend it and save it again.',
+            )
 
         map_id = params.get('name') or read_active_map_id(self._maps_dir) or 'default'
         map_dir = Path(self._maps_dir) / map_id
+        created_dir = not map_dir.exists()
         map_dir.mkdir(parents=True, exist_ok=True)
         filename = str(map_dir / 'map')
+        stamp_before = saved_map_stamp(filename)
 
         future = self._serialize_map_client.call_async(
             SerializePoseGraph.Request(filename=filename),
@@ -475,6 +497,26 @@ class SkillsExecutorNode(Node):
         response = future.result()
         if response is None:
             raise RuntimeError('serialize_map timed out')
+        stamp_after = saved_map_stamp(filename)
+        if (response.result != SerializePoseGraph.Response.RESULT_SUCCESS
+                or stamp_after is None or stamp_after == stamp_before):
+            if created_dir and not any(map_dir.iterdir()):
+                map_dir.rmdir()
+            raise RuntimeError(
+                'SLAM Toolbox answered but wrote no map (in its own localization mode it '
+                'refuses to save and still reports success). Save from a mapping run.',
+            )
+        image_before = map_image_stamp(filename)
+        future = self._save_map_image_client.call_async(
+            SaveMap.Request(name=StringMsg(data=filename)),
+        )
+        self._wait_for_future(future, timeout_sec=30.0)
+        image_after = map_image_stamp(filename)
+        if future.result() is None or image_after is None or image_after == image_before:
+            raise RuntimeError(
+                f'Pose graph saved to {filename}.posegraph, but not the occupancy image '
+                '(map.yaml + map.pgm) that opening the map read-only needs. Save again.',
+            )
         # If a name was given, pin the session to it so the saved map and its
         # memories share one id. If not, the map is saved under the id already
         # active, so nothing to re-pin.

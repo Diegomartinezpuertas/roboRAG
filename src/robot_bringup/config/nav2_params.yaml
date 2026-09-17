@@ -1,3 +1,7 @@
+# AMCL runs only for a saved map loaded read-only (saved_map_mode:=localization,
+# ADR-035); a live map is localized by SLAM Toolbox (ADR-004). The robot spawns
+# where mapping began, which is the map origin, so the initial pose is set here
+# instead of waiting for someone to click "2D Pose Estimate".
 amcl:
   ros__parameters:
     alpha1: 0.2
@@ -13,7 +17,7 @@ amcl:
     global_frame_id: "map"
     lambda_short: 0.1
     laser_likelihood_max_dist: 2.0
-    laser_max_range: 100.0
+    laser_max_range: 3.5            # LDS-01's real range (was the stock 100.0)
     laser_min_range: -1.0
     laser_model_type: "likelihood_field"
     max_beams: 60
@@ -38,7 +42,7 @@ amcl:
     z_short: 0.05
     scan_topic: scan
     map_topic: map
-    set_initial_pose: false
+    set_initial_pose: true
     always_reset_initial_pose: false
     first_map_only: false
     initial_pose:
@@ -171,7 +175,7 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.05
-      robot_radius: 0.15
+      robot_radius: 0.20
       plugins: ["obstacle_layer", "voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -219,7 +223,7 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       transform_tolerance: 0.5
-      robot_radius: 0.15
+      robot_radius: 0.20
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "voxel_layer", "inflation_layer"]
@@ -272,7 +276,9 @@ global_costmap:
 
 map_server:
   ros__parameters:
-    yaml_filename: "map.yaml"
+    # No yaml_filename here: the launch passes the saved map's (ADR-035), and a
+    # node-specific value in this file would win over that override.
+    frame_id: "map"
 
 map_saver:
   ros__parameters:

@@ -87,3 +87,44 @@ def test_no_filter_returns_everything(tmp_path):
     _seed(mgr, 'b', 'two', 'm2')
     docs, _ = mgr.query('semantic_map', [1.0, 0.0], top_k=5)
     assert len(docs) == 2
+
+
+# --- telling whether a save actually wrote the map (ADR-035) ----------------
+
+from robot_rag.map_session import map_image_stamp, saved_map_stamp  # noqa: E402
+
+
+def test_a_map_without_both_files_has_no_stamp(tmp_path):
+    base = tmp_path / 'house' / 'map'
+    assert saved_map_stamp(base) is None
+    base.parent.mkdir()
+    base.with_suffix('.posegraph').write_bytes(b'graph')     # no map.data
+    assert saved_map_stamp(base) is None
+
+
+def test_the_stamp_changes_when_the_map_is_rewritten_and_not_otherwise(tmp_path):
+    """A read-only SLAM answers the save without writing: the stamp must not move."""
+    import os
+    base = tmp_path / 'house' / 'map'
+    base.parent.mkdir()
+    base.with_suffix('.posegraph').write_bytes(b'graph')
+    base.with_suffix('.data').write_bytes(b'data')
+    before = saved_map_stamp(base)
+    assert before is not None
+    assert saved_map_stamp(base) == before
+    os.utime(base.with_suffix('.posegraph'), ns=(before + 10**9, before + 10**9))
+    assert saved_map_stamp(base) != before
+
+
+def test_the_image_stamp_needs_the_yaml_and_the_image(tmp_path):
+    import os
+    base = tmp_path / 'house' / 'map'
+    base.parent.mkdir()
+    assert map_image_stamp(base) is None
+    base.with_suffix('.yaml').write_text('image: map.pgm')
+    assert map_image_stamp(base) is None
+    base.with_suffix('.pgm').write_bytes(b'P5')
+    before = map_image_stamp(base)
+    assert before is not None
+    os.utime(base.with_suffix('.pgm'), ns=(before + 10**9, before + 10**9))
+    assert map_image_stamp(base) != before

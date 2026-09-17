@@ -52,6 +52,7 @@ def generate_launch_description() -> LaunchDescription:
     # One id, two consumers: SLAM loads the map, rag_node pins its memory
     # session to it — so the map and the memories written on it stay paired.
     saved_map = LaunchConfiguration('saved_map', default='')
+    saved_map_mode = LaunchConfiguration('saved_map_mode', default='mapping')
 
     simulation_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -62,6 +63,7 @@ def generate_launch_description() -> LaunchDescription:
             'use_rviz': use_rviz,
             'use_gz_gui': use_gz_gui,
             'saved_map': saved_map,
+            'saved_map_mode': saved_map_mode,
         }.items(),
     )
 
@@ -83,6 +85,11 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             'saved_map', default_value='',
             description='Start from a saved map id (SLAM + memory session); empty maps from scratch',
+        ),
+        DeclareLaunchArgument(
+            'saved_map_mode', default_value='mapping',
+            description='With saved_map: mapping (SLAM Toolbox) keeps adding scans; '
+                        'localization (map_server + AMCL) leaves the map exactly as saved',
         ),
         simulation_launch,
         agent_launch,

@@ -325,7 +325,12 @@ manual mapping run worth doing.
 
 **Body:** `{"name": "casa"}` (normalized like a zone name; empty saves under the
 active session id) → `{"ok": true, "result": {"map_id": ..., "path": ...}}`, or
-`503` with the reason when the agent stack is not running. The map lands in
+`503` with the reason when the agent stack is not running or SLAM wrote nothing.
+The last happens on a map loaded read-only (`saved_map_mode:=localization`),
+where there is no SLAM to serialize, and in SLAM Toolbox's own localization
+mode, which answers the save with success but writes no file — so the skill
+checks the files themselves
+([ADR-035](decisions/ADR-035-saved-map-loads-read-only.md)). The map lands in
 `$ROBOT_WS/data/maps/<map_id>/`; relaunch with `saved_map:=<map_id>` to start
 from it ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)).
 
@@ -336,16 +341,17 @@ from it ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)).
 | `full_system` | `use_nav2` (true) | Nav2 alongside SLAM; `false` for a manual mapping run |
 | `full_system` | `use_rviz` (true) | RViz with map, LIDAR and costmaps — Nav2's stock view; with `use_nav2:=false`, `robot_bringup/rviz/mapping.rviz`, the same view without the Nav2 panels |
 | `full_system` | `use_gz_gui` (false) | Gazebo window — costs real-time factor on WSL2 (measured ~0.68 headless → ~0.59 with it; ~0.15 on the original setup) |
-| `full_system` | `saved_map` ('') | Start from a saved map id: SLAM loads `map.{posegraph,data}` from `$ROBOT_WS/data/maps/<id>/`, else `robot_bringup/maps/<id>/`, starting at the dock, and rag_node's memory session is pinned to the id. Empty: SLAM maps from scratch and the session is the fresh map's frame, `fresh_<world>_x<spawn x>_y<spawn y>` ([ADR-028](decisions/ADR-028-memory-session-per-map-frame.md)). An unknown id fails the launch |
-| `demo` | `use_gz_gui` (true), `use_rviz` (true), `use_nav2` (true), `saved_map` (`house`) | `full_system` as the demo is recorded |
-| `simulation` | `use_nav2`, `use_rviz`, `use_gz_gui`, `saved_map` | The simulation half; `saved_map` affects SLAM only |
+| `full_system` | `saved_map` ('') | Start from a saved map id: SLAM loads `map.{posegraph,data}` from `$ROBOT_WS/data/maps/<id>/`, else `robot_bringup/maps/<id>/`, and rag_node's memory session is pinned to the id. Empty: SLAM maps from scratch and the session is the fresh map's frame, `fresh_<world>_x<spawn x>_y<spawn y>` ([ADR-028](decisions/ADR-028-memory-session-per-map-frame.md)). An unknown id fails the launch |
+| `full_system` | `saved_map_mode` (`mapping`) | With `saved_map`: `mapping` loads the pose graph into SLAM Toolbox at the graph's first node and keeps adding scans, so the map follows what the robot sees; `localization` serves the saved `map.yaml` through map_server and localizes with AMCL from the map origin, leaving the map untouched. Any other value fails the launch ([ADR-035](decisions/ADR-035-saved-map-loads-read-only.md)) |
+| `demo` | `use_gz_gui` (true), `use_rviz` (true), `use_nav2` (true), `saved_map` (`house`), `saved_map_mode` (`mapping`) | `full_system` as the demo is recorded |
+| `simulation` | `use_nav2`, `use_rviz`, `use_gz_gui`, `saved_map`, `saved_map_mode` | The simulation half; `saved_map` affects SLAM only. Fails at once if a Gazebo server is already running in its partition ([ADR-034](decisions/ADR-034-refuse-a-second-gazebo.md)) |
 | `agent` | `use_sim_time` (true), `memory_session` ('') | The agent half; `memory_session` pins rag_node's session (full_system passes the saved map's id or the fresh frame's). Empty keeps the persisted session — for agent-only runs such as the offline benchmark |
 
-`full_system` forwards `use_nav2`, `use_rviz`, `use_gz_gui` and `saved_map` to
+`full_system` forwards `use_nav2`, `use_rviz`, `use_gz_gui`, `saved_map` and `saved_map_mode` to
 the simulation, and the resulting memory session to the agent. `simulation`
 always starts `cmd_vel_mux_node`, with or without Nav2. A saved map must be loaded with the robot spawning where it was
 mapped — the spawn defaults `x_pose:=-2.0 y_pose:=-0.5` in `simulation.launch.py` —
-since SLAM starts at the graph's first node.
+since SLAM starts at the map origin, where mapping began.
 
 ## ROS 2 parameters
 
@@ -376,7 +382,7 @@ Tuning defaults live in `robot_bringup/config/agent_params.yaml`.
 | dashboard_node | `http_host` (`127.0.0.1`) / `http_port` (8080) | HTTP bind address and port — loopback by default, the API is unauthenticated |
 | dashboard_node | `cmd_vel_topic` (`/robot/cmd_vel_manual`) | Topic for manual driving commands — the mux's high-priority input |
 | dashboard_node | `cmd_vel_stamped` (true) | Publish `geometry_msgs/TwistStamped` (this stack's Gazebo bridge and Nav2 both expect it); false for a plain-`Twist` base |
-| dashboard_node | `teleop_linear_speed` (0.18) / `teleop_angular_speed` (1.0) | Manual driving speeds in m/s and rad/s; ×1.4 with shift, still inside the Waffle's 0.26 / 1.82 maxima |
+| dashboard_node | `teleop_linear_speed` (0.26) / `teleop_angular_speed` (1.82) | Manual driving speeds in m/s and rad/s — the Waffle's documented maxima, which `robot_dashboard.teleop` also clamps every command to (×1.4 with shift, capped there) |
 | dashboard_node | `teleop_timeout_sec` (0.6) | Deadman window: a command not refreshed within it is replaced by a stop ([ADR-023](decisions/ADR-023-browser-teleop.md)) |
 | dashboard_node | `teleop_rate_hz` (20.0) | Rate at which a held command is republished |
 

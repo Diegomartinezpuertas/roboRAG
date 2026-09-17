@@ -3,7 +3,9 @@
 **Date:** 2026-09-16
 **Status:** Accepted — its doorway claim corrected by
 [ADR-027](ADR-027-exploration-frontier-clusters.md); its open session item resolved by
-[ADR-028](ADR-028-memory-session-per-map-frame.md)
+[ADR-028](ADR-028-memory-session-per-map-frame.md); its "keeps mapping from there"
+replaced by [ADR-035](ADR-035-saved-map-loads-read-only.md) (a saved map loads
+read-only; mapping is `saved_map_mode:=mapping`)
 
 ## Context
 

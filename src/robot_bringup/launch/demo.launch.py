@@ -12,7 +12,9 @@
   data/maps/house (save it from the dashboard), or one shipped in
   robot_bringup/maps/house. No mapping phase before recording, and the memory
   session is pinned to it. With no `house` map anywhere, the launch fails and
-  says where it looked.
+  says where it looked. SLAM keeps mapping from it, so a take can still move
+  its walls; every launch starts from the saved file again, and
+  saved_map_mode:=localization loads it read-only instead (ADR-035).
 
 Every argument can still be overridden, e.g. `saved_map:=casa` for a map you
 saved yourself. See docs/decisions/ADR-026-shipped-map-and-demo-launch.md.
@@ -45,6 +47,11 @@ def generate_launch_description() -> LaunchDescription:
             'saved_map', default_value='house',
             description='Saved map id to start from (shipped: house); empty maps from scratch',
         ),
+        DeclareLaunchArgument(
+            'saved_map_mode', default_value='mapping',
+            description='mapping (SLAM Toolbox) keeps adding scans; localization '
+                        '(map_server + AMCL) leaves the map exactly as saved',
+        ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(bringup_dir, 'launch', 'full_system.launch.py'),
@@ -54,6 +61,7 @@ def generate_launch_description() -> LaunchDescription:
                 'use_rviz': LaunchConfiguration('use_rviz'),
                 'use_nav2': LaunchConfiguration('use_nav2'),
                 'saved_map': LaunchConfiguration('saved_map'),
+                'saved_map_mode': LaunchConfiguration('saved_map_mode'),
             }.items(),
         ),
     ])

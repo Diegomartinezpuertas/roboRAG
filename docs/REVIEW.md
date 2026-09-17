@@ -308,11 +308,21 @@ Previously the nodes had no automated coverage at all. Now 124 pure-logic +
 20 node-level tests. What remains uncovered is layer 3 — anything needing
 Gazebo, Nav2 or Ollama — which is documented as manual rather than claimed.
 
-### 6.2 End-to-end navigation is unreliable
+### 6.2 End-to-end navigation is unreliable — *one cause found, 2026-09-17*
 The robot wedges in narrow doorways and `navigate` occasionally reports false
 success, on software-rendered physics. This is why the benchmark measures
 planning (ADR-013) — a legitimate choice, *provided* it stays clearly labelled,
 which it currently is. Physical SR/SPL numbers do not exist.
+
+*Part of it was a wrong number, not physics:* Nav2's `robot_radius` was 0.15 m
+against the model's real 0.237 m, so paths grazed walls. On a 12-waypoint drive
+the robot wedged for 251 s, its wheels slipped, odometry gained 99° of heading
+error and SLAM was left 0.8 m out — which is also how two hand-made maps were
+corrupted. At the largest radius this house admits (0.20 m, capped by a spawn
+pose 0.25 m from a wall) the same drive kept SLAM within 0.06 m
+([ADR-036](decisions/ADR-036-nav2-robot-radius-from-the-model.md)). Doorways
+remain the failure mode; goals against walls are now refused rather than
+forced.
 
 ### 6.3 The headline benchmark is saturated — *addressed and now run*
 21 runs per condition, split 9/6/3/3 across task types, every cell at 100% or
@@ -528,3 +538,31 @@ Without RAG every run matched July: 6/21, 0/18, 3/30.
   repository were right when measured and wrong two months later, and only
   running the system again showed it. The pre-fix results are kept in
   `eval/results/before-kb-fix-2026-09-16/`.
+
+---
+
+## 12. Addendum 2026-09-17 — the demo map, measured against ground truth
+
+Preparing the recording turned three "flaky simulation" symptoms into measured
+causes. Gazebo's true pose (`gz model -m waffle -p`) was the reference
+throughout, with the map frame at the spawn pose.
+
+| Symptom | Cause | Where it is fixed |
+|---|---|---|
+| The live map grew a second, rotated copy of the house | Two `gz sim` servers: closing a launch's terminal leaves one running, and its robot's scans reach the new SLAM through the bridge | The launch refuses to start next to one and prints the PIDs ([ADR-034](decisions/ADR-034-refuse-a-second-gazebo.md)) |
+| A saved map's walls doubled when the robot toured it | The map itself was 0.31–0.47 m out in places, and mapping mode drew the true geometry next to the saved walls | Understood, not removed: [ADR-035](decisions/ADR-035-saved-map-loads-read-only.md) measures both load modes and keeps mapping as the default |
+| The map was 0.3 m out in the first place | `robot_radius` 0.15 vs the robot's 0.237: it wedged, the wheels slipped, odometry lost 99° | `robot_radius: 0.20`, the largest this house plans with ([ADR-036](decisions/ADR-036-nav2-robot-radius-from-the-model.md)) |
+| "Guardar mapa" confirmed a save that never happened | SLAM Toolbox's localization mode answers `serialize_map` with `result=0` and writes nothing | `save_map` verifies the four files by modification stamp (ADR-035) |
+
+Two things worth keeping in view:
+
+- **Localizing on a saved map is implemented and measured, and it lost.**
+  map_server + AMCL leaves the map pixel-identical, and reached 1 of 4 rooms
+  against 4 of 4 for a SLAM that keeps mapping, because a distorted static map
+  puts doorways where they are not. AMCL itself was within 0.11 m of the pose
+  that fits the map. The gap to close is map accuracy, not the localizer.
+- **Mapping by hand has no collision protection.** Manual driving bypasses
+  Nav2, so the radius fix does not protect it, and a push against furniture is
+  what cost both maps. A LIDAR brake on the manual input is the open follow-up;
+  the teleop speeds are now the Waffle's documented maxima and clamped there
+  (ADR-023).

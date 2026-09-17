@@ -31,11 +31,14 @@ Three properties make this safe enough to expose over unauthenticated HTTP on
 loopback:
 
 1. **The browser sends keys, never velocities.** `POST /api/teleop {"keys":
-   ["w","a"]}`. Speeds come from the node's parameters
-   (`teleop_linear_speed` 0.18 m/s, `teleop_angular_speed` 1.0 rad/s, ×1.4 with
-   shift — a boosted command still lands inside the Waffle's documented maxima
-   of 0.26 m/s and 1.82 rad/s). What a client can request is bounded by the
-   robot's configuration, not by its own JSON.
+   ["w","a"]}`. Speeds come from the node's parameters and are clamped to the
+   Waffle's documented maxima, 0.26 m/s and 1.82 rad/s. What a client can
+   request is bounded by the robot's configuration, not by its own JSON.
+   *(2026-09-17: the defaults were 0.18 m/s and 1.0 rad/s, ×1.4 with shift.
+   Mapping the house by hand is quicker at full speed, so the defaults are now
+   the maxima themselves and `teleop.py` clamps every command to them — a
+   parameter typo can no longer ask the base for more than it has. Shift still
+   boosts, up to the same ceiling.)*
 2. **A deadman, not a latch.** Held keys are re-sent every 150 ms. A command not
    refreshed within `teleop_timeout_sec` (0.6 s) expires, and the node publishes
    a stop — three times, because `/cmd_vel` reaches the simulator through a

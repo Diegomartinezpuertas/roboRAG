@@ -8,8 +8,9 @@ Two things make that safe to do from a browser, and both live here so they can
 be unit-tested without a robot:
 
 * **Key set to twist.** The browser sends which keys are held, not a velocity;
-  the speeds come from the node's parameters, so a hostile or buggy client
-  cannot ask for more than the configured maximum.
+  the speeds come from the node's parameters, and every command is capped at
+  the TurtleBot3 Waffle's documented maxima, so neither a hostile client nor a
+  mistyped parameter can drive faster than the real base could.
 * **A deadman.** Held keys are a stream of refreshes, never a latch. If the
   browser tab closes, the laptop sleeps, or the network drops, no refresh
   arrives, the command goes stale within `timeout_sec`, and the robot is sent a
@@ -28,11 +29,17 @@ BACKWARD_KEYS = frozenset({'s'})
 LEFT_KEYS = frozenset({'a'})
 RIGHT_KEYS = frozenset({'d'})
 
-# Holding shift multiplies both speeds. Kept modest on purpose: with the node's
-# default speeds, a boosted command still lands inside the TurtleBot3 Waffle's
-# documented maxima (0.26 m/s, 1.82 rad/s), so what the browser asks for is what
-# the base actually does — and SLAM's scan matching is not asked to keep up with
-# a robot being whipped around faster than it can scan.
+# The TurtleBot3 Waffle's documented maxima. Every command is clamped to them:
+# the simulated base would happily spin faster, and driving a robot faster than
+# it can scan is what corrupts a SLAM map (measured 2026-09-17 — a slip while
+# pushing against furniture cost two maps). Above these speeds the simulation
+# would also stop being a simulation of this robot.
+MAX_LINEAR_SPEED = 0.26
+MAX_ANGULAR_SPEED = 1.82
+
+# Holding shift multiplies both speeds, up to the maxima above. With the node's
+# defaults now at those maxima it changes nothing; it is a boost for anyone who
+# configures slower speeds for precision driving.
 BOOST_FACTOR = 1.4
 
 # Zero-velocity messages sent when a driving session ends. One would be enough
@@ -53,6 +60,9 @@ def twist_from_keys(
     person expects when rolling their fingers across the keys, and it also
     means a stuck key plus its opposite never latches a turn.
 
+    Both axes are clamped to MAX_LINEAR_SPEED / MAX_ANGULAR_SPEED, whatever the
+    parameters and the boost ask for.
+
     Args:
         keys: Keys currently held, e.g. {"w", "a"}. Case and unknown keys are
             tolerated: anything not in the WASD set is ignored.
@@ -67,7 +77,14 @@ def twist_from_keys(
     linear = float(bool(held & FORWARD_KEYS)) - float(bool(held & BACKWARD_KEYS))
     angular = float(bool(held & LEFT_KEYS)) - float(bool(held & RIGHT_KEYS))
     scale = BOOST_FACTOR if boost else 1.0
-    return (linear * linear_speed * scale, angular * angular_speed * scale)
+    return (
+        _capped(linear * linear_speed * scale, MAX_LINEAR_SPEED),
+        _capped(angular * angular_speed * scale, MAX_ANGULAR_SPEED),
+    )
+
+
+def _capped(value: float, limit: float) -> float:
+    return max(-limit, min(limit, value))
 
 
 class TeleopState:

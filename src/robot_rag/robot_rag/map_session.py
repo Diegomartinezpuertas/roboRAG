@@ -102,5 +102,52 @@ def read_active_map_id(maps_dir: str | Path) -> str:
     return data.get('map_id', '')
 
 
+def saved_map_stamp(map_base: str | Path) -> int | None:
+    """Identifies the version of a saved map on disk, to tell whether a save wrote it.
+
+    SLAM Toolbox's serialize service can answer without writing anything: in
+    its localization mode it logs "Cannot call serialize map" and returns an
+    untouched response, whose result code reads as success (ADR-035). Comparing
+    this stamp before and after the call is the evidence that does not depend on
+    that code.
+
+    Args:
+        map_base: Base path of the map, without extension (<maps_dir>/<id>/map).
+
+    Returns:
+        The pose graph's modification time in nanoseconds, or None unless both
+        map.posegraph and map.data exist.
+    """
+    base = Path(map_base)
+    posegraph, data = base.with_suffix('.posegraph'), base.with_suffix('.data')
+    try:
+        stamp = posegraph.stat().st_mtime_ns
+        data.stat()
+    except OSError:
+        return None
+    return stamp
+
+
+def map_image_stamp(map_base: str | Path) -> int | None:
+    """Identifies the version of a saved map's occupancy image, to tell whether a save wrote it.
+
+    The image (map.yaml + map.pgm, written by SLAM Toolbox's map saver) is what
+    map_server loads when a saved map is opened read-only (ADR-035).
+
+    Args:
+        map_base: Base path of the map, without extension (<maps_dir>/<id>/map).
+
+    Returns:
+        The newer modification time of the two files in nanoseconds, or None
+        unless both exist.
+    """
+    base = Path(map_base)
+    try:
+        return max(base.with_suffix('.yaml').stat().st_mtime_ns,
+                   base.with_suffix('.pgm').stat().st_mtime_ns)
+    except OSError:
+        return None
+
+
 def _fresh_id() -> str:
     return uuid.uuid4().hex[:12]

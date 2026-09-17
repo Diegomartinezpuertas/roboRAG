@@ -8,7 +8,14 @@ map, lidar scan, costmaps. Pass use_gz_gui:=true to get the Gazebo window back.
 
 saved_map:=<id> starts SLAM from a saved pose graph instead of an empty map —
 one saved from the dashboard (data/maps/<id>) or shipped with the repository
-(robot_bringup/maps/<id>). See ADR-019 and ADR-026.
+(robot_bringup/maps/<id>). See ADR-019 and ADR-026. By default SLAM Toolbox
+continues the saved pose graph, so the map follows what the robot sees;
+saved_map_mode:=localization instead serves the saved occupancy image through
+map_server and localizes with AMCL, leaving the map untouched (ADR-035).
+
+The launch fails at once if a Gazebo server is already running in the same
+partition — usually one left behind by a closed terminal. Two simulations feed
+two robots into one SLAM and corrupt the map (ADR-034).
 """
 
 import os
@@ -33,30 +40,79 @@ from launch_ros.actions import Node
 from robot_bringup.saved_maps import (
     DEFAULT_SPAWN_X,
     DEFAULT_SPAWN_Y,
+    DEFAULT_SAVED_MAP_MODE,
     DEFAULT_WORLD,
+    resolve_map_image,
     resolve_saved_map,
     slam_params_for_saved_map,
+    uses_amcl,
+)
+from robot_bringup.sim_guard import (
+    gazebo_partition,
+    running_gazebo_servers,
+    second_simulation_error,
 )
 
 WS_ROOT = os.environ.get('ROBOT_WS', os.path.join(os.path.expanduser('~'), 'robot_ws'))
 
 
-def _slam(context, slam_params_file: str, use_sim_time) -> list:
-    """Includes SLAM Toolbox, starting from a saved map when saved_map is set.
+def _refuse_second_simulation(context) -> list:
+    """Fails the launch while another Gazebo server runs in this partition (ADR-034).
 
-    SLAM Toolbox reads the map to load from its parameters file, and the
-    stock launch file takes only that file — so for a saved map the project's
-    parameters are rewritten into a temporary copy with map_file_name and a
-    dock start (robot_bringup.saved_maps). An unknown id fails the launch with
-    the paths searched, rather than silently mapping from scratch.
+    It runs before this launch starts its own server, so any server found
+    belongs to another simulation.
+    """
+    servers = running_gazebo_servers(gazebo_partition(os.environ))
+    if servers:
+        raise RuntimeError(second_simulation_error(servers))
+    return []
+
+
+def _slam(context, slam_params_file: str, nav2_params_file: str, use_sim_time) -> list:
+    """Includes what provides the map and localization: SLAM Toolbox, or map_server + AMCL.
+
+    - No saved map: SLAM Toolbox maps from scratch.
+    - A saved map, saved_map_mode:=mapping (default): SLAM Toolbox continues the
+      pose graph. It reads the map to load from its parameters file, and the
+      stock launch file takes only that file — so the project's parameters are
+      rewritten into a temporary copy with map_file_name and a dock start.
+    - A saved map, saved_map_mode:=localization: nav2_bringup's localization
+      launch — map_server serves the saved occupancy image and AMCL localizes
+      from the map origin (nav2_params.yaml). The map cannot change.
+
+    An unknown id, a map without its occupancy image, or an unknown mode fails
+    the launch with the reason, rather than silently mapping from scratch.
     """
     map_id = LaunchConfiguration('saved_map').perform(context).strip()
+    mode = LaunchConfiguration(
+        'saved_map_mode', default=DEFAULT_SAVED_MAP_MODE,
+    ).perform(context).strip()
     params_file = slam_params_file
     actions = []
     if map_id:
         map_base = resolve_saved_map(
             map_id, WS_ROOT, get_package_share_directory('robot_bringup'),
         )
+        if uses_amcl(map_id, mode):
+            map_yaml = resolve_map_image(map_base)
+            return [
+                LogInfo(msg=f'Saved map "{map_id}" loads read-only (map_server + AMCL): {map_yaml}'),
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        os.path.join(
+                            get_package_share_directory('nav2_bringup'),
+                            'launch', 'localization_launch.py',
+                        ),
+                    ),
+                    launch_arguments={
+                        'map': str(map_yaml),
+                        'params_file': nav2_params_file,
+                        'use_sim_time': use_sim_time,
+                        'autostart': 'true',
+                        'use_composition': 'False',
+                    }.items(),
+                ),
+            ]
         with open(slam_params_file, encoding='utf-8') as source:
             params = slam_params_for_saved_map(yaml.safe_load(source), map_base)
         with tempfile.NamedTemporaryFile(
@@ -64,7 +120,9 @@ def _slam(context, slam_params_file: str, use_sim_time) -> list:
         ) as rewritten:
             yaml.safe_dump(params, rewritten)
             params_file = rewritten.name
-        actions.append(LogInfo(msg=f'SLAM starts from saved map "{map_id}": {map_base}'))
+        actions.append(LogInfo(msg=f'SLAM continues saved map "{map_id}" (mapping): {map_base}'))
+    else:
+        uses_amcl(map_id, mode)   # a typo in saved_map_mode fails here too
     actions.append(IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
@@ -161,7 +219,7 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     slam_launch = OpaqueFunction(
-        function=_slam, args=[slam_params_file, use_sim_time],
+        function=_slam, args=[slam_params_file, nav2_params_file, use_sim_time],
     )
 
     nav2_launch = IncludeLaunchDescription(
@@ -230,6 +288,13 @@ def generate_launch_description() -> LaunchDescription:
             description='Start SLAM from a saved map id (data/maps/<id> or robot_bringup/maps/<id>); '
                         'empty maps from scratch',
         ),
+        DeclareLaunchArgument(
+            'saved_map_mode', default_value=DEFAULT_SAVED_MAP_MODE,
+            description='With saved_map: mapping (SLAM Toolbox) keeps adding scans, so the map '
+                        'follows what the robot sees; localization (map_server + AMCL) leaves it '
+                        'exactly as saved',
+        ),
+        OpaqueFunction(function=_refuse_second_simulation),
         gz_resources,
         gz_server,
         gz_gui,

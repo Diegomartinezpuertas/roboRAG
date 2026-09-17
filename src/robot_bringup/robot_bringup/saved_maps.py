@@ -12,7 +12,15 @@ The workspace wins: re-saving a shipped map's id locally replaces it for you
 without touching the repository. Kept free of launch/rclpy imports so the
 resolution rules are unit-tested in layer 1 (ADR-018).
 
-See docs/decisions/ADR-026-shipped-map-and-demo-launch.md.
+A saved map loads into SLAM Toolbox by default, which keeps mapping from there
+(ADR-026): on the hand-made maps this project produces, that is what navigates.
+`localization` mode instead serves the saved occupancy image (`map.yaml` +
+`map.pgm`) through Nav2's map_server and localizes on it with AMCL, so the map
+cannot change — measured, and measured to navigate worse here, because those
+maps carry 0.3–0.5 m of distortion (ADR-035).
+
+See docs/decisions/ADR-026-shipped-map-and-demo-launch.md and
+docs/decisions/ADR-035-saved-map-loads-read-only.md.
 """
 
 from __future__ import annotations
@@ -20,12 +28,22 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 # The simulated world and spawn pose. A SLAM map built from scratch has its
 # origin where the robot spawned, so (world, spawn) *is* its coordinate frame —
 # and the memory session id of every map built from scratch (ADR-028).
 DEFAULT_WORLD = 'turtlebot3_house'
 DEFAULT_SPAWN_X = -2.0
 DEFAULT_SPAWN_Y = -0.5
+
+# How a saved map is loaded. `mapping`: SLAM Toolbox continues the pose graph,
+# so the map follows what the robot sees now — it also drifts and doubles walls
+# where the saved map disagrees with the world. `localization`: map_server +
+# AMCL, the map never changes, but a distorted saved map then fights Nav2
+# (measured: 1 of 4 rooms reached, against 4 of 4 in mapping mode — ADR-035).
+SAVED_MAP_MODES = ('localization', 'mapping')
+DEFAULT_SAVED_MAP_MODE = 'mapping'
 
 # Same alphabet the dashboard's name normalization produces, minus anything
 # that could walk out of the maps directory.
@@ -76,8 +94,77 @@ def resolve_saved_map(map_id: str, ws_root: Path, share_dir: Path) -> Path:
     raise FileNotFoundError(f'No saved map "{map_id}" (map.posegraph + map.data) in: {looked}')
 
 
+def check_saved_map_mode(mode: str) -> str:
+    """Validates the saved_map_mode launch argument.
+
+    Args:
+        mode: 'localization' or 'mapping' (surrounding spaces ignored).
+
+    Returns:
+        The mode, stripped.
+
+    Raises:
+        ValueError: For any other value — a typo must not silently pick a mode.
+    """
+    mode = mode.strip()
+    if mode not in SAVED_MAP_MODES:
+        raise ValueError(
+            f'Invalid saved_map_mode {mode!r}: use {" or ".join(SAVED_MAP_MODES)}',
+        )
+    return mode
+
+
+def uses_amcl(saved_map: str, mode: str = DEFAULT_SAVED_MAP_MODE) -> bool:
+    """Tells whether a launch localizes with map_server + AMCL instead of running SLAM.
+
+    Only `saved_map_mode:=localization` on a saved map does.
+
+    Args:
+        saved_map: The saved_map launch argument ('' when mapping from scratch).
+        mode: The saved_map_mode launch argument, validated even without a saved map.
+
+    Returns:
+        True only for a saved map in localization mode.
+
+    Raises:
+        ValueError: If mode is not one of SAVED_MAP_MODES.
+    """
+    return check_saved_map_mode(mode) == 'localization' and bool(saved_map.strip())
+
+
+def resolve_map_image(map_base: Path) -> Path:
+    """Finds the occupancy image map_server loads for a saved map.
+
+    `save_map` writes it next to the pose graph (map.yaml + the image it names).
+    Maps saved before that have only the pose graph.
+
+    Args:
+        map_base: Base path from resolve_saved_map.
+
+    Returns:
+        The map.yaml path.
+
+    Raises:
+        FileNotFoundError: If map.yaml or the image it names is missing. The
+            message says how to write them: load the map in mapping mode and
+            save it again.
+    """
+    map_yaml = Path(map_base).with_suffix('.yaml')
+    image = None
+    if map_yaml.is_file():
+        with open(map_yaml, encoding='utf-8') as source:
+            image = (yaml.safe_load(source) or {}).get('image')
+    if image and (map_yaml.parent / image).is_file():
+        return map_yaml
+    raise FileNotFoundError(
+        f'Saved map {map_base.parent.name!r} has no occupancy image ({map_yaml} and the image '
+        'it names), which read-only loading needs. Launch with saved_map_mode:=mapping and '
+        'save the map again ("Guardar mapa") to write it.',
+    )
+
+
 def slam_params_for_saved_map(params: dict, map_base: Path) -> dict:
-    """Returns SLAM Toolbox parameters that start from a saved map instead of an empty one.
+    """Returns SLAM Toolbox parameters that continue a saved map (saved_map_mode:=mapping).
 
     The robot is started at the pose graph's first node ("dock") — the pose
     mapping began at, which is the simulator's spawn pose — and SLAM keeps

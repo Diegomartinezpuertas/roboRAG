@@ -309,7 +309,23 @@ careful to call unreliable.
   The planner's rules instruct it to explore when a location is unknown. A
   house mapped once — by hand with WASD, saved from the dashboard — can be
   loaded with `saved_map:=<id>` so a run starts with the whole map
-  ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)).
+  ([ADR-026](decisions/ADR-026-shipped-map-and-demo-launch.md)). SLAM keeps
+  mapping from it, which is what navigates on a hand-made map, at the cost of
+  redrawing walls it disagrees with; `saved_map_mode:=localization` loads it
+  read-only instead (map_server + AMCL) — measured on both, 4/4 rooms against
+  1/4 ([ADR-035](decisions/ADR-035-saved-map-loads-read-only.md)).
+- **Collisions corrupt maps, so the footprint has to be right:** Nav2's
+  `robot_radius` is 0.20 m — as close to the shipped `model.sdf`'s 0.237 m as
+  this house can plan with. At the 0.15 m inherited from TurtleBot3's Jazzy
+  parameters the robot grazed walls, wedged, and the wheel slip left odometry
+  99° out and SLAM 0.8 m out
+  ([ADR-036](decisions/ADR-036-nav2-robot-radius-from-the-model.md)).
+  Manual driving bypasses Nav2 and has no such protection.
+- **One simulation at a time:** a second Gazebo server in the same partition
+  feeds its robot into this SLAM and corrupts the map. Closing a launch's
+  terminal leaves the server running, so `simulation.launch.py` refuses to
+  start next to one and names the PIDs to stop
+  ([ADR-034](decisions/ADR-034-refuse-a-second-gazebo.md)).
 - **Goals against walls:** a navigation goal placed inside a wall's inflated
   cost (`inflation_radius: 0.5`) can fail to plan even where the robot drives
   past freely — measured: it crosses a 0.7 m doorway both ways at 0.5 m. The

@@ -6,6 +6,8 @@ import time
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 
+from robot_skills.localization import localizer_node
+
 
 class NavSkill:
     """Drives the robot to an explicit (x, y, theta) pose via Nav2.
@@ -22,13 +24,24 @@ class NavSkill:
         self.navigator = BasicNavigator()
 
     def wait_until_active(self) -> None:
-        """Blocks until the Nav2 lifecycle stack reports active.
+        """Blocks until the localizer and bt_navigator report active.
 
-        Localization comes from SLAM Toolbox (see ADR-004), not AMCL, so the
-        lifecycle node to wait on is overridden accordingly - the default
-        'amcl' would hang forever waiting for a node that never starts.
+        The localizer is SLAM Toolbox on a live map (ADR-004) and AMCL on a
+        saved map loaded read-only (ADR-035), found by name in the graph.
+        SimpleCommander's own AMCL wait is not used: it publishes an initial
+        pose at the origin until AMCL answers, which would reset a robot that
+        was driven before its first skill. AMCL takes its initial pose from
+        its parameters instead.
         """
-        self.navigator.waitUntilNav2Active(localizer='slam_toolbox')
+        localizer = localizer_node(self.navigator.get_node_names())
+        while localizer is None:
+            self.navigator.info('Waiting for a localizer (amcl or slam_toolbox) to appear')
+            time.sleep(1.0)
+            localizer = localizer_node(self.navigator.get_node_names())
+        self.navigator._waitForNodeToActivate(localizer)   # public wait would reset AMCL's pose
+        # 'robot_localization' makes waitUntilNav2Active skip the localizer
+        # (already waited for above) and wait for bt_navigator only.
+        self.navigator.waitUntilNav2Active(localizer='robot_localization')
 
     def navigate(self, params: dict) -> dict:
         """Navigates to an explicit x/y/theta pose in the map frame.
