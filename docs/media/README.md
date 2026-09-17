@@ -41,8 +41,9 @@ exploration is not a substitute here: even with frontier clusters it maps about
 ## The README section these feed
 
 Already in the root `README.md`, immediately after the badges, as its **Demo**
-section — kept here so a re-recording can check the captions still describe
-what the files show:
+section — kept here so a re-recording can check the captions still describe what
+the files show. The paths in it are relative to the repository root, not to this
+folder:
 
 ```markdown
 ## Demo
