@@ -89,7 +89,8 @@ like a RAG failure and is not one.
 
 **Why the Gazebo GUI only in the demo launch.** On WSL2 it renders on llvmpipe
 and costs real-time factor — ~0.15 on the setup that decided it was off by
-default; measured on the current one (2026-09-16), ~0.68 headless and ~0.59
+default; measured on the current one (2026-09-16, before the camera and voxel
+changes of ADR-037), ~0.68 headless and ~0.59
 with the window. A recording wants the window; everyday runs want the speed.
 
 ## Consequences

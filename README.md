@@ -18,6 +18,25 @@ remembers, and WASD driving to map the house by hand first.
 
 ---
 
+## Demo
+
+![The agent taking a natural-language goal and executing it](docs/media/demo.gif)
+
+A goal in natural language, the retrieval and the plan traced step by step in
+the dashboard, and the robot executing it under Nav2 — all local, on one laptop.
+
+| Dashboard — live SLAM map, named rooms, and the planner's reasoning | RViz — LIDAR and Nav2 costmaps |
+|---|---|
+| ![The dashboard: floor plan with named rooms on the left, the agent's thread on the right showing the goal, the plan it produced, each step completing and the final answer](docs/media/dashboard.png) | ![RViz: the saved map with Nav2's inflated costmap around every wall, the LIDAR's returns and the path being followed](docs/media/rviz.png) |
+
+The memory is not a black box: ask it a question and see what the robot would
+retrieve — the rooms it was told about, the places it described itself, each
+with its coordinates and the spot on the map where it learned them.
+
+![The memory panel answering "dónde se suele cocinar": cards for the named rooms and for scenes the robot described, with coordinates and zone](docs/media/memory.png)
+
+---
+
 ## Does the RAG actually help? (measured)
 
 > **Short answer: memory is what lets the robot find remembered places, and on
@@ -251,11 +270,13 @@ ros2 launch robot_bringup full_system.launch.py saved_map:=house start_zone:=ent
 # ...or keep mapping from it, to extend it and save it again
 ros2 launch robot_bringup full_system.launch.py saved_map:=house saved_map_mode:=mapping
 
-# The demo setup: Gazebo window + RViz + dashboard, starting from map `house`.
-# The repository does not ship that map yet: save yours as `house` first (above),
-# or the launch stops with "No saved map". The Gazebo window costs some
-# real-time factor on WSL2 (measured ~0.68 -> ~0.59)
+# The demo setup: Gazebo window + RViz + dashboard on map `house`, loaded
+# read-only, with the robot starting in the `entrada` zone. The repository does
+# not ship a map: save yours as `house` first (above), or the launch stops with
+# "No saved map". The Gazebo window is the most expensive thing on screen —
+# without it the real-time factor is 0.90 (ADR-037)
 ros2 launch robot_bringup demo.launch.py
+ros2 launch robot_bringup demo.launch.py use_gz_gui:=false   # for the smoothest takes
 
 # Send a goal
 ros2 topic pub --once /robot/goal std_msgs/String "data: 'Explora el entorno durante 60 segundos'"

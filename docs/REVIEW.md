@@ -543,6 +543,13 @@ Without RAG every run matched July: 6/21, 0/18, 3/30.
 
 ## 12. Addendum 2026-09-17 — the demo map, measured against ground truth
 
+**The demo is recorded.** `docs/media/` holds the clip and the three stills the
+README's **Demo** section shows: the dashboard with a completed plan and the
+memory panel, the memory panel answering a functional query, and RViz with
+Nav2's costmaps. What is left is outside the repository — the social preview,
+the video upload and the write-up.
+
+
 Preparing the recording turned three "flaky simulation" symptoms into measured
 causes. Gazebo's true pose (`gz model -m waffle -p`) was the reference
 throughout, with the map frame at the spawn pose.
