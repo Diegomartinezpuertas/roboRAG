@@ -751,7 +751,7 @@ def test_observation_counts_reach_the_viewer():
 
 # --- the event cursor across a restart of the node (2026-09-17) -------------
 
-from robot_dashboard.dashboard_node import EventBuffer  # noqa: E402
+from robot_dashboard.events import EventBuffer  # noqa: E402
 
 
 def test_a_cursor_from_a_previous_process_gets_everything():
