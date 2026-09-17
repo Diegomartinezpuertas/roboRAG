@@ -199,7 +199,9 @@ manual driving), memory browser, text/voice goal input.
 
 ### `GET /api/events?since=<id>`
 
-Events with id greater than `since`.
+Events with id greater than `since`. A `since` ahead of the buffer — a page left
+open across a relaunch, whose cursor belongs to the previous process — returns
+everything instead of nothing, so the thread recovers without a reload.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -316,6 +318,15 @@ parameters, restarts its deadman and publishes to `/robot/cmd_vel_manual`, where
 Held keys must be re-sent (the UI does so every 150 ms). A command not refreshed
 within `teleop_timeout_sec` expires and the robot is stopped. `/api/teleop/stop`
 ends the session immediately; an empty `keys` list means the same thing.
+
+### `POST /api/events/clear`
+
+Empties the dashboard's event buffer — the **Limpiar** button beside the
+thread's tabs — so a recording or a demo starts on a clean thread; event ids
+keep increasing, so pages that already polled are not re-sent old events
+([ADR-030](decisions/ADR-030-dashboard-redesign-and-browser-tests.md)).
+
+**Body:** none → `{"ok": true, "cleared": <how many were dropped>}`.
 
 ### `POST /api/map/save`
 

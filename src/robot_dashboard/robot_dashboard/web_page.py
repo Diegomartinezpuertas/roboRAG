@@ -342,6 +342,10 @@ PAGE = r"""<!DOCTYPE html>
           <button class="tab" role="tab" aria-selected="true" id="tabThread" onclick="showAgentTab('thread')">Razonamiento</button>
           <button class="tab" role="tab" aria-selected="false" id="tabLogs" onclick="showAgentTab('logs')">Logs ROS</button>
         </div>
+        <button type="button" class="icon-btn" id="clearThreadBtn" style="width:38px;height:32px"
+                onclick="clearThread()" aria-label="Limpiar el hilo y los logs" title="Limpiar">
+          <svg class="icon"><use href="#i-trash"/></svg>
+        </button>
       </div>
       <div class="scroll" id="agentScroll">
         <div id="timeline"><div class="muted-note" id="threadEmpty">Aún no hay órdenes. Escribe una arriba o pulsa una sugerencia.</div></div>
@@ -428,6 +432,14 @@ function threadItem(ev) {
   div.className = 't-step';
   div.textContent = plain[text] || text;
   return div;
+}
+
+async function clearThread() {
+  // Empties the server's buffer too, so a reload does not bring the old thread
+  // back in the middle of a recording.
+  try { await post('/api/events/clear'); } catch (e) { setConn(false); }
+  $('timeline').innerHTML = '<div class="muted-note" id="threadEmpty">Aún no hay órdenes. Escribe una arriba o pulsa una sugerencia.</div>';
+  $('logs').innerHTML = '';
 }
 
 function addEvent(ev) {

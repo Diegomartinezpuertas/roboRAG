@@ -88,9 +88,40 @@ class EventBuffer:
             if len(self._events) > self._max_events:
                 del self._events[: len(self._events) - self._max_events]
 
-    def since(self, last_id: int) -> list[dict]:
-        """Returns all events with id greater than last_id."""
+    def clear(self) -> int:
+        """Drops every event held, so a new recording starts on an empty thread.
+
+        Ids keep increasing, so a page that has already polled is not sent the
+        same events again.
+
+        Returns:
+            How many events were dropped.
+        """
         with self._lock:
+            dropped = len(self._events)
+            self._events.clear()
+        return dropped
+
+    def since(self, last_id: int) -> list[dict]:
+        """Returns the events a client has not seen yet.
+
+        A page left open across a restart of this node asks for ids past
+        anything this buffer will ever hold — its cursor belongs to the
+        previous process — and used to receive nothing for ever, so the
+        timeline stayed frozen until someone reloaded the page. Such a cursor
+        is treated as a fresh start instead.
+
+        Args:
+            last_id: The highest event id the client already has; 0 for a new page.
+
+        Returns:
+            The events with a greater id, or all of them when the cursor is
+            ahead of this buffer.
+
+        """
+        with self._lock:
+            if last_id >= self._next_id:
+                return list(self._events)
             return [e for e in self._events if e['id'] > last_id]
 
 

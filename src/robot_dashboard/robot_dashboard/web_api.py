@@ -305,7 +305,7 @@ def build_app(node) -> FastAPI:
     """Builds the FastAPI application bound to a dashboard node.
 
     Args:
-        node: Any object providing `events.since(int)`, `get_map_snapshot()`,
+        node: Any object providing `events.since(int)`, `events.clear()`, `get_map_snapshot()`,
             `get_robot_pose()`, `zones` (a ZoneStore), `publish_goal(str)`,
             `index_zone_in_memory(str, dict)`, `inspect_memory(str, str, int,
             bool)`, `delete_memory(str, list[str])`, `save_map(str)`,
@@ -334,6 +334,11 @@ def build_app(node) -> FastAPI:
     @app.get('/api/events')
     def events(since: int = 0) -> dict:
         return {'events': node.events.since(since)}
+
+    @app.post('/api/events/clear')
+    def clear_events() -> dict:
+        """Empties the event buffer, for a clean thread before a recording."""
+        return {'ok': True, 'cleared': node.events.clear()}
 
     @app.get('/api/map')
     def map_snapshot() -> dict:

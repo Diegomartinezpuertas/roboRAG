@@ -160,3 +160,14 @@ def test_deleting_a_memory_card_deletes_the_ids_it_stands_for(page, node):
     page.locator('.note').first.locator('button.del').click()
     expected = [('semantic_map', ['zone-cocina'])]
     assert _until(lambda: node.delete_calls == expected), node.delete_calls
+
+
+def test_the_clear_button_empties_the_thread_and_the_server_buffer(page, node):
+    now = time.time()
+    node.events._events.append(
+        {'id': 1, 'ts': now, 'type': 'goal', 'text': 'Ve a la cocina', 'source': '', 'level': 20})
+    page.wait_for_selector('.t-goal', timeout=5000)
+    page.click('#clearThreadBtn')
+    page.wait_for_selector('#threadEmpty', timeout=5000)
+    assert page.locator('.t-goal').count() == 0
+    assert node.events._events == []

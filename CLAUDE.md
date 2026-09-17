@@ -279,7 +279,7 @@ ros2 launch robot_bringup full_system.launch.py saved_map:=house saved_map_mode:
 # Demo setup: Gazebo window + RViz + dashboard on map `house` (GUI costs RTF)
 ros2 launch robot_bringup demo.launch.py
 
-# Layer 1 — pure logic, no ROS needed (397 tests, 8 of them drive the dashboard
+# Layer 1 — pure logic, no ROS needed (401 tests, 8 of them drive the dashboard
 # page in headless Chromium — once: python3 -m playwright install chromium) + lint
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/
 ruff check .
@@ -295,7 +295,7 @@ cd eval && python3 seed_memory.py && python3 run_benchmark.py tasks_full.yaml &&
 cd eval && python3 seed_memory.py --offline && python3 run_benchmark.py tasks_full.yaml && python3 report.py full
 
 # Reproduce the offline verification in a clean container (ADR-021) — needs no
-# ROS 2, no Python and no GPU on the host. Expect ruff clean + 397 + 28, exit 0.
+# ROS 2, no Python and no GPU on the host. Expect ruff clean + 401 + 28, exit 0.
 # The simulator is deliberately NOT in the image; Gazebo/RViz stay on the host.
 docker build -t robot-rag-agent . && docker run --rm robot-rag-agent
 

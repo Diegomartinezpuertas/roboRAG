@@ -80,6 +80,14 @@ state.
 
 ## Consequences
 
+*(2026-09-17, from a recording session: the thread stopped updating whenever the
+node was relaunched with the page left open — it polls `/api/events?since=<id>`
+and the server's ids restart at 1, so the cursor pointed past everything the
+new buffer would ever hold. `EventBuffer.since()` now treats a cursor ahead of
+itself as a fresh start. A **Limpiar** button was added beside the tabs, which
+also empties the server's buffer through `POST /api/events/clear`, so a take
+starts on an empty thread and a reload does not bring the old one back.)*
+
 - The drive panel, title block and memory cards were verified against the live
   stack (headless Gazebo + Nav2): driver `teleop` while keys are held, sim factor
   ×0.53–0.68, merged memories showing their observation counts, no script errors.

@@ -50,6 +50,11 @@ class FakeEvents:
     def since(self, last_id):
         return [e for e in self._events if e['id'] > last_id]
 
+    def clear(self):
+        dropped = len(self._events)
+        self._events.clear()
+        return dropped
+
 
 class FakeZones:
     """Minimal in-memory stand-in for ZoneStore."""
@@ -742,3 +747,33 @@ def test_observation_counts_reach_the_viewer():
     assert format_memory_entry(item, '')['observations'] == 5
     bare = format_memory_entry({'id': 'k', 'document': 'd', 'metadata': {}}, '')
     assert bare['observations'] == 1
+
+
+# --- the event cursor across a restart of the node (2026-09-17) -------------
+
+from robot_dashboard.dashboard_node import EventBuffer  # noqa: E402
+
+
+def test_a_cursor_from_a_previous_process_gets_everything():
+    """A page left open across a relaunch used to see nothing for ever."""
+    buffer = EventBuffer()
+    for text in ('a', 'b'):
+        buffer.append('status', text)
+    assert [e['text'] for e in buffer.since(500)] == ['a', 'b']
+    assert [e['text'] for e in buffer.since(1)] == ['b']
+    assert buffer.since(2) == []
+
+
+def test_clearing_the_events_empties_the_thread(client, node):
+    """The dashboard's "Limpiar" button, so a recording starts on a clean thread."""
+    node.events._events.extend([{'id': 1, 'text': 'a'}, {'id': 2, 'text': 'b'}])
+    assert client.post('/api/events/clear').json() == {'ok': True, 'cleared': 2}
+    assert client.get('/api/events').json() == {'events': []}
+
+
+def test_clearing_keeps_ids_increasing_so_pages_are_not_resent_old_events():
+    buffer = EventBuffer()
+    buffer.append('status', 'a')
+    assert buffer.clear() == 1
+    buffer.append('status', 'b')
+    assert [e['id'] for e in buffer.since(1)] == [2]
