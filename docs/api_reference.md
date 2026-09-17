@@ -322,7 +322,9 @@ ends the session immediately; an empty `keys` list means the same thing.
 ### `POST /api/events/clear`
 
 Empties the dashboard's event buffer — the **Limpiar** button beside the
-thread's tabs — so a recording or a demo starts on a clean thread; event ids
+thread's tabs — so a recording or a demo starts on a clean thread (the
+**Recorrido** toggle over the plan does the same for the robot's trail, in the
+browser only); event ids
 keep increasing, so pages that already polled are not re-sent old events
 ([ADR-030](decisions/ADR-030-dashboard-redesign-and-browser-tests.md)).
 

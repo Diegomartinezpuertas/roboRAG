@@ -118,6 +118,15 @@ PAGE = r"""<!DOCTYPE html>
                           padding: 7px 8px; border-radius: var(--r-sm); border: 1px solid var(--line);
                           background: none; color: var(--chalk); font-size: .88rem; }
   .drive-actions button:hover { background: var(--plan-2); }
+  .drive-actions button[aria-pressed="false"] { color: var(--muted); border-style: dashed; }
+  /* Clearing the robot's track lives over the plan: a clean plan is wanted
+     while recording, when nobody is driving and the drive panel is closed. */
+  .legend-btn { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center;
+                gap: 6px; margin-bottom: 4px; padding: 4px 6px; border-radius: var(--r-sm);
+                border: 1px solid var(--line); background: none; color: var(--chalk);
+                font-size: .82rem; cursor: pointer; }
+  .legend-btn:hover { background: var(--plan-2); }
+  .legend-btn[aria-pressed="false"] { color: var(--muted); border-style: dashed; }
 
   /* title block, bottom right — cells, as on a drawing */
   .titleblock { flex: none; margin: 0; display: grid; grid-template-columns: auto auto;
@@ -242,6 +251,7 @@ PAGE = r"""<!DOCTYPE html>
   <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></symbol>
   <symbol id="i-wheel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 4v6M5.5 16l5-3M18.5 16l-5-3"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><path d="M4 19c4 0 3-6 7-6s3 6 9 4" stroke-dasharray="3 3"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="17" r="2"/></symbol>
   <symbol id="g-robot" viewBox="0 0 16 16"><path d="M8 2l5 12-5-3-5 3z" fill="#f2a93b" stroke="none"/></symbol>
   <symbol id="g-zone" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" fill="none" stroke="#e6edf2" stroke-dasharray="2 2"/><path d="M2 9l6-6M5 13l9-9M10 13l4-4" stroke="#e6edf2" stroke-opacity=".45"/></symbol>
   <symbol id="g-mem" viewBox="0 0 16 16"><path d="M8 2l6 6-6 6-6-6z" fill="#5ec4dc" stroke="none"/></symbol>
@@ -256,6 +266,10 @@ PAGE = r"""<!DOCTYPE html>
     <div class="plan-top" id="planTop">
     <div class="overlay rooms" id="zonesList"></div>
     <div class="overlay legend" aria-label="Leyenda">
+      <button id="trailBtn" class="legend-btn" onclick="toggleTrail()" aria-pressed="true"
+              title="Borra la línea del recorrido y deja de dibujarla">
+        <svg class="icon"><use href="#i-route"/></svg>Recorrido
+      </button>
       <svg><use href="#g-robot"/></svg><span>Robot</span>
       <svg><use href="#g-zone"/></svg><span>Habitación</span>
       <svg><use href="#g-mem"/></svg><span>Recuerdo</span>
@@ -502,7 +516,18 @@ const mapImg = new Image();
 let mapMeta = null, mapStamp = null, robot = null, zones = {}, sim = { rtf: null, driver: null };
 let view = null, sel = null, dragging = false, pendingArea = null;
 const trail = [];
+let showTrail = true;
 let hatch = null;
+
+function toggleTrail() {
+  // Recording a video wants the floor plan clean: this drops the trail already
+  // drawn and stops adding to it until it is switched back on.
+  showTrail = !showTrail;
+  trail.length = 0;
+  canvas.dataset.trail = '0';
+  $('trailBtn').setAttribute('aria-pressed', String(showTrail));
+  draw();
+}
 
 async function pollMap() {
   try {
@@ -510,8 +535,11 @@ async function pollMap() {
     robot = data.robot; zones = data.zones || {}; sim = data.sim || sim;
     if (robot) {
       const last = trail[trail.length - 1];
-      if (!last || Math.hypot(last.x - robot.x, last.y - robot.y) > 0.05) { trail.push({ x: robot.x, y: robot.y, t: Date.now() }); }
+      if (showTrail && (!last || Math.hypot(last.x - robot.x, last.y - robot.y) > 0.05)) {
+        trail.push({ x: robot.x, y: robot.y, t: Date.now() });
+      }
       while (trail.length > 400) trail.shift();
+      canvas.dataset.trail = String(trail.length);   // the browser tests read this
     }
     if (data.map) {
       mapMeta = data.map;
@@ -611,7 +639,7 @@ function draw() {
   }
 
   // where the robot has been, and where it faces
-  if (trail.length > 1) {
+  if (showTrail && trail.length > 1) {
     ctx.beginPath();
     trail.forEach((p, i) => { const [cx, cy] = w2c(p.x, p.y); i ? ctx.lineTo(cx, cy) : ctx.moveTo(cx, cy); });
     ctx.strokeStyle = 'rgba(242,169,59,0.35)'; ctx.lineWidth = 2; ctx.stroke();

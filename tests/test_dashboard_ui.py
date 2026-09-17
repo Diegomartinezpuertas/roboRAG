@@ -171,3 +171,20 @@ def test_the_clear_button_empties_the_thread_and_the_server_buffer(page, node):
     page.wait_for_selector('#threadEmpty', timeout=5000)
     assert page.locator('.t-goal').count() == 0
     assert node.events._events == []
+
+
+def test_the_trail_button_clears_the_robots_track_and_stops_drawing_it(page, node):
+    """Recording wants a clean floor plan; the yellow trail is switched off here."""
+    canvas = page.locator('#mapCanvas')
+    for x in (0.5, 1.0, 1.5, 2.0):          # the poll turns pose changes into trail points
+        node._pose = {'x': x, 'y': -1.0, 'yaw': 0.0}
+        page.wait_for_timeout(350)
+    assert int(canvas.get_attribute('data-trail')) > 1
+    page.click('#trailBtn')
+    assert page.get_attribute('#trailBtn', 'aria-pressed') == 'false'
+    assert canvas.get_attribute('data-trail') == '0'
+    node._pose = {'x': 3.0, 'y': -1.0, 'yaw': 0.0}
+    page.wait_for_timeout(600)
+    assert canvas.get_attribute('data-trail') == '0'      # and it stays off
+    page.click('#trailBtn')
+    assert page.get_attribute('#trailBtn', 'aria-pressed') == 'true'
